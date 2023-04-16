@@ -1,0 +1,6 @@
+{
+	"TELEGRAM_BOT_TOKEN": "os.environ['TELEGRAM_BOT_TOKEN']",
+	"YOUR_CHAT_ID": "-1001277664260",
+	"TOPIC_ID": "29459",
+	"FEED_URL": "https://feed.rutracker.cc/atom/f/1605.atom"
+}
