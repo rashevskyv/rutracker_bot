@@ -1,6 +1,21 @@
 {
 	"TELEGRAM_BOT_TOKEN": "os.environ['TELEGRAM_BOT_TOKEN']",
-	"YOUR_CHAT_ID": "-1001277664260",
-	"TOPIC_ID": "29459",
-	"FEED_URL": "https://feed.rutracker.cc/atom/f/1605.atom"
+	"FEED_URL": "https://feed.rutracker.cc/atom/f/1605.atom",
+	"GROUPS": [
+			{
+				"group_name": "Kefir_new_games",
+				"chat_id": "-1001277664260",
+				"topic_id": "29459"
+			},
+			{
+				"group_name": "Kefir_games_talk",
+				"chat_id": "-1001277664260",
+				"topic_id": "29313"
+			},
+			{
+				"group_name": "Kefir_ukr",
+				"chat_id": "-1001790782971",
+				"topic_id": "21481"
+			}
+	]
 }

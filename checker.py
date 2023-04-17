@@ -19,12 +19,10 @@ def load_config(file):
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
-settings = load_config(os.path.join(current_directory, 'settings.json'))
-# settings = load_config(os.path.join(current_directory, 'test_settings.json'))
+# settings = load_config(os.path.join(current_directory, 'settings.json'))
+settings = load_config(os.path.join(current_directory, 'test_settings.json'))
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
-CHAT_ID = settings['YOUR_CHAT_ID']
-TOPIC_ID = settings['TOPIC_ID']
 FEED_URL = settings['FEED_URL']
 LAST_ENTRY_FILE = os.path.join(current_directory, "last_entry.txt")
 
@@ -99,32 +97,36 @@ def parse_entry(entry):
 
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
     message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n{description}"
-    if image_url:
-        print("Downloading image...")
-        response = requests.get(image_url)
-        if response.status_code == 200:
-            image_data = response.content
-            file = BytesIO(image_data)
-            
-            # Check if caption length is greater or equal to 1024 characters
-            caption_text = message_text
-            if len(caption_text) >= 1024:
-                split_index = caption_text.find("<b>Описание</b>")
-                first_message_text = caption_text[:split_index].strip()
-                second_message_text = caption_text[split_index:].strip()
-                print("Sending photo with truncated caption...")
-                bot.send_photo(chat_id=CHAT_ID, message_thread_id=TOPIC_ID, photo=file, caption=first_message_text, parse_mode="HTML")
-                print("Sending message with remaining text...")
-                bot.send_message(chat_id=CHAT_ID, message_thread_id=TOPIC_ID, text=second_message_text, parse_mode="HTML")
+    for group in settings['GROUPS']:
+        chat_id = group['chat_id']
+        topic_id = group['topic_id']
+        group_name = group['group_name']
+        
+        if image_url:
+            print("Downloading image...")
+            response = requests.get(image_url)
+            if response.status_code == 200:
+                image_data = response.content
+                file = BytesIO(image_data)
+                
+                if len(message_text) >= 1024:
+                    split_index = message_text.find("<b>Описание</b>")
+                    first_message_text = message_text[:split_index].strip()
+                    second_message_text = message_text[split_index:].strip()
+                    print(f"Sending photo with truncated caption to {group_name}...")
+                    print(f"Current chat_id: {chat_id}, topic_id: {topic_id}")
+                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=first_message_text, parse_mode="HTML")
+                    print(f"Sending message with remaining text to {group_name}...")
+                    bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=second_message_text, parse_mode="HTML")
+                else:
+                    print(f"Sending message with photo to {group_name}...")
+                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_text, parse_mode="HTML")
             else:
-                print("Sending message with photo...")
-                bot.send_photo(chat_id=CHAT_ID, message_thread_id=TOPIC_ID, photo=file, caption=message_text, parse_mode="HTML")
+                print(f"Failed to download image from {image_url}, sending message without photo to {group_name}...")
+                bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
         else:
-            print(f"Failed to download image from {image_url}, sending message without photo...")
-            bot.send_message(chat_id=CHAT_ID, message_thread_id=TOPIC_ID, text=message_text, parse_mode="HTML")
-    else:
-        print("Image not found, sending message without photo...")
-        bot.send_message(chat_id=CHAT_ID, message_thread_id=TOPIC_ID, text=message_text, parse_mode="HTML")
+            print(f"Image not found, sending message without photo to {group_name}...")
+            bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
 
 def main():
     if os.path.isfile(LAST_ENTRY_FILE):
