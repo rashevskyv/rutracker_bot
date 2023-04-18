@@ -8,6 +8,7 @@ from io import BytesIO
 import os
 import json
 import sys
+import openai
 
 def load_config(file):
     try:
@@ -17,6 +18,13 @@ def load_config(file):
         print(f'Error loading config file {file}:', e)
         sys.exit(1)
 
+def translate_ru_to_ua(text):
+    prompt = f"Переведите следующий текст с русского на украинский:\n\n{text}\n\nПеревод:"
+
+    response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
+    
+    return response.choices[0].message.content
+
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
 # settings = load_config(os.path.join(current_directory, 'settings.json'))
@@ -25,6 +33,9 @@ settings = load_config(os.path.join(current_directory, 'test_settings.json'))
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
 FEED_URL = settings['FEED_URL']
 LAST_ENTRY_FILE = os.path.join(current_directory, "last_entry.txt")
+openai.api_key = os.environ['OPENAI_API'] if settings['OPENAI_API'] == "os.environ['OPENAI_API']" else settings['OPENAI_API']
+
+openai.Model.list()
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -47,9 +58,11 @@ def get_last_post_with_phrase(username, phrase, url):
     return None
 
 def parse_entry(entry):
-    print("Requesting page content...")
+    print(f"Requesting {entry.link} content...")
     response = requests.get(entry.link)
+    
     page_content = response.content
+    # print(page_content)
     soup = BeautifulSoup(page_content, "html.parser")
     post_body = soup.find("div", class_="post_body")
 
@@ -91,42 +104,83 @@ def parse_entry(entry):
             text_after_span = text_after_span.strip()
             description_parts.append(text_after_span)
 
+        # Check if there is any next sibling tag
+        next_sibling = tag.find_next_sibling()
+        if next_sibling:
+            next_sibling_content = next_sibling.get_text(strip=True)
+            if next_sibling.has_attr('style'):
+                description_parts.append(next_sibling_content)
+            else:
+                description_parts.append(next_sibling_content)
+
+
     description = " ".join(description_parts)
 
     return title_with_link, image_url, magnet_link, description, last_post
 
+def split_text_for_telegram(text, language):
+    if len(text) >= 1024:
+        if language == "RU":
+            print("Found <b>Описание</b>")
+            split_index = text.find("<b>Описание</b>")
+            print("split_index:", split_index)
+        elif language == "UA":
+            print("Found <b>Опис</b>")
+            split_index = text.find("<b>Опис</b>")
+            print("split_index:", split_index)
+    else: 
+        return [text]
+
+    first_message_text = text[:split_index].strip()
+    second_message_text = text[split_index:].strip()
+    
+    return [first_message_text, second_message_text]
+
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
     message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n{description}"
+
+    if image_url:
+        print("Downloading image...")
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            image_data = response.content
+            file = BytesIO(image_data)
+        else:
+            print(f"Failed to download image from {image_url}")
+            file = None
+    else:
+        print("Image not found")
+        file = None
+
     for group in settings['GROUPS']:
         chat_id = group['chat_id']
         topic_id = group['topic_id']
         group_name = group['group_name']
-        
-        if image_url:
-            print("Downloading image...")
-            response = requests.get(image_url)
-            if response.status_code == 200:
-                image_data = response.content
-                file = BytesIO(image_data)
-                
-                if len(message_text) >= 1024:
-                    split_index = message_text.find("<b>Описание</b>")
-                    first_message_text = message_text[:split_index].strip()
-                    second_message_text = message_text[split_index:].strip()
-                    print(f"Sending photo with truncated caption to {group_name}...")
-                    print(f"Current chat_id: {chat_id}, topic_id: {topic_id}")
-                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=first_message_text, parse_mode="HTML")
-                    print(f"Sending message with remaining text to {group_name}...")
-                    bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=second_message_text, parse_mode="HTML")
-                else:
-                    print(f"Sending message with photo to {group_name}...")
-                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_text, parse_mode="HTML")
+        group_lang = group['language']
+
+        print(f"Obtaining message to {group_name}... in {group_lang} language")
+
+        if group_lang == "UA":
+            message_text = translate_ru_to_ua(message_text)
+            print("Translated to UA")
+
+        if file:
+            file.seek(0)
+            message_parts = split_text_for_telegram(message_text, group_lang)
+
+            if len(message_parts) > 1:
+                print(f"Sending photo with truncated caption to {group_name}...")
+                print(f"Current chat_id: {chat_id}, topic_id: {topic_id}")
+                bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_parts[0], parse_mode="HTML")
+                print(f"Sending message with remaining text to {group_name}...")
+                bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_parts[1], parse_mode="HTML")
             else:
-                print(f"Failed to download image from {image_url}, sending message without photo to {group_name}...")
-                bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
+                print(f"Sending message with photo to {group_name}...")
+                bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_text, parse_mode="HTML")
         else:
-            print(f"Image not found, sending message without photo to {group_name}...")
+            print(f"Sending message without photo to {group_name}...")
             bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
+
 
 def main():
     if os.path.isfile(LAST_ENTRY_FILE):
@@ -154,8 +208,8 @@ def main():
         last_entry_link = feed.entries[0].link
         with open(LAST_ENTRY_FILE, 'w') as f:
             f.write(last_entry_link)
-        # print("Sleeping for 1 hour...")
-        # time.sleep(60 * 60)
+        print("Sleeping for 1 hour...")
+        time.sleep(60 * 60)
         break
 
 if __name__ == "__main__":

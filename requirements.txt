@@ -2,3 +2,6 @@ requests
 beautifulsoup4
 feedparser
 telebot
+openai
+selenium
+webdriver-manager

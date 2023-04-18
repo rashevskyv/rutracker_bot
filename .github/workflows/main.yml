@@ -29,6 +29,7 @@ jobs:
       run: python checker.py
       env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          OPENAI_API: ${{ secrets.OPENAI_API }}
 
     - name: Commit and push changes
       run: |
