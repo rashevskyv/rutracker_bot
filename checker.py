@@ -27,9 +27,9 @@ def translate_ru_to_ua(text):
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
-# settings = load_config(os.path.join(current_directory, 'settings.json'))
+settings = load_config(os.path.join(current_directory, 'settings.json'))
 # settings = load_config(os.path.join(current_directory, 'test_settings.json'))
-settings = load_config(os.path.join(current_directory, 'local_settings.json'))
+# settings = load_config(os.path.join(current_directory, 'local_settings.json'))
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
 FEED_URL = settings['FEED_URL']
@@ -66,20 +66,17 @@ def parse_entry(entry):
     soup = BeautifulSoup(page_content, "html.parser")
     post_body = soup.find("div", class_="post_body")
 
-    # print(post_body)
-
     print("Parsing title, image_url, magnet_link, and description...")
     title = entry.title.replace(" [Nintendo Switch] ", " ").strip()
     updated = ""
     last_post = ""
     
     if "[Обновлено]" in title:
-        title = entry.title.replace("[Обновлено] ", " ").strip()
-        updated = f" <b>[Обновлено] </b>"
+        title = title.replace("[Обновлено] ", " ").strip()
+        updated = f"<b>[Обновлено] </b>"
 
         username = "omg_gods"
         phrase = "Раздача обновлена,"
-
 
         if updated:
             link = entry.link
@@ -105,17 +102,15 @@ def parse_entry(entry):
                     break
 
         last_post = get_last_post_with_phrase(username, phrase, link)
+
     # Формирование заголовка с жирным текстом, если было найдено слово "[Обновлено]"
     title_with_link = f'{updated}<a href="{entry.link}">{title}</a>'
+    print("title_ith_link:", title_with_link)
 
-    # title_with_link = f'<a href="{entry.link}">{title}</a>'
-    # print(title_with_link)
     image_tag = post_body.find("var", class_="img-right")
     image_url = image_tag["title"] if image_tag else None
-    # print(image_url)
     full_magnet_link = soup.find("a", class_="magnet-link")["href"]
     magnet_link = full_magnet_link.split('&')[0]
-    # print(magnet_link)
 
     description_all_tags = post_body.find_all("span", class_="post-b")
     description_parts = []
@@ -123,15 +118,12 @@ def parse_entry(entry):
 
     for tag in description_all_tags:
         description_tags.append(tag)
-        # print("tag:", tag)
         if tag.get_text(strip=True) == "Описание":
             break
 
     for tag in description_tags:
-        # print("tag:", tag)
         description = tag.get_text(strip=True)
         description_parts.append(f"\n<b>{description}</b>")
-
         text_after_span = ""
 
         # Получаем следующий элемент после текущего тега
@@ -158,7 +150,6 @@ def parse_entry(entry):
             description_parts.append(text_after_span)
 
     description = " ".join(description_parts)
-    # print("description:", description)
 
     return title_with_link, image_url, magnet_link, description, last_post
 
