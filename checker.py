@@ -18,27 +18,25 @@ def load_config(file):
         print(f'Error loading config file {file}:', e)
         sys.exit(1)
 
+current_directory = os.path.dirname(os.path.abspath(__file__))
+
+# settings = load_config(os.path.join(current_directory, 'settings.json'))
+# settings = load_config(os.path.join(current_directory, 'test_settings.json'))
+settings = load_config(os.path.join(current_directory, 'local_settings.json'))
+
+TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
+FEED_URL = settings['FEED_URL']
+LAST_ENTRY_FILE = os.path.join(current_directory, "last_entry.txt")
+openai.api_key = os.environ['OPENAI_API'] if settings['OPENAI_API'] == "os.environ['OPENAI_API']" else settings['OPENAI_API']
+openai.Model.list()
+bot = telebot.TeleBot(TOKEN)
+
 def translate_ru_to_ua(text):
     prompt = f"Переведите следующий текст с русского на украинский:\n\n{text}\n\nПеревод:"
 
     response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
     
     return response.choices[0].message.content
-
-current_directory = os.path.dirname(os.path.abspath(__file__))
-
-settings = load_config(os.path.join(current_directory, 'settings.json'))
-# settings = load_config(os.path.join(current_directory, 'test_settings.json'))
-# settings = load_config(os.path.join(current_directory, 'local_settings.json'))
-
-TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
-FEED_URL = settings['FEED_URL']
-LAST_ENTRY_FILE = os.path.join(current_directory, "last_entry.txt")
-openai.api_key = os.environ['OPENAI_API'] if settings['OPENAI_API'] == "os.environ['OPENAI_API']" else settings['OPENAI_API']
-
-openai.Model.list()
-
-bot = telebot.TeleBot(TOKEN)
 
 def get_last_post_with_phrase(username, phrase, url):
     response = requests.get(url)
@@ -261,8 +259,8 @@ def main():
             last_entry_link = feed.entries[0].link
             with open(LAST_ENTRY_FILE, 'w') as f:
                 f.write(last_entry_link)
-            print("Sleeping for 1 hour...")
-            time.sleep(60 * 60)
+            # print("Sleeping for 1 hour...")
+            # time.sleep(60 * 60)
             break
 
 if __name__ == "__main__":
