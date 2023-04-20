@@ -28,7 +28,8 @@ def translate_ru_to_ua(text):
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
 # settings = load_config(os.path.join(current_directory, 'settings.json'))
-settings = load_config(os.path.join(current_directory, 'test_settings.json'))
+# settings = load_config(os.path.join(current_directory, 'test_settings.json'))
+settings = load_config(os.path.join(current_directory, 'local_settings.json'))
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
 FEED_URL = settings['FEED_URL']
@@ -62,15 +63,16 @@ def parse_entry(entry):
     response = requests.get(entry.link)
     
     page_content = response.content
-    # print(page_content)
     soup = BeautifulSoup(page_content, "html.parser")
     post_body = soup.find("div", class_="post_body")
 
+    # print(post_body)
+
     print("Parsing title, image_url, magnet_link, and description...")
     title = entry.title.replace(" [Nintendo Switch] ", " ").strip()
-    # Поиск слова "[Обновлено]" в заголовке
     updated = ""
     last_post = ""
+    
     if "[Обновлено]" in title:
         title = entry.title.replace("[Обновлено] ", " ").strip()
         updated = f" <b>[Обновлено] </b>"
@@ -78,8 +80,31 @@ def parse_entry(entry):
         username = "omg_gods"
         phrase = "Раздача обновлена,"
 
-        last_post = get_last_post_with_phrase(username, phrase, entry.link)
 
+        if updated:
+            link = entry.link
+            for i in range(0, 121, 30):
+                new_link = f"{entry.link}&start={i}"
+                print(f"Requesting {new_link} content...")
+                response = requests.get(new_link)
+
+                if response.status_code == 200:
+                    print(f"Got response from {new_link}")
+                    new_response = requests.get(new_link)
+                    new_page_content = new_response.content
+                    new_soup = BeautifulSoup(new_page_content, "html.parser")
+                    new_post_body = new_soup.find("div", class_="post_body")
+                    
+                    if new_post_body == None:
+                        break
+                    else:
+                        link = new_link
+                        print(f"Response from {link}")
+                else:
+                    print(f"No response from {new_link}")
+                    break
+
+        last_post = get_last_post_with_phrase(username, phrase, link)
     # Формирование заголовка с жирным текстом, если было найдено слово "[Обновлено]"
     title_with_link = f'{updated}<a href="{entry.link}">{title}</a>'
 
@@ -92,29 +117,48 @@ def parse_entry(entry):
     magnet_link = full_magnet_link.split('&')[0]
     # print(magnet_link)
 
-    description_tags = post_body.find_all("span", class_="post-b")
+    description_all_tags = post_body.find_all("span", class_="post-b")
     description_parts = []
+    description_tags = []
+
+    for tag in description_all_tags:
+        description_tags.append(tag)
+        # print("tag:", tag)
+        if tag.get_text(strip=True) == "Описание":
+            break
 
     for tag in description_tags:
+        # print("tag:", tag)
         description = tag.get_text(strip=True)
         description_parts.append(f"\n<b>{description}</b>")
 
-        text_after_span = tag.next_sibling
-        if text_after_span and text_after_span.name != 'br':
-            text_after_span = text_after_span.strip()
+        text_after_span = ""
+
+        # Получаем следующий элемент после текущего тега
+        sibling = tag.next_sibling
+        # print("sibling:", sibling)
+        while sibling is not None:
+            # Если элемент текстовый, добавляем его к переменной text_after_span
+            if isinstance(sibling, str):
+                text_after_span += sibling.strip()
+            # Если элемент является тегом, добавляем его текст к переменной text_after_span
+            elif sibling.name is not None:
+                # Если следующий тег не такой же, как текущий тег 'tag', останавливаем обработку
+                if sibling != tag:
+                    break
+                text_after_span += sibling.get_text(strip=True)
+
+            # Если текущий тег br, прерываем цикл
+            if sibling.name == 'br' or (sibling.name == 'span' and 'post-br' in sibling.get('class', [])):
+                break
+
+            sibling = sibling.next_sibling
+
+        if text_after_span:
             description_parts.append(text_after_span)
 
-        # Check if there is any next sibling tag
-        next_sibling = tag.find_next_sibling()
-        if next_sibling:
-            next_sibling_content = next_sibling.get_text(strip=True)
-            if next_sibling.has_attr('style'):
-                description_parts.append(next_sibling_content)
-            else:
-                description_parts.append(next_sibling_content)
-
-
     description = " ".join(description_parts)
+    # print("description:", description)
 
     return title_with_link, image_url, magnet_link, description, last_post
 
@@ -181,9 +225,11 @@ def send_to_telegram(title_with_link, image_url, magnet_link, description):
             print(f"Sending message without photo to {group_name}...")
             bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
 
-
 def main():
-    if os.path.isfile(LAST_ENTRY_FILE):
+    if settings["test"]:
+        last_entry_link = settings["test_last_entry_link"]
+        print("Test mode is enabled. Last entry link:", last_entry_link)
+    elif os.path.isfile(LAST_ENTRY_FILE):
         with open(LAST_ENTRY_FILE, 'r') as f:
             last_entry_link = f.read().strip()
     else:
@@ -193,24 +239,40 @@ def main():
         print("Parsing feed...")
         feed = feedparser.parse(FEED_URL)
 
-        for entry in feed.entries:
-            # print(entry.link)
-            # print(last_entry_link)
-            if entry.link == last_entry_link:
+        if settings["test"]:
+            specific_entry = None
+            for entry in feed.entries:
+                if entry.link == last_entry_link:
+                    specific_entry = entry
+                    break
+
+            if specific_entry is None:
+                print("Specific entry not found.")
                 break
+            else:
+                title_with_link, image_url, magnet_link, description, last_post = parse_entry(specific_entry)
+                if last_post:
+                    last_post = last_post[0].upper() + last_post[1:]
+                    description += f"\n\n{last_post}"
+                send_to_telegram(title_with_link, image_url, magnet_link, description)
+                break
+        else:
+            for entry in feed.entries:
+                if entry.link == last_entry_link:
+                    break
 
-            title_with_link, image_url, magnet_link, description, last_post = parse_entry(entry)
-            if last_post:
-                last_post = last_post[0].upper() + last_post[1:]
-                description += f"\n\n{last_post}"
-            send_to_telegram(title_with_link, image_url, magnet_link, description)
+                title_with_link, image_url, magnet_link, description, last_post = parse_entry(entry)
+                if last_post:
+                    last_post = last_post[0].upper() + last_post[1:]
+                    description += f"\n\n{last_post}"
+                send_to_telegram(title_with_link, image_url, magnet_link, description)
 
-        last_entry_link = feed.entries[0].link
-        with open(LAST_ENTRY_FILE, 'w') as f:
-            f.write(last_entry_link)
-        print("Sleeping for 1 hour...")
-        time.sleep(60 * 60)
-        break
+            last_entry_link = feed.entries[0].link
+            with open(LAST_ENTRY_FILE, 'w') as f:
+                f.write(last_entry_link)
+            print("Sleeping for 1 hour...")
+            time.sleep(60 * 60)
+            break
 
 if __name__ == "__main__":
     main()
