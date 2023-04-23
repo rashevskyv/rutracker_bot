@@ -20,8 +20,8 @@ def load_config(file):
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
-# settings = load_config(os.path.join(current_directory, 'settings.json'))
-# settings = load_config(os.path.join(current_directory, 'test_settings.json'))
+settings = load_config(os.path.join(current_directory, 'settings.json'))
+settings = load_config(os.path.join(current_directory, 'test_settings.json'))
 settings = load_config(os.path.join(current_directory, 'local_settings.json'))
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
@@ -30,13 +30,22 @@ LAST_ENTRY_FILE = os.path.join(current_directory, "last_entry.txt")
 openai.api_key = os.environ['OPENAI_API'] if settings['OPENAI_API'] == "os.environ['OPENAI_API']" else settings['OPENAI_API']
 openai.Model.list()
 bot = telebot.TeleBot(TOKEN)
+DEEPL_API_KEY = "your_deepl_api_key"
 
 def translate_ru_to_ua(text):
-    prompt = f"Переведите следующий текст с русского на украинский:\n\n{text}\n\nПеревод:"
+    prompt = f"Пожалуйста, переведи следующий текст с русского на украинский, оставляя английские слова и теги, начинающиеся с # без изменений (на английском)/ Ты перевел название жанра, начинающееся на #. Не переводи слова, начинающиеся с #:\n\n{text}\n\nПеревод:"
 
     response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
     
     return response.choices[0].message.content
+
+def translate_ru_to_ua_deepl(text):
+    url = f"https://api.deepl.com/v2/translate?auth_key={DEEPL_API_KEY}&text={text}&source_lang=RU&target_lang=UK"
+
+    response = requests.get(url)
+    translated_text = response.json()['translations'][0]['text']
+
+    return translated_text
 
 def get_last_post_with_phrase(username, phrase, url):
     response = requests.get(url)
@@ -52,7 +61,9 @@ def get_last_post_with_phrase(username, phrase, url):
             if phrase in post_body.text:
                 post_text = post_body.text
                 phrase_index = post_text.find(phrase)
-                return post_text[phrase_index + len(phrase):].strip()
+
+                last_post_text = f'<b>Обновлено: </b>{post_text[phrase_index + len(phrase):].strip()}'
+                return last_post_text
 
     return None
 
@@ -65,7 +76,7 @@ def parse_entry(entry):
     post_body = soup.find("div", class_="post_body")
 
     print("Parsing title, image_url, magnet_link, and description...")
-    title = entry.title.replace(" [Nintendo Switch] ", " ").strip()
+    title = entry.title.replace("[Nintendo Switch] ", " ").strip()
     updated = ""
     last_post = ""
     
@@ -130,13 +141,17 @@ def parse_entry(entry):
         while sibling is not None:
             # Если элемент текстовый, добавляем его к переменной text_after_span
             if isinstance(sibling, str):
-                text_after_span += sibling.strip()
+                text_after_span += sibling.strip() + ' '
             # Если элемент является тегом, добавляем его текст к переменной text_after_span
             elif sibling.name is not None:
-                # Если следующий тег не такой же, как текущий тег 'tag', останавливаем обработку
-                if sibling != tag:
+                # Если следующий тег является span, останавливаем обработку
+                if sibling.name == 'span' and 'post-br' in sibling.get('class', []):
                     break
-                text_after_span += sibling.get_text(strip=True)
+                # Если тег является ссылкой, добавляем его текст и атрибут href к переменной text_after_span
+                if sibling.name == 'a':
+                    text_after_span += f' {sibling.get_text(strip=True)} '
+                else:
+                    text_after_span += sibling.get_text(strip=True)
 
             # Если текущий тег br, прерываем цикл
             if sibling.name == 'br' or (sibling.name == 'span' and 'post-br' in sibling.get('class', [])):
@@ -149,7 +164,23 @@ def parse_entry(entry):
 
     description = " ".join(description_parts)
 
+    # Переводит жанры в теги
+    description = make_tag(description, "Жанр")
+    # description = make_tag(description, "Год выпуска")
+
     return title_with_link, image_url, magnet_link, description, last_post
+
+def make_tag(description, keyword):
+    tag_string = f"<b>{keyword}</b> :"
+    if tag_string in description:
+        tag_start = description.find(tag_string) + len(tag_string)
+        tag_end = description.find("\n", tag_start)
+        tags = description[tag_start:tag_end].strip().split(", ")
+        formatted_tags = [f" #{tag.replace(' ', '').replace('&', 'and').replace('-', '')}" for tag in tags]
+        formatted_tags_str = ",".join(formatted_tags)
+        description = description[:tag_start] + formatted_tags_str + description[tag_end:]
+    return description
+
 
 def split_text_for_telegram(text, language):
     if len(text) >= 1024:
@@ -196,6 +227,7 @@ def send_to_telegram(title_with_link, image_url, magnet_link, description):
         if group_lang == "UA":
             message_text = translate_ru_to_ua(message_text)
             print("Translated to UA")
+            
 
         if file:
             file.seek(0)
