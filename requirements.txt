@@ -5,3 +5,4 @@ telebot
 openai
 selenium
 webdriver-manager
+google-api-python-client

@@ -1,6 +1,6 @@
 import os
 import requests
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
 import feedparser
 import time
 import telebot
@@ -10,6 +10,7 @@ import json
 import sys
 import openai
 import re
+from googleapiclient.discovery import build
 
 def load_config(file):
     try:
@@ -31,10 +32,41 @@ LAST_ENTRY_FILE = os.path.join(current_directory, "last_entry.txt")
 openai.api_key = os.environ['OPENAI_API'] if settings['OPENAI_API'] == "os.environ['OPENAI_API']" else settings['OPENAI_API']
 openai.Model.list()
 bot = telebot.TeleBot(TOKEN)
-DEEPL_API_KEY = "your_deepl_api_key"
+YOUTUBE_API_KEY = os.environ['YOUTUBE_API_KEY'] if settings['YOUTUBE_API_KEY'] == "os.environ['YOUTUBE_API_KEY']" else settings['YOUTUBE_API_KEY']
+DEEPL_API_KEY = os.environ['DEEPL_API_KEY'] if settings['DEEPL_API_KEY'] == "os.environ['DEEPL_API_KEY']" else settings['DEEPL_API_KEY']
+
+def search_trailer_on_youtube(game_title):
+    # Remove text within square brackets
+    cleaned_game_title = re.sub(r'\[.*?\]', '', game_title).strip()
+
+    youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+    search_query = f"{cleaned_game_title} Trailer"
+    
+    print(f"Searching for trailer with query: {search_query}")  # Add debug line here
+
+    search_response = youtube.search().list(
+        q=search_query,
+        part="id,snippet",
+        type="video",
+        maxResults=1,
+        fields="items(id(videoId),snippet(publishedAt,channelId,channelTitle,title,description))"
+    ).execute()
+
+    items = search_response.get("items", [])
+
+    if not items:
+        print("No results found")  # Add debug line here
+        return None
+
+    video = items[0]
+    video_id = video["id"]["videoId"]
+
+    print(f"Found video with ID: {video_id}")  # Add debug line here
+
+    return f"https://www.youtube.com/watch?v={video_id}"
 
 def translate_ru_to_ua(text):
-    prompt = f"Пожалуйста, переведи следующий текст с русского на украинский, оставляя английские слова и теги, начинающиеся с # без изменений (на английском). Ты перевел название жанра, начинающееся на # и перевел английские слова. Не переводи слова, начинающиеся с # и не переводи слова на английском:\n\n{text}\n\nПеревод:"
+    prompt = f"Пожалуйста, переведи следующий текст с русского на украинский, оставляя английские слова и теги, начинающиеся с # без изменений (на английском). Ты перевел название жанра, начинающееся на #. Не переводи слова, начинающиеся с #:\n\n{text}\n\nПеревод:"
 
     response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
     
@@ -61,6 +93,10 @@ def get_last_post_with_phrase(phrase, url):
         # Заменяем все теги <br> на \n
         for br_tag in post_body.find_all("br"):
             br_tag.replace_with("\n")
+        
+        # Заменяем все теги <br> на \n
+        for hr_tag in post_body.find_all("hr"):
+            hr_tag.replace_with("\n")
 
         # Получаем текст post_body после замены <br> на \n
         post_body_text = post_body.text
@@ -119,6 +155,12 @@ def parse_entry(entry):
 
     # Формирование заголовка с жирным текстом, если было найдено слово "[Обновлено]"
     title_with_link = f'{updated}<a href="{entry.link}">{title}</a>'
+
+    # Внутри функции parse_entry после title_with_link
+    trailer_url = search_trailer_on_youtube(title)
+    if trailer_url:
+        title_with_link += f' | <a href="{trailer_url}">Трейлер</a>'
+    print(f"Trailer url: {trailer_url}")
 
     image_tag = post_body.find("var", class_="img-right")
     image_url = image_tag["title"] if image_tag else None
@@ -184,7 +226,6 @@ def parse_entry(entry):
             description_parts.append(text_after_span)
 
     description = " ".join(description_parts)
-    print(description)
 
     additional_info_string = "Доп. информацияписал(а):"
     additional_info_index = description.find(additional_info_string)
@@ -197,8 +238,6 @@ def parse_entry(entry):
 
     return title_with_link, image_url, magnet_link, description, last_post
 
-import re
-
 def make_tag(description, keyword):
     tag_string = f"<b>{keyword}</b> :"
     if tag_string in description:
@@ -206,16 +245,18 @@ def make_tag(description, keyword):
         tag_end = description.find("\n", tag_start)
         tags = description[tag_start:tag_end].strip().split(", ")
         formatted_tags = []
-        
+
         for tag in tags:
             if re.search('<a.*?>(.*?)</a>', tag):
                 link_text = re.search('<a.*?>(.*?)</a>', tag).group(1)
                 new_link_text = f"еще игры этого жанра"
-                tag = re.sub(r'(<a.*?>)(.*?)(</a>)', f"#{link_text} (\\1{new_link_text}\\3)", tag)
+                clean_tag = link_text.replace(' ', '').replace('&', 'and').replace('-', '')
+                formatted_tag = re.sub(r'(<a.*?>)(.*?)(</a>)', f"#{clean_tag} (\\1{new_link_text}\\3)", tag)
             else:
-                tag = f" #{tag.replace(' ', '').replace('&', 'and').replace('-', '')}"
-            formatted_tags.append(tag)
-        
+                clean_tag = tag.replace(' ', '').replace('&', 'and').replace('-', '')
+                formatted_tag = f" #{clean_tag}"
+            formatted_tags.append(formatted_tag)
+
         formatted_tags_str = ",".join(formatted_tags)
         description = description[:tag_start] + formatted_tags_str + description[tag_end:]
     return description
@@ -240,7 +281,6 @@ def split_text_for_telegram(text, language):
 
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
     message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n{description}"
-    print(message_text)
 
     if image_url:
         print("Downloading image...")
