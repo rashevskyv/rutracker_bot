@@ -1,6 +1,6 @@
 import os
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 import feedparser
 import time
 import telebot
@@ -9,6 +9,7 @@ import os
 import json
 import sys
 import openai
+import re
 
 def load_config(file):
     try:
@@ -33,7 +34,7 @@ bot = telebot.TeleBot(TOKEN)
 DEEPL_API_KEY = "your_deepl_api_key"
 
 def translate_ru_to_ua(text):
-    prompt = f"Пожалуйста, переведи следующий текст с русского на украинский, оставляя английские слова и теги, начинающиеся с # без изменений (на английском)/ Ты перевел название жанра, начинающееся на #. Не переводи слова, начинающиеся с #:\n\n{text}\n\nПеревод:"
+    prompt = f"Пожалуйста, переведи следующий текст с русского на украинский, оставляя английские слова и теги, начинающиеся с # без изменений (на английском). Ты перевел название жанра, начинающееся на # и перевел английские слова. Не переводи слова, начинающиеся с # и не переводи слова на английском:\n\n{text}\n\nПеревод:"
 
     response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
     
@@ -47,7 +48,7 @@ def translate_ru_to_ua_deepl(text):
 
     return translated_text
 
-def get_last_post_with_phrase(username, phrase, url):
+def get_last_post_with_phrase(phrase, url):
     response = requests.get(url)
     page_content = response.content
     soup = BeautifulSoup(page_content, "html.parser")
@@ -55,15 +56,19 @@ def get_last_post_with_phrase(username, phrase, url):
     user_posts = soup.find_all("tbody", class_=["row1", "row2"])
 
     for post in reversed(user_posts):
-        author = post.find("p", class_="nick nick-author")
-        if author and author.text == username:
-            post_body = post.find("div", class_="post_body")
-            if phrase in post_body.text:
-                post_text = post_body.text
-                phrase_index = post_text.find(phrase)
+        post_body = post.find("div", class_="post_body")
+        
+        # Заменяем все теги <br> на \n
+        for br_tag in post_body.find_all("br"):
+            br_tag.replace_with("\n")
 
-                last_post_text = f'<b>Обновлено: </b>{post_text[phrase_index + len(phrase):].strip()}'
-                return last_post_text
+        # Получаем текст post_body после замены <br> на \n
+        post_body_text = post_body.text
+        if phrase in post_body_text:
+            phrase_index = post_body_text.find(phrase)
+
+            last_post_text = f'<b>Обновлено: </b>{post_body_text[phrase_index + len(phrase)+1:].strip()}'
+            return last_post_text
 
     return None
 
@@ -84,12 +89,11 @@ def parse_entry(entry):
         title = title.replace("[Обновлено] ", " ").strip()
         updated = f"<b>[Обновлено] </b>"
 
-        username = "omg_gods"
-        phrase = "Раздача обновлена,"
+        phrase = "Раздача обновлена"
 
         if updated:
             link = entry.link
-            for i in range(0, 121, 30):
+            for i in range(0, 6001, 30):
                 new_link = f"{entry.link}&start={i}"
                 print(f"Requesting {new_link} content...")
                 response = requests.get(new_link)
@@ -110,11 +114,11 @@ def parse_entry(entry):
                     print(f"No response from {new_link}")
                     break
 
-        last_post = get_last_post_with_phrase(username, phrase, link)
+        last_post = get_last_post_with_phrase(phrase, link)
+        print(last_post)
 
     # Формирование заголовка с жирным текстом, если было найдено слово "[Обновлено]"
     title_with_link = f'{updated}<a href="{entry.link}">{title}</a>'
-    print("title_ith_link:", title_with_link)
 
     image_tag = post_body.find("var", class_="img-right")
     image_url = image_tag["title"] if image_tag else None
@@ -130,28 +134,45 @@ def parse_entry(entry):
         if tag.get_text(strip=True) == "Описание":
             break
 
+    break_main_loop = False  # добавьте переменную-флаг перед внешним циклом for
+
     for tag in description_tags:
+        if break_main_loop:  # проверьте переменную-флаг в начале каждой итерации внешнего цикла for
+            break
+
         description = tag.get_text(strip=True)
         description_parts.append(f"\n<b>{description}</b>")
         text_after_span = ""
 
         # Получаем следующий элемент после текущего тега
         sibling = tag.next_sibling
-        # print("sibling:", sibling)
+
         while sibling is not None:
             # Если элемент текстовый, добавляем его к переменной text_after_span
             if isinstance(sibling, str):
                 text_after_span += sibling.strip() + ' '
             # Если элемент является тегом, добавляем его текст к переменной text_after_span
             elif sibling.name is not None:
-                # Если следующий тег является span, останавливаем обработку
-                if sibling.name == 'span' and 'post-br' in sibling.get('class', []):
+                # Если следующий тег является div с классом sp-wrap, прерываем основной цикл
+                if sibling.name == 'div' and 'sp-wrap' in sibling.get('class', []):
+                    break_main_loop = True  # установите переменную-флаг в True
                     break
-                # Если тег является ссылкой, добавляем его текст и атрибут href к переменной text_after_span
+                
+                # Если следующий тег является span с классом post-br, проверяем следующий элемент
+                if sibling.name == 'span' and 'post-br' in sibling.get('class', []):
+                    next_sibling = sibling.next_sibling
+                    if next_sibling is not None and next_sibling.name == 'span' and 'post-i' in next_sibling.get('class', []):
+                        description += f" {next_sibling.get_text(strip=True)}"
+                    break
+                # Если тег является ссылкой, добавляем его текст к переменной text_after_span
                 if sibling.name == 'a':
-                    text_after_span += f' {sibling.get_text(strip=True)} '
+                    link = sibling.get('href', '')
+                    if link.startswith('viewtopic.php'):
+                        link = 'https://rutracker.org/forum/' + link
+                    text_after_span += f' <a href="{link}">{sibling.get_text(strip=True)}</a> '
                 else:
                     text_after_span += sibling.get_text(strip=True)
+
 
             # Если текущий тег br, прерываем цикл
             if sibling.name == 'br' or (sibling.name == 'span' and 'post-br' in sibling.get('class', [])):
@@ -163,6 +184,12 @@ def parse_entry(entry):
             description_parts.append(text_after_span)
 
     description = " ".join(description_parts)
+    print(description)
+
+    additional_info_string = "Доп. информацияписал(а):"
+    additional_info_index = description.find(additional_info_string)
+    if additional_info_index != -1:
+        description = description[:additional_info_index] + "\n\n" + "<b>Дополнительная информация:</b> " + description[additional_info_index + len(additional_info_string):]
 
     # Переводит жанры в теги
     description = make_tag(description, "Жанр")
@@ -170,20 +197,31 @@ def parse_entry(entry):
 
     return title_with_link, image_url, magnet_link, description, last_post
 
+import re
+
 def make_tag(description, keyword):
     tag_string = f"<b>{keyword}</b> :"
     if tag_string in description:
         tag_start = description.find(tag_string) + len(tag_string)
         tag_end = description.find("\n", tag_start)
         tags = description[tag_start:tag_end].strip().split(", ")
-        formatted_tags = [f" #{tag.replace(' ', '').replace('&', 'and').replace('-', '')}" for tag in tags]
+        formatted_tags = []
+        
+        for tag in tags:
+            if re.search('<a.*?>(.*?)</a>', tag):
+                link_text = re.search('<a.*?>(.*?)</a>', tag).group(1)
+                new_link_text = f"еще игры этого жанра"
+                tag = re.sub(r'(<a.*?>)(.*?)(</a>)', f"#{link_text} (\\1{new_link_text}\\3)", tag)
+            else:
+                tag = f" #{tag.replace(' ', '').replace('&', 'and').replace('-', '')}"
+            formatted_tags.append(tag)
+        
         formatted_tags_str = ",".join(formatted_tags)
         description = description[:tag_start] + formatted_tags_str + description[tag_end:]
     return description
 
-
 def split_text_for_telegram(text, language):
-    if len(text) >= 1024:
+    if len(text) >= 900:
         if language == "RU":
             print("Found <b>Описание</b>")
             split_index = text.find("<b>Описание</b>")
@@ -202,6 +240,7 @@ def split_text_for_telegram(text, language):
 
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
     message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n{description}"
+    print(message_text)
 
     if image_url:
         print("Downloading image...")
