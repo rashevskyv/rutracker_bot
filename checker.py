@@ -8,9 +8,10 @@ from io import BytesIO
 import os
 import json
 import sys
-import openai
 import re
+import openai
 from googleapiclient.discovery import build
+from translation_functions import translate_ru_to_ua
 
 def load_config(file):
     try:
@@ -24,7 +25,7 @@ current_directory = os.path.dirname(os.path.abspath(__file__))
 
 settings = load_config(os.path.join(current_directory, 'settings.json'))
 settings = load_config(os.path.join(current_directory, 'test_settings.json'))
-settings = load_config(os.path.join(current_directory, 'local_settings.json'))
+# settings = load_config(os.path.join(current_directory, 'local_settings.json'))
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
 FEED_URL = settings['FEED_URL']
@@ -34,13 +35,14 @@ openai.Model.list()
 bot = telebot.TeleBot(TOKEN)
 YOUTUBE_API_KEY = os.environ['YOUTUBE_API_KEY'] if settings['YOUTUBE_API_KEY'] == "os.environ['YOUTUBE_API_KEY']" else settings['YOUTUBE_API_KEY']
 DEEPL_API_KEY = os.environ['DEEPL_API_KEY'] if settings['DEEPL_API_KEY'] == "os.environ['DEEPL_API_KEY']" else settings['DEEPL_API_KEY']
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'credentials.json'
 
 def search_trailer_on_youtube(game_title):
     # Remove text within square brackets
     cleaned_game_title = re.sub(r'\[.*?\]', '', game_title).strip()
 
     youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-    search_query = f"{cleaned_game_title} Trailer"
+    search_query = f"{cleaned_game_title} Nintendo Switch Trailer"
     
     print(f"Searching for trailer with query: {search_query}")  # Add debug line here
 
@@ -65,21 +67,6 @@ def search_trailer_on_youtube(game_title):
 
     return f"https://www.youtube.com/watch?v={video_id}"
 
-def translate_ru_to_ua(text):
-    prompt = f"Пожалуйста, переведи следующий текст с русского на украинский, оставляя английские слова и теги, начинающиеся с # без изменений (на английском). Ты перевел название жанра, начинающееся на #. Не переводи слова, начинающиеся с #:\n\n{text}\n\nПеревод:"
-
-    response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
-    
-    return response.choices[0].message.content
-
-def translate_ru_to_ua_deepl(text):
-    url = f"https://api.deepl.com/v2/translate?auth_key={DEEPL_API_KEY}&text={text}&source_lang=RU&target_lang=UK"
-
-    response = requests.get(url)
-    translated_text = response.json()['translations'][0]['text']
-
-    return translated_text
-
 def get_last_post_with_phrase(phrase, url):
     response = requests.get(url)
     page_content = response.content
@@ -94,16 +81,34 @@ def get_last_post_with_phrase(phrase, url):
         for br_tag in post_body.find_all("br"):
             br_tag.replace_with("\n")
         
-        # Заменяем все теги <br> на \n
+        # Заменяем все теги <hr> на \n
+        # 6317248
         for hr_tag in post_body.find_all("hr"):
-            hr_tag.replace_with("\n")
+            hr_tag.replace_with(" BREAK ")
 
         # Получаем текст post_body после замены <br> на \n
         post_body_text = post_body.text
         if phrase in post_body_text:
             phrase_index = post_body_text.find(phrase)
+            break_index = post_body_text.find("BREAK")
+            post_body_text=post_body_text[:break_index]
 
-            last_post_text = f'<b>Обновлено: </b>{post_body_text[phrase_index + len(phrase)+1:].strip()}'
+            if "внесённые изменения" in post_body_text:
+                if "внесённые изменения" in post_body_text:
+                    word_index = post_body_text.find("внесённые изменения")
+
+                # Find the nearest link below the word
+                nearest_link = post_body.find_next("a", href=True, text=True)
+                if nearest_link:
+                    # Update the text with the link
+                    updated_text = post_body_text[:word_index] + f'<a href="{nearest_link["href"]}">' + post_body_text[word_index:(word_index + len("внесённые изменения"))] + '</a>'
+
+                    print("updated_text: " + updated_text)
+
+                    post_body_text = updated_text
+                    last_post_text = f'<b>Обновлено: </b>{updated_text[len(phrase)+4:]}'
+            else: 
+                last_post_text = f'<b>Обновлено: </b>{post_body_text[phrase_index + len(phrase)+1:].strip()}'
             return last_post_text
 
     return None
@@ -300,6 +305,7 @@ def split_text_for_telegram(text, language):
 
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
     message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n{description}"
+    # print("message_text:", message_text)
 
     if image_url:
         print("Downloading image...")
