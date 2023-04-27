@@ -108,6 +108,14 @@ def get_last_post_with_phrase(phrase, url):
 
     return None
 
+def process_list_items(tag):
+    if tag.name in ('ul', 'ol'):
+        list_items = tag.find_all('li')
+        formatted_items = [f"• {item.get_text(strip=True)}" for item in list_items]
+        return "\n".join(formatted_items)
+    else:
+        return ""
+
 def parse_entry(entry):
     print(f"Requesting {entry.link} content...")
     response = requests.get(entry.link)
@@ -196,7 +204,13 @@ def parse_entry(entry):
             # Если элемент является тегом, добавляем его текст к переменной text_after_span
             elif sibling.name is not None:
                 # Если следующий тег является div с классом sp-wrap, прерываем основной цикл
-                if sibling.name == 'div' and 'sp-wrap' in sibling.get('class', []):
+                if sibling.name == 'ol' or sibling.name == 'ul':
+                    list_items_text = process_list_items(sibling)
+                    if list_items_text:
+                        text_after_span += "\n\n" + list_items_text
+                    break_main_loop = True  # установите переменную-флаг в True
+                    break
+                elif sibling.name == 'div' and 'sp-wrap' in sibling.get('class', []):
                     break_main_loop = True  # установите переменную-флаг в True
                     break
                 
@@ -206,6 +220,7 @@ def parse_entry(entry):
                     if next_sibling is not None and next_sibling.name == 'span' and 'post-i' in next_sibling.get('class', []):
                         description += f" {next_sibling.get_text(strip=True)}"
                     break
+
                 # Если тег является ссылкой, добавляем его текст к переменной text_after_span
                 if sibling.name == 'a':
                     link = sibling.get('href', '')
@@ -215,6 +230,10 @@ def parse_entry(entry):
                 else:
                     text_after_span += sibling.get_text(strip=True)
 
+                # if sibling.name in ('ul', 'ol'):
+                #     list_items_text = process_list_items(sibling)
+                #     if list_items_text:
+                #         text_after_span += "\n" + list_items_text
 
             # Если текущий тег br, прерываем цикл
             if sibling.name == 'br' or (sibling.name == 'span' and 'post-br' in sibling.get('class', [])):
