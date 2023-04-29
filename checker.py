@@ -25,7 +25,7 @@ current_directory = os.path.dirname(os.path.abspath(__file__))
 
 settings = load_config(os.path.join(current_directory, 'settings.json'))
 settings = load_config(os.path.join(current_directory, 'test_settings.json'))
-# settings = load_config(os.path.join(current_directory, 'local_settings.json'))
+settings = load_config(os.path.join(current_directory, 'local_settings.json'))
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
 FEED_URL = settings['FEED_URL']
@@ -81,10 +81,13 @@ def get_last_post_with_phrase(phrase, url):
         for br_tag in post_body.find_all("br"):
             br_tag.replace_with("\n")
         
-        # Заменяем все теги <hr> на \n
         # 6317248
         for hr_tag in post_body.find_all("hr"):
             hr_tag.replace_with(" BREAK ")
+
+        #6345283
+        for span_tag in post_body.find_all("span", class_="post-br"):
+            span_tag.replace_with(" BREAK ")
 
         # Получаем текст post_body после замены <br> на \n
         post_body_text = post_body.text
@@ -121,6 +124,56 @@ def process_list_items(tag):
     else:
         return ""
 
+def extract_description(post_body):
+    # print("post_body: " + str(post_body))
+    spans = post_body.find_all("span", class_="post-b")
+
+    description = []
+    result = ""
+
+    for span in spans:
+        content_list = []
+        content = span.next_sibling
+
+        while content is not None:
+            if (content.name == "span" and content.get("class") == ["post-b"]):
+                break
+
+            if (content.name == "div" and content.get("class") == ["sp-wrap"]) or (content.name == "div" and content.get("class") == ["q-wrap"]):
+                content_list.append("BREAK")
+
+            content_list.append(str(content).strip())
+            content = content.next_sibling
+
+        content_text = "".join(content_list)
+        description.append(f"<b>{span.text}</b>{content_text}")
+
+    for i, entry in enumerate(description):
+        # Обработка списков
+
+        entry = entry.replace('<span class="post-br"><br/></span></li>', "")
+
+        def remove_spans_inside_pre(match):
+            return re.sub(r'<span[^>]*>|</span>', '', match.group(0))
+
+        entry = re.sub(r'(<pre class="post-pre">.*?</pre>)', remove_spans_inside_pre, entry, flags=re.DOTALL)
+
+        entry = re.sub(r"<ul>(.*?)</ul>", lambda match: f"{i}. {match.group(1)}", entry, flags=re.DOTALL)
+        entry = re.sub(r"<li>(.*?)", lambda match: f"• {match.group(1)}", entry, flags=re.DOTALL)
+
+        # # Обработка ссылок
+        # entry = re.sub(r'<a href="(.*?)">(.*?)</a>', lambda match: f'<a href="{match.group(1)}">{match.group(2)}</a> ', entry)
+        entry = re.sub(r'([a-zA-Zа-яА-ЯёЁ])<a', r'\1 <a', entry)
+
+        result += entry  + "\n"
+
+    break_index = result.find("BREAK")
+    print(f"break_index: {break_index}")
+
+    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("  ", " ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").strip()
+
+    return result
+
 def parse_entry(entry):
     print(f"Requesting {entry.link} content...")
     response = requests.get(entry.link)
@@ -137,8 +190,6 @@ def parse_entry(entry):
     if "[Обновлено]" in title:
         title = title.replace("[Обновлено] ", " ").strip()
         updated = f"<b>[Обновлено] </b>"
-
-        phrase = "Раздача обновлена"
 
         if updated:
             link = entry.link
@@ -163,93 +214,28 @@ def parse_entry(entry):
                     print(f"No response from {new_link}")
                     break
 
+        phrase = "Раздача обновлена"
         last_post = get_last_post_with_phrase(phrase, link)
         print(last_post)
 
     # Формирование заголовка с жирным текстом, если было найдено слово "[Обновлено]"
     title_with_link = f'{updated}<a href="{entry.link}">{title}</a>'
 
-    # Внутри функции parse_entry после title_with_link
-    trailer_url = search_trailer_on_youtube(title)
-    if trailer_url:
-        title_with_link += f' | <a href="{trailer_url}">Трейлер</a>'
-    print(f"Trailer url: {trailer_url}")
+    try:
+        trailer_url = search_trailer_on_youtube(title)
+        if trailer_url:
+            title_with_link += f' | <a href="{trailer_url}">Трейлер</a>'
+        print(f"Trailer url: {trailer_url}")
+    except Exception as e:
+        print(f"An error occurred while searching for the trailer: {e}")
 
     image_tag = post_body.find("var", class_="img-right")
     image_url = image_tag["title"] if image_tag else None
     full_magnet_link = soup.find("a", class_="magnet-link")["href"]
     magnet_link = full_magnet_link.split('&')[0]
 
-    description_all_tags = post_body.find_all("span", class_="post-b")
-    description_parts = []
-    description_tags = []
-
-    for tag in description_all_tags:
-        description_tags.append(tag)
-        if tag.get_text(strip=True) == "Описание":
-            break
-
-    break_main_loop = False  # добавьте переменную-флаг перед внешним циклом for
-
-    for tag in description_tags:
-        if break_main_loop:  # проверьте переменную-флаг в начале каждой итерации внешнего цикла for
-            break
-
-        description = tag.get_text(strip=True)
-        description_parts.append(f"\n<b>{description}</b>")
-        text_after_span = ""
-
-        # Получаем следующий элемент после текущего тега
-        sibling = tag.next_sibling
-
-        while sibling is not None:
-            # Если элемент текстовый, добавляем его к переменной text_after_span
-            if isinstance(sibling, str):
-                text_after_span += sibling.strip() + ' '
-            # Если элемент является тегом, добавляем его текст к переменной text_after_span
-            elif sibling.name is not None:
-                # Если следующий тег является div с классом sp-wrap, прерываем основной цикл
-                if sibling.name == 'ol' or sibling.name == 'ul':
-                    list_items_text = process_list_items(sibling)
-                    if list_items_text:
-                        text_after_span += "\n\n" + list_items_text
-                    break_main_loop = True  # установите переменную-флаг в True
-                    break
-                elif sibling.name == 'div' and 'sp-wrap' in sibling.get('class', []):
-                    break_main_loop = True  # установите переменную-флаг в True
-                    break
-                
-                # Если следующий тег является span с классом post-br, проверяем следующий элемент
-                if sibling.name == 'span' and 'post-br' in sibling.get('class', []):
-                    next_sibling = sibling.next_sibling
-                    if next_sibling is not None and next_sibling.name == 'span' and 'post-i' in next_sibling.get('class', []):
-                        description += f" {next_sibling.get_text(strip=True)}"
-                    break
-
-                # Если тег является ссылкой, добавляем его текст к переменной text_after_span
-                if sibling.name == 'a':
-                    link = sibling.get('href', '')
-                    if link.startswith('viewtopic.php'):
-                        link = 'https://rutracker.org/forum/' + link
-                    text_after_span += f' <a href="{link}">{sibling.get_text(strip=True)}</a> '
-                else:
-                    text_after_span += sibling.get_text(strip=True)
-
-                # if sibling.name in ('ul', 'ol'):
-                #     list_items_text = process_list_items(sibling)
-                #     if list_items_text:
-                #         text_after_span += "\n" + list_items_text
-
-            # Если текущий тег br, прерываем цикл
-            if sibling.name == 'br' or (sibling.name == 'span' and 'post-br' in sibling.get('class', [])):
-                break
-
-            sibling = sibling.next_sibling
-
-        if text_after_span:
-            description_parts.append(text_after_span)
-
-    description = " ".join(description_parts)
+    description = extract_description(post_body)
+    # print(f"Description: {description}")
 
     additional_info_string = "Доп. информацияписал(а):"
     additional_info_index = description.find(additional_info_string)
@@ -263,7 +249,8 @@ def parse_entry(entry):
     return title_with_link, image_url, magnet_link, description, last_post
 
 def make_tag(description, keyword):
-    tag_string = f"<b>{keyword}</b> :"
+    print("Making tag...")
+    tag_string = f"<b>{keyword}</b>: "
     if tag_string in description:
         tag_start = description.find(tag_string) + len(tag_string)
         tag_end = description.find("\n", tag_start)
@@ -275,7 +262,7 @@ def make_tag(description, keyword):
                 link_text = re.search('<a.*?>(.*?)</a>', tag).group(1)
                 new_link_text = f"еще игры этого жанра"
                 clean_tag = link_text.replace(' ', '').replace('&', 'and').replace('-', '')
-                formatted_tag = re.sub(r'(<a.*?>)(.*?)(</a>)', f"#{clean_tag} (\\1{new_link_text}\\3)", tag)
+                formatted_tag = re.sub(r'(<a.*?>)(.*?)(</a>)', f" #{clean_tag} (\\1{new_link_text}\\3)", tag)
             else:
                 clean_tag = tag.replace(' ', '').replace('&', 'and').replace('-', '')
                 formatted_tag = f" #{clean_tag}"
@@ -304,7 +291,7 @@ def split_text_for_telegram(text, language):
     return [first_message_text, second_message_text]
 
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
-    message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n{description}"
+    message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n\n{description}"
     # print("message_text:", message_text)
 
     if image_url:
@@ -367,9 +354,9 @@ def main():
         if settings["test"]:
             specific_entry = None
             for entry in feed.entries:
-                if entry.link == last_entry_link:
-                    specific_entry = entry
-                    break
+                entry.link = last_entry_link
+                specific_entry = entry
+                break
 
             if specific_entry is None:
                 print("Specific entry not found.")
@@ -391,6 +378,9 @@ def main():
                     last_post = last_post[0].upper() + last_post[1:]
                     description += f"\n\n{last_post}"
                 send_to_telegram(title_with_link, image_url, magnet_link, description)
+
+                print("Sleeping for 1 minute...")
+                time.sleep(60)
 
             last_entry_link = feed.entries[0].link
             with open(LAST_ENTRY_FILE, 'w') as f:
