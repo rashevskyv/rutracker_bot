@@ -21,7 +21,7 @@ def translate_ru_to_ua_google(text):
 
     translated_text = '\n'.join(translated_paragraphs).replace(' <a', '<a').replace('</a> ', '</a>')
     translated_text = re.sub(r'([a-zA-Zа-яА-ЯёЁ])<a', r'\1 <a', translated_text)
-    translated_text = translated_text.replace(" :", ":").replace(":<a", ": <a").replace("|", " | ").replace("</a>(", "</a> (").replace("</b><a", '</b> <a')
+    translated_text = translated_text.replace(" :", ":").replace(":<a", ": <a").replace("|", " | ").replace("</a>(", "</a> (").replace("</b><a", '</b> <a').replace("<a", " <a").replace("</a>", "</a> ").replace(' , ', ", ").replace("  ", " ").strip()
 
 
     return translated_text
