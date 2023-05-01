@@ -4,6 +4,7 @@
 	"FEED_URL": "https://feed.rutracker.cc/atom/f/1605.atom",
 	"DEEPL_API_KEY": "os.environ['DEEPL_API_KEY']",
 	"YOUTUBE_API_KEY": "os.environ['YOUTUBE_API_KEY']",
+	"LOG": "false",
 	"GROUPS": [
 			{
 				"group_name": "Kefir_new_games",

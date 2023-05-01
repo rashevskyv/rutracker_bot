@@ -19,9 +19,10 @@ def translate_ru_to_ua_google(text):
         result = translate_client.translate(paragraph, target_language='uk', source_language='ru')
         translated_paragraphs.append(result['translatedText'])
 
-    # Объединить результаты с использованием символов перевода строки
     translated_text = '\n'.join(translated_paragraphs).replace(' <a', '<a').replace('</a> ', '</a>')
     translated_text = re.sub(r'([a-zA-Zа-яА-ЯёЁ])<a', r'\1 <a', translated_text)
+    translated_text = translated_text.replace(" :", ":").replace(":<a", ": <a").replace("|", " | ").replace("</a>(", "</a> (").replace("</b><a", '</b> <a')
+
 
     return translated_text
 

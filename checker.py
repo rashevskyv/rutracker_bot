@@ -36,6 +36,7 @@ bot = telebot.TeleBot(TOKEN)
 YOUTUBE_API_KEY = os.environ['YOUTUBE_API_KEY'] if settings['YOUTUBE_API_KEY'] == "os.environ['YOUTUBE_API_KEY']" else settings['YOUTUBE_API_KEY']
 DEEPL_API_KEY = os.environ['DEEPL_API_KEY'] if settings['DEEPL_API_KEY'] == "os.environ['DEEPL_API_KEY']" else settings['DEEPL_API_KEY']
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'credentials.json'
+LOG = settings['LOG']
 
 def search_trailer_on_youtube(game_title):
     # Remove text within square brackets
@@ -44,7 +45,7 @@ def search_trailer_on_youtube(game_title):
     youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
     search_query = f"{cleaned_game_title} Nintendo Switch Trailer"
     
-    print(f"Searching for trailer with query: {search_query}")  # Add debug line here
+    print(f"Searching for trailer with query: {search_query}")
 
     search_response = youtube.search().list(
         q=search_query,
@@ -57,13 +58,13 @@ def search_trailer_on_youtube(game_title):
     items = search_response.get("items", [])
 
     if not items:
-        print("No results found")  # Add debug line here
+        print("No results found")
         return None
 
     video = items[0]
     video_id = video["id"]["videoId"]
 
-    print(f"Found video with ID: {video_id}")  # Add debug line here
+    (f"Found video with ID: {video_id}")
 
     return f"https://www.youtube.com/watch?v={video_id}"
 
@@ -106,7 +107,7 @@ def get_last_post_with_phrase(phrase, url):
                     # Update the text with the link
                     updated_text = post_body_text[:word_index] + f'<a href="{nearest_link["href"]}">' + post_body_text[word_index:(word_index + len("внесённые изменения"))] + '</a>'
 
-                    print("updated_text: " + updated_text)
+                    ("updated_text: " + updated_text)
 
                     post_body_text = updated_text
                     last_post_text = f'<b>Обновлено: </b>{updated_text[len(phrase)+4:]}'
@@ -125,7 +126,7 @@ def process_list_items(tag):
         return ""
 
 def extract_description(post_body):
-    # print("post_body: " + str(post_body))
+    if LOG: print("post_body: " + str(post_body))
     spans = post_body.find_all("span", class_="post-b")
 
     description = []
@@ -170,7 +171,7 @@ def extract_description(post_body):
     break_index = result.find("BREAK")
     print(f"break_index: {break_index}")
 
-    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("  ", " ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").strip()
+    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("  ", " ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>(", "</a> (").replace("https: //", "https://").strip()
 
     return result
 
@@ -216,7 +217,7 @@ def parse_entry(entry):
 
         phrase = "Раздача обновлена"
         last_post = get_last_post_with_phrase(phrase, link)
-        print(last_post)
+        if LOG: print(f"last_post: {last_post}")
 
     # Формирование заголовка с жирным текстом, если было найдено слово "[Обновлено]"
     title_with_link = f'{updated}<a href="{entry.link}">{title}</a>'
@@ -235,7 +236,7 @@ def parse_entry(entry):
     magnet_link = full_magnet_link.split('&')[0]
 
     description = extract_description(post_body)
-    # print(f"Description: {description}")
+    if LOG: print(f"Description:\n{description}")
 
     additional_info_string = "Доп. информацияписал(а):"
     additional_info_index = description.find(additional_info_string)
@@ -273,26 +274,32 @@ def make_tag(description, keyword):
     return description
 
 def split_text_for_telegram(text, language):
-    if len(text) >= 900:
+    if len(text) > 900:
+        print("Text is long enough: " + str(len(text)))
         if language == "RU":
-            print("Found <b>Описание</b>")
-            split_index = text.find("<b>Описание</b>")
+            split_index = text.find("<b>Описание")
+            print("Found <b>Описание")
             print("split_index:", split_index)
         elif language == "UA":
-            print("Found <b>Опис</b>")
-            split_index = text.find("<b>Опис</b>")
+            split_index = text.find("<b>Опис")
+            print("Found <b>Опис")
             print("split_index:", split_index)
     else: 
+        print("Text is too short")
         return [text]
 
     first_message_text = text[:split_index].strip()
     second_message_text = text[split_index:].strip()
+
+    if LOG: 
+        print("first_message_text:\n", first_message_text)
+        print("second_message_text:\n", second_message_text)
     
     return [first_message_text, second_message_text]
 
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
     message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n\n{description}"
-    # print("message_text:", message_text)
+    if LOG: print("message_text:\n", message_text)
 
     if image_url:
         print("Downloading image...")
@@ -327,15 +334,19 @@ def send_to_telegram(title_with_link, image_url, magnet_link, description):
             if len(message_parts) > 1:
                 print(f"Sending photo with truncated caption to {group_name}...")
                 print(f"Current chat_id: {chat_id}, topic_id: {topic_id}")
+                if LOG: print("message_parts[0]:\n", message_parts[0])
                 bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_parts[0], parse_mode="HTML")
                 print(f"Sending message with remaining text to {group_name}...")
                 bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_parts[1], parse_mode="HTML")
+                if LOG: print("message_parts[1]:\n", message_parts[1])
             else:
                 print(f"Sending message with photo to {group_name}...")
                 bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_text, parse_mode="HTML")
+                if LOG: print("message_text:\n", message_text)
         else:
             print(f"Sending message without photo to {group_name}...")
             bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
+            if LOG: print("message_text:\n", message_text)
 
 def main():
     if settings["test"]:
