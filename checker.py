@@ -25,7 +25,7 @@ current_directory = os.path.dirname(os.path.abspath(__file__))
 
 settings = load_config(os.path.join(current_directory, 'settings.json'))
 settings = load_config(os.path.join(current_directory, 'test_settings.json'))
-settings = load_config(os.path.join(current_directory, 'local_settings.json'))
+# settings = load_config(os.path.join(current_directory, 'local_settings.json'))
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
 FEED_URL = settings['FEED_URL']
@@ -89,6 +89,10 @@ def get_last_post_with_phrase(phrase, url):
         #6345283
         for span_tag in post_body.find_all("span", class_="post-br"):
             span_tag.replace_with(" BREAK ")
+
+        #6245869
+        for div_tag in post_body.find_all("div", class_="sp-wrap"):
+            div_tag.replace_with(" BREAK ")
 
         # Получаем текст post_body после замены <br> на \n
         post_body_text = post_body.text
@@ -230,8 +234,13 @@ def parse_entry(entry):
     except Exception as e:
         print(f"An error occurred while searching for the trailer: {e}")
 
-    image_tag = post_body.find("var", class_="img-right")
-    image_url = image_tag["title"] if image_tag else None
+    try:
+        image_tag = post_body.find("var", class_="img-right")
+        image_url = image_tag["title"] if image_tag else None
+    except Exception as e:
+        print(f"Ошибка при извлечении тега изображения или атрибута 'title': {e}")
+        image_url = None
+
     full_magnet_link = soup.find("a", class_="magnet-link")["href"]
     magnet_link = full_magnet_link.split('&')[0]
 
