@@ -3,40 +3,12 @@ import requests
 from bs4 import BeautifulSoup
 import feedparser
 import time
-import telebot
-from io import BytesIO
 import os
-import json
-import sys
 import re
-import openai
 from googleapiclient.discovery import build
-from translation_functions import translate_ru_to_ua
-
-def load_config(file):
-    try:
-        with open(file, 'r') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f'Error loading config file {file}:', e)
-        sys.exit(1)
-
-current_directory = os.path.dirname(os.path.abspath(__file__))
-
-settings = load_config(os.path.join(current_directory, 'settings.json'))
-settings = load_config(os.path.join(current_directory, 'test_settings.json'))
-# settings = load_config(os.path.join(current_directory, 'local_settings.json'))
-
-TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
-FEED_URL = settings['FEED_URL']
-LAST_ENTRY_FILE = os.path.join(current_directory, "last_entry.txt")
-openai.api_key = os.environ['OPENAI_API'] if settings['OPENAI_API'] == "os.environ['OPENAI_API']" else settings['OPENAI_API']
-openai.Model.list()
-bot = telebot.TeleBot(TOKEN)
-YOUTUBE_API_KEY = os.environ['YOUTUBE_API_KEY'] if settings['YOUTUBE_API_KEY'] == "os.environ['YOUTUBE_API_KEY']" else settings['YOUTUBE_API_KEY']
-DEEPL_API_KEY = os.environ['DEEPL_API_KEY'] if settings['DEEPL_API_KEY'] == "os.environ['DEEPL_API_KEY']" else settings['DEEPL_API_KEY']
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'credentials.json'
-LOG = settings['LOG']
+from telegram import send_to_telegram, send_error_to_telegram
+from settings import settings, LOG, YOUTUBE_API_KEY, LAST_ENTRY_FILE, FEED_URL
+import sys
 
 def search_trailer_on_youtube(game_title):
     # Remove text within square brackets
@@ -169,13 +141,16 @@ def extract_description(post_body):
         # # Обработка ссылок
         # entry = re.sub(r'<a href="(.*?)">(.*?)</a>', lambda match: f'<a href="{match.group(1)}">{match.group(2)}</a> ', entry)
         entry = re.sub(r'([a-zA-Zа-яА-ЯёЁ])<a', r'\1 <a', entry)
+        entry = re.sub(r"<span class=\"post-u\">(.*?)</span>", lambda match: f"<u>{match.group(1)}</u>", entry, flags=re.DOTALL)
+        entry = re.sub(r"<span class=\"post-i\">(.*?)</span>", lambda match: f"<i>{match.group(1)}</i>", entry, flags=re.DOTALL)
+        entry = re.sub(r"<span class=\"post-b\">(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
 
         result += entry  + "\n"
 
     break_index = result.find("BREAK")
     print(f"break_index: {break_index}")
 
-    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("  ", " ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>(", "</a> (").replace("https: //", "https://").strip()
+    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("  ", " ").replace("https: //", "https://").replace("<span class=\"post-i\">", "").strip()
 
     return result
 
@@ -282,132 +257,69 @@ def make_tag(description, keyword):
         description = description[:tag_start] + formatted_tags_str + description[tag_end:]
     return description
 
-def split_text_for_telegram(text, language):
-    if len(text) > 900:
-        print("Text is long enough: " + str(len(text)))
-        if language == "RU":
-            split_index = text.find("<b>Описание")
-            print("Found <b>Описание")
-            print("split_index:", split_index)
-        elif language == "UA":
-            split_index = text.find("<b>Опис")
-            print("Found <b>Опис")
-            print("split_index:", split_index)
-    else: 
-        print("Text is too short")
-        return [text]
-
-    first_message_text = text[:split_index].strip()
-    second_message_text = text[split_index:].strip()
-
-    if LOG: 
-        print("first_message_text:\n", first_message_text)
-        print("second_message_text:\n", second_message_text)
-    
-    return [first_message_text, second_message_text]
-
-def send_to_telegram(title_with_link, image_url, magnet_link, description):
-    message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n\n{description}"
-    if LOG: print("message_text:\n", message_text)
-
-    if image_url:
-        print("Downloading image...")
-        response = requests.get(image_url)
-        if response.status_code == 200:
-            image_data = response.content
-            file = BytesIO(image_data)
-        else:
-            print(f"Failed to download image from {image_url}")
-            file = None
-    else:
-        print("Image not found")
-        file = None
-
-    for group in settings['GROUPS']:
-        chat_id = group['chat_id']
-        topic_id = group['topic_id']
-        group_name = group['group_name']
-        group_lang = group['language']
-
-        print(f"Obtaining message to {group_name}... in {group_lang} language")
-
-        if group_lang == "UA":
-            message_text = translate_ru_to_ua(message_text)
-            print("Translated to UA")
-            
-
-        if file:
-            file.seek(0)
-            message_parts = split_text_for_telegram(message_text, group_lang)
-
-            if len(message_parts) > 1:
-                print(f"Sending photo with truncated caption to {group_name}...")
-                print(f"Current chat_id: {chat_id}, topic_id: {topic_id}")
-                if LOG: print("message_parts[0]:\n", message_parts[0])
-                bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_parts[0], parse_mode="HTML")
-                print(f"Sending message with remaining text to {group_name}...")
-                bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_parts[1], parse_mode="HTML")
-                if LOG: print("message_parts[1]:\n", message_parts[1])
-            else:
-                print(f"Sending message with photo to {group_name}...")
-                bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_text, parse_mode="HTML")
-                if LOG: print("message_text:\n", message_text)
-        else:
-            print(f"Sending message without photo to {group_name}...")
-            bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
-            if LOG: print("message_text:\n", message_text)
-
 def main():
-    if settings["test"]:
-        last_entry_link = settings["test_last_entry_link"]
-        print("Test mode is enabled. Last entry link:", last_entry_link)
-    elif os.path.isfile(LAST_ENTRY_FILE):
-        with open(LAST_ENTRY_FILE, 'r') as f:
-            last_entry_link = f.read().strip()
-    else:
-        last_entry_link = None
-
-    while True:
-        print("Parsing feed...")
-        feed = feedparser.parse(FEED_URL)
-
+    feeds=[]
+    try:
         if settings["test"]:
-            specific_entry = None
-            for entry in feed.entries:
-                entry.link = last_entry_link
-                specific_entry = entry
-                break
-
-            if specific_entry is None:
-                print("Specific entry not found.")
-                break
-            else:
-                title_with_link, image_url, magnet_link, description, last_post = parse_entry(specific_entry)
-                if last_post:
-                    last_post = last_post[0].upper() + last_post[1:]
-                    description += f"\n\n{last_post}"
-                send_to_telegram(title_with_link, image_url, magnet_link, description)
-                break
+            last_entry_link = settings["test_last_entry_link"]
+            print("Test mode is enabled. Last entry link:", last_entry_link)
+        elif os.path.isfile(LAST_ENTRY_FILE):
+            with open(LAST_ENTRY_FILE, 'r') as f:
+                last_entry_link = f.read().strip()
         else:
-            for entry in feed.entries:
-                if entry.link == last_entry_link:
+            last_entry_link = None
+
+        while True:
+            print("Parsing feed...")
+            feed = feedparser.parse(FEED_URL)
+
+            if settings["test"]:
+                specific_entry = None
+                for entry in feed.entries:
+                    entry.link = last_entry_link
+                    specific_entry = entry
                     break
 
-                title_with_link, image_url, magnet_link, description, last_post = parse_entry(entry)
-                if last_post:
-                    last_post = last_post[0].upper() + last_post[1:]
-                    description += f"\n\n{last_post}"
-                send_to_telegram(title_with_link, image_url, magnet_link, description)
+                if specific_entry is None:
+                    print("Specific entry not found.")
+                    break
+                else:
+                    title_with_link, image_url, magnet_link, description, last_post = parse_entry(specific_entry)
+                    if last_post:
+                        last_post = last_post[0].upper() + last_post[1:]
+                        description += f"\n\n{last_post}"
+                    send_to_telegram(title_with_link, image_url, magnet_link, description)
+                    break
+            else:
+                for entry in feed.entries:
+                    if entry.link != last_entry_link:
+                        feeds.append(entry)
+                    else: 
+                        feeds.append(entry)
+                        break
 
-                print("Sleeping for 1 minute...")
-                time.sleep(60)
+                for entry in reversed(feeds):
+                    title_with_link, image_url, magnet_link, description, last_post = parse_entry(entry)
+                    if last_post:
+                        last_post = last_post[0].upper() + last_post[1:]
+                        description += f"\n\n{last_post}"
+                    send_to_telegram(title_with_link, image_url, magnet_link, description)
 
-            last_entry_link = feed.entries[0].link
-            with open(LAST_ENTRY_FILE, 'w') as f:
-                f.write(last_entry_link)
-            # print("Sleeping for 1 hour...")
-            # time.sleep(60 * 60)
-            break
+                    with open(LAST_ENTRY_FILE, 'w') as f:
+                        f.write(entry.link)
+
+                    print("Sleeping for 1 minute...")
+                    time.sleep(60)
+
+                    # print("Sleeping for 1 hour...")
+                    # time.sleep(60 * 60)
+                break
+                
+    except Exception as e:
+        message = f"<b>An error occurred:</b> {e}\nlast_entry_link: {last_entry_link}"
+        print(message)
+        send_error_to_telegram(message)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
