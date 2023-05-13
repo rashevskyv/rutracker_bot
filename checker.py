@@ -7,7 +7,7 @@ import os
 import re
 from googleapiclient.discovery import build
 from telegram import send_to_telegram, send_error_to_telegram
-from settings import settings, LOG, YOUTUBE_API_KEY, LAST_ENTRY_FILE, FEED_URL
+from settings import settings, LOG, YOUTUBE_API_KEY, LAST_ENTRY_FILE, FEED_URL, test, test_settings
 import sys
 
 def search_trailer_on_youtube(game_title):
@@ -47,51 +47,53 @@ def get_last_post_with_phrase(phrase, url):
 
     user_posts = soup.find_all("tbody", class_=["row1", "row2"])
 
-    for post in reversed(user_posts):
-        post_body = post.find("div", class_="post_body")
-        
-        # Заменяем все теги <br> на \n
-        for br_tag in post_body.find_all("br"):
-            br_tag.replace_with("\n")
-        
-        # 6317248
-        for hr_tag in post_body.find_all("hr"):
-            hr_tag.replace_with(" BREAK ")
+    if phrase in str(user_posts):
 
-        #6345283
-        for span_tag in post_body.find_all("span", class_="post-br"):
-            span_tag.replace_with(" BREAK ")
+        for post in reversed(user_posts):
+            post_body = post.find("div", class_="post_body")
+            
+            # Заменяем все теги <br> на \n
+            for br_tag in post_body.find_all("br"):
+                br_tag.replace_with("\n")
+            
+            # 6317248
+            for hr_tag in post_body.find_all("hr"):
+                hr_tag.replace_with(" BREAK ")
 
-        #6245869
-        for div_tag in post_body.find_all("div", class_="sp-wrap"):
-            div_tag.replace_with(" BREAK ")
+            #6345283
+            for span_tag in post_body.find_all("span", class_="post-br"):
+                span_tag.replace_with(" BREAK ")
 
-        # Получаем текст post_body после замены <br> на \n
-        post_body_text = post_body.text
-        if phrase in post_body_text:
-            phrase_index = post_body_text.find(phrase)
-            break_index = post_body_text.find("BREAK")
-            post_body_text=post_body_text[:break_index]
+            #6245869
+            for div_tag in post_body.find_all("div", class_="sp-wrap"):
+                div_tag.replace_with(" BREAK ")
 
-            if "внесённые изменения" in post_body_text:
+            # Получаем текст post_body после замены <br> на \n
+            post_body_text = post_body.text
+            if phrase in post_body_text:
+                phrase_index = post_body_text.find(phrase)
+                break_index = post_body_text.find("BREAK")
+                post_body_text=post_body_text[:break_index]
+
                 if "внесённые изменения" in post_body_text:
-                    word_index = post_body_text.find("внесённые изменения")
+                    if "внесённые изменения" in post_body_text:
+                        word_index = post_body_text.find("внесённые изменения")
 
-                # Find the nearest link below the word
-                nearest_link = post_body.find_next("a", href=True, text=True)
-                if nearest_link:
-                    # Update the text with the link
-                    updated_text = post_body_text[:word_index] + f'<a href="{nearest_link["href"]}">' + post_body_text[word_index:(word_index + len("внесённые изменения"))] + '</a>'
+                    # Find the nearest link below the word
+                    nearest_link = post_body.find_next("a", href=True, text=True)
+                    if nearest_link:
+                        # Update the text with the link
+                        updated_text = post_body_text[:word_index] + f'<a href="{nearest_link["href"]}">' + post_body_text[word_index:(word_index + len("внесённые изменения"))] + '</a>'
 
-                    ("updated_text: " + updated_text)
+                        ("updated_text: " + updated_text)
 
-                    post_body_text = updated_text
-                    last_post_text = f'<b>Обновлено: </b>{updated_text[len(phrase)+4:]}'
-            else: 
-                last_post_text = f'<b>Обновлено: </b>{post_body_text[phrase_index + len(phrase)+1:].strip()}'
-            return last_post_text
-
-    return None
+                        post_body_text = updated_text
+                        last_post_text = f'<b>Обновлено: </b>{updated_text[len(phrase)+4:]}'
+                else: 
+                    last_post_text = f'<b>Обновлено: </b>{post_body_text[phrase_index + len(phrase)+1:].strip()}'
+                return last_post_text
+    else:
+        return None
 
 def process_list_items(tag):
     if tag.name in ('ul', 'ol'):
@@ -129,6 +131,7 @@ def extract_description(post_body):
         # Обработка списков
 
         entry = entry.replace('<span class="post-br"><br/></span></li>', "")
+        entry = entry.replace('<span class="post-br"><br/></span>', "\n\r\n")
 
         def remove_spans_inside_pre(match):
             return re.sub(r'<span[^>]*>|</span>', '', match.group(0))
@@ -144,13 +147,16 @@ def extract_description(post_body):
         entry = re.sub(r"<span class=\"post-u\">(.*?)</span>", lambda match: f"<u>{match.group(1)}</u>", entry, flags=re.DOTALL)
         entry = re.sub(r"<span class=\"post-i\">(.*?)</span>", lambda match: f"<i>{match.group(1)}</i>", entry, flags=re.DOTALL)
         entry = re.sub(r"<span class=\"post-b\">(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
+        entry = re.sub(r"<span[^>]*>(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
 
         result += entry  + "\n"
 
     break_index = result.find("BREAK")
     print(f"break_index: {break_index}")
 
-    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("  ", " ").replace("https: //", "https://").replace("<span class=\"post-i\">", "").strip()
+    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ")
+
+    result = result.replace("  ", " ").strip()
 
     return result
 
@@ -170,6 +176,7 @@ def parse_entry(entry):
     if "[Обновлено]" in title:
         title = title.replace("[Обновлено] ", " ").strip()
         updated = f"<b>[Обновлено] </b>"
+        phrase = "Раздача обновлена"
 
         if updated:
             link = entry.link
@@ -190,13 +197,14 @@ def parse_entry(entry):
                     else:
                         link = new_link
                         print(f"Response from {link}")
+                        last_post_temp = get_last_post_with_phrase(phrase, link)
+                        if last_post_temp:
+                            last_post = last_post_temp
+                            if LOG: print(f"last_post: {last_post}")
                 else:
                     print(f"No response from {new_link}")
                     break
 
-        phrase = "Раздача обновлена"
-        last_post = get_last_post_with_phrase(phrase, link)
-        if LOG: print(f"last_post: {last_post}")
 
     # Формирование заголовка с жирным текстом, если было найдено слово "[Обновлено]"
     title_with_link = f'{updated}<a href="{entry.link}">{title}</a>'
@@ -258,9 +266,11 @@ def make_tag(description, keyword):
     return description
 
 def main():
+    print("Starting...")
+    print("LOG: " + str(LOG))
     feeds=[]
     try:
-        if settings["test"]:
+        if test:
             last_entry_link = settings["test_last_entry_link"]
             print("Test mode is enabled. Last entry link:", last_entry_link)
         elif os.path.isfile(LAST_ENTRY_FILE):
@@ -273,7 +283,7 @@ def main():
             print("Parsing feed...")
             feed = feedparser.parse(FEED_URL)
 
-            if settings["test"]:
+            if test:
                 specific_entry = None
                 for entry in feed.entries:
                     entry.link = last_entry_link
@@ -294,11 +304,13 @@ def main():
                 for entry in feed.entries:
                     if entry.link != last_entry_link:
                         feeds.append(entry)
+                        print(f"Added {entry.link}")
                     else: 
-                        feeds.append(entry)
+                        print("No new feeds found")
                         break
 
                 for entry in reversed(feeds):
+
                     title_with_link, image_url, magnet_link, description, last_post = parse_entry(entry)
                     if last_post:
                         last_post = last_post[0].upper() + last_post[1:]
@@ -308,15 +320,16 @@ def main():
                     with open(LAST_ENTRY_FILE, 'w') as f:
                         f.write(entry.link)
 
-                    print("Sleeping for 1 minute...")
-                    time.sleep(60)
+                    if not test_settings: 
+                        print("Sleeping for 1 minute...")
+                        time.sleep(60)
 
                     # print("Sleeping for 1 hour...")
                     # time.sleep(60 * 60)
                 break
                 
     except Exception as e:
-        message = f"<b>An error occurred:</b> {e}\nlast_entry_link: {last_entry_link}"
+        message = f"<b>An error occurred:</b> {e}\nlast_entry_link: {title_with_link}"
         print(message)
         send_error_to_telegram(message)
         sys.exit(1)

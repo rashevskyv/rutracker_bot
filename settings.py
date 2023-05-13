@@ -14,9 +14,14 @@ def load_config(file):
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
+test_settings = False
+
 settings = load_config(os.path.join(current_directory, 'settings.json'))
 settings = load_config(os.path.join(current_directory, 'test_settings.json'))
-settings = load_config(os.path.join(current_directory, 'local_settings.json'))
+# settings = load_config(os.path.join(current_directory, 'local_settings.json'))
+
+if settings == load_config(os.path.join(current_directory, 'test_settings.json')):
+    test_settings = True
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] if settings['TELEGRAM_BOT_TOKEN'] == "os.environ['TELEGRAM_BOT_TOKEN']" else settings['TELEGRAM_BOT_TOKEN']
 FEED_URL = settings['FEED_URL']
@@ -28,3 +33,4 @@ YOUTUBE_API_KEY = os.environ['YOUTUBE_API_KEY'] if settings['YOUTUBE_API_KEY'] =
 DEEPL_API_KEY = os.environ['DEEPL_API_KEY'] if settings['DEEPL_API_KEY'] == "os.environ['DEEPL_API_KEY']" else settings['DEEPL_API_KEY']
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'credentials.json'
 LOG = settings['LOG']
+test = settings['test']
