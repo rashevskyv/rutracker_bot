@@ -9,6 +9,7 @@ from googleapiclient.discovery import build
 from telegram import send_to_telegram, send_error_to_telegram
 from settings import settings, LOG, YOUTUBE_API_KEY, LAST_ENTRY_FILE, FEED_URL, test, test_settings
 import sys
+import traceback
 
 def search_trailer_on_youtube(game_title):
     # Remove text within square brackets
@@ -29,6 +30,19 @@ def search_trailer_on_youtube(game_title):
 
     items = search_response.get("items", [])
 
+    # If no results found and search query contains "/", try searching with text before "/"
+    if not items and '/' in search_query:
+        search_query = search_query.split('/', 1)[0].strip()
+        print(f"Retry searching for trailer with query: {search_query}")
+        search_response = youtube.search().list(
+            q=search_query,
+            part="id,snippet",
+            type="video",
+            maxResults=1,
+            fields="items(id(videoId),snippet(publishedAt,channelId,channelTitle,title,description))"
+        ).execute()
+        items = search_response.get("items", [])
+
     if not items:
         print("No results found")
         return None
@@ -36,7 +50,7 @@ def search_trailer_on_youtube(game_title):
     video = items[0]
     video_id = video["id"]["videoId"]
 
-    (f"Found video with ID: {video_id}")
+    print(f"Found video with ID: {video_id}")
 
     return f"https://www.youtube.com/watch?v={video_id}"
 
@@ -51,6 +65,8 @@ def get_last_post_with_phrase(phrase, url):
 
         for post in reversed(user_posts):
             post_body = post.find("div", class_="post_body")
+            post_url = "https://rutracker.org/forum/" + post.find("a", class_="p-link small")["href"]
+            # print(f"post_url: {post_url}")
             
             # Заменяем все теги <br> на \n
             for br_tag in post_body.find_all("br"):
@@ -68,7 +84,6 @@ def get_last_post_with_phrase(phrase, url):
             for div_tag in post_body.find_all("div", class_="sp-wrap"):
                 div_tag.replace_with(" BREAK ")
 
-            # Получаем текст post_body после замены <br> на \n
             post_body_text = post_body.text
             if phrase in post_body_text:
                 phrase_index = post_body_text.find(phrase)
@@ -76,14 +91,16 @@ def get_last_post_with_phrase(phrase, url):
                 post_body_text=post_body_text[:break_index]
 
                 if "внесённые изменения" in post_body_text:
+                    print("post_body:\n" + str(post_body))
                     if "внесённые изменения" in post_body_text:
                         word_index = post_body_text.find("внесённые изменения")
 
                     # Find the nearest link below the word
-                    nearest_link = post_body.find_next("a", href=True, text=True)
-                    if nearest_link:
+                    last_post_text = None
+
+                    if post_url:
                         # Update the text with the link
-                        updated_text = post_body_text[:word_index] + f'<a href="{nearest_link["href"]}">' + post_body_text[word_index:(word_index + len("внесённые изменения"))] + '</a>'
+                        updated_text = post_body_text[:word_index] + f'<a href="{post_url}">' + post_body_text[word_index:(word_index + len("внесённые изменения"))] + '</a>'
 
                         ("updated_text: " + updated_text)
 
@@ -154,7 +171,7 @@ def extract_description(post_body):
     break_index = result.find("BREAK")
     print(f"break_index: {break_index}")
 
-    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ")
+    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("<i>", " <i>").replace("</i>", "</i> ").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ").replace("Pointandamp;Click", "PointandClick").replace("</u></b>", "</b></u>")
 
     result = result.replace("  ", " ").strip()
 
@@ -257,7 +274,7 @@ def make_tag(description, keyword):
                 clean_tag = link_text.replace(' ', '').replace('&', 'and').replace('-', '')
                 formatted_tag = re.sub(r'(<a.*?>)(.*?)(</a>)', f" #{clean_tag} (\\1{new_link_text}\\3)", tag)
             else:
-                clean_tag = tag.replace(' ', '').replace('&', 'and').replace('-', '')
+                clean_tag = tag.replace(' ', '').replace('&', 'and').replace('amp;', 'and').replace('-', '').replace('\'', '')
                 formatted_tag = f" #{clean_tag}"
             formatted_tags.append(formatted_tag)
 
@@ -285,10 +302,11 @@ def main():
 
             if test:
                 specific_entry = None
+
                 for entry in feed.entries:
-                    entry.link = last_entry_link
-                    specific_entry = entry
-                    break
+                    if entry['link'] == last_entry_link:
+                        specific_entry = entry
+                        break
 
                 if specific_entry is None:
                     print("Specific entry not found.")
@@ -329,10 +347,13 @@ def main():
                 break
                 
     except Exception as e:
-        message = f"<b>An error occurred:</b> {e}\nlast_entry_link: {title_with_link}"
-        print(message)
-        send_error_to_telegram(message)
-        sys.exit(1)
+        error_type = type(e).__name__
+        error_message = str(e)
+        stack_trace = traceback.format_exc()
+
+        error_details = f"Error type: {error_type}\nError message: {error_message}\nStack Trace: {stack_trace}"
+        print(error_details)
+        send_error_to_telegram(error_details)
 
 if __name__ == "__main__":
     main()

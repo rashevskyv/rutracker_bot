@@ -2,6 +2,51 @@ from io import BytesIO
 import requests
 from translation_functions import translate_ru_to_ua
 from settings import settings, LOG, bot
+import re
+from html.parser import HTMLParser
+
+class MyHTMLParser(HTMLParser):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tags = []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append(tag)
+
+    def handle_endtag(self, tag):
+        if self.tags and self.tags[-1] == tag:
+            self.tags.pop()
+
+
+def check_html_tags(text):
+    parser = MyHTMLParser()
+    parser.feed(text)
+    return parser.tags
+
+def split_text_by_length(text, length):
+    lines = text.split('\n')
+    split_texts = []
+    current_text = ''
+
+    for line in lines:
+        if len(current_text) + len(line) + 1 > length:  # plus 1 for the newline character
+            # Check for unclosed tags
+            unclosed_tags = check_html_tags(current_text)
+            if unclosed_tags:
+                print(f'Warning: found unclosed HTML tags in text: {unclosed_tags}')
+            split_texts.append(current_text)
+            current_text = line
+        else:
+            current_text = current_text + '\n' + line if current_text else line
+
+    if current_text:  # add the last chunk of text
+        # Check for unclosed tags
+        unclosed_tags = check_html_tags(current_text)
+        if unclosed_tags:
+            print(f'Warning: found unclosed HTML tags in text: {unclosed_tags}')
+        split_texts.append(current_text)
+
+    return split_texts
 
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
     message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n\n{description}"
@@ -45,8 +90,13 @@ def send_to_telegram(title_with_link, image_url, magnet_link, description):
                 bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_parts[0], parse_mode="HTML")
                 print(f"Sending message with remaining text to {group_name}...")
 
-                if LOG: print("message_parts[1]:\n", message_parts[1])
-                bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_parts[1], parse_mode="HTML")
+                if len(message_parts[1]) > 4000:
+                    split_parts = split_text_by_length(message_parts[1], 4000)
+                    for i, part in enumerate(split_parts):
+                        if LOG: print(f"message_parts[{i}]:\n", part)
+                        bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML")
+                else:
+                    bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_parts[1], parse_mode="HTML")
             else:
                 print(f"Sending message with photo to {group_name}...")
                 if LOG: print("message_text:\n", message_text)

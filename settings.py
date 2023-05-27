@@ -16,9 +16,9 @@ current_directory = os.path.dirname(os.path.abspath(__file__))
 
 test_settings = False
 
-settings = load_config(os.path.join(current_directory, 'settings.json'))
+# settings = load_config(os.path.join(current_directory, 'settings.json'))
 settings = load_config(os.path.join(current_directory, 'test_settings.json'))
-# settings = load_config(os.path.join(current_directory, 'local_settings.json'))
+settings = load_config(os.path.join(current_directory, 'local_settings.json'))
 
 if settings == load_config(os.path.join(current_directory, 'test_settings.json')):
     test_settings = True
