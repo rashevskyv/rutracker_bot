@@ -130,8 +130,8 @@ def split_text_for_telegram(text, language):
     
     return [first_message_text, second_message_text]
 
-def send_error_to_telegram(error_message):
-    message_text = f"{error_message}"
+def send_message_to_telegram(message):
+    message_text = f"{message}"
     
     error_tg_list = settings['ERROR_TG']
 
@@ -150,3 +150,6 @@ def send_error_to_telegram(error_message):
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             print(f"Failed to send error message to Telegram group: {e}")
+
+def send_error_to_telegram(error_message):
+    send_message_to_telegram(error_message)

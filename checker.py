@@ -6,11 +6,9 @@ import time
 import os
 import re
 from googleapiclient.discovery import build
-from telegram import send_to_telegram, send_error_to_telegram
+from telegram import send_to_telegram, send_error_to_telegram, send_message_to_telegram
 from settings import settings, LOG, YOUTUBE_API_KEY, LAST_ENTRY_FILE, FEED_URL, test, test_settings
-import sys
 import traceback
-from selenium import webdriver
 
 def search_trailer_on_youtube(game_title):
     # Remove text within square brackets
@@ -179,16 +177,18 @@ def extract_description(post_body):
     return result
 
 def parse_entry(entry):
-    
-    print(f"Requesting {entry.link} content...")
-    response = requests.get(entry.link)
+    link = entry.link
+    title = entry.title
+
+    print(f"\n\n{title}\nRequesting {link} content...")
+    response = requests.get(link)
        
     page_content = response.content
     soup = BeautifulSoup(page_content, "html.parser")
     post_body = soup.find("div", class_="post_body")
 
     print("Parsing title, image_url, magnet_link, and description...")
-    title = entry.title.replace("[Nintendo Switch] ", " ").strip()
+    title = title.replace("[Nintendo Switch] ", " ").strip()
     updated = ""
     last_post = ""
     
@@ -198,9 +198,9 @@ def parse_entry(entry):
         phrase = "Раздача обновлена"
 
         if updated:
-            link = entry.link
+            link = link
             for i in range(0, 6001, 30):
-                new_link = f"{entry.link}&start={i}"
+                new_link = f"{link}&start={i}"
                 print(f"Requesting {new_link} content...")
                 response = requests.get(new_link)
 
@@ -226,7 +226,7 @@ def parse_entry(entry):
 
 
     # Формирование заголовка с жирным текстом, если было найдено слово "[Обновлено]"
-    title_with_link = f'{updated}<a href="{entry.link}">{title}</a>'
+    title_with_link = f'{updated}<a href="{link}">{title}</a>'
 
     try:
         trailer_url = search_trailer_on_youtube(title)
@@ -326,7 +326,9 @@ def main():
                         feeds.append(entry)
                         print(f"Added {entry.link}")
                     else: 
-                        print("No new feeds found")
+                        message = "No new feeds found"
+                        print(message)
+                        send_message_to_telegram(message)
                         break
 
                 for entry in reversed(feeds):
