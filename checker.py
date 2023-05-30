@@ -10,6 +10,7 @@ from telegram import send_to_telegram, send_error_to_telegram
 from settings import settings, LOG, YOUTUBE_API_KEY, LAST_ENTRY_FILE, FEED_URL, test, test_settings
 import sys
 import traceback
+from selenium import webdriver
 
 def search_trailer_on_youtube(game_title):
     # Remove text within square brackets
@@ -171,16 +172,17 @@ def extract_description(post_body):
     break_index = result.find("BREAK")
     print(f"break_index: {break_index}")
 
-    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("<i>", " <i>").replace("</i>", "</i> ").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ").replace("Pointandamp;Click", "PointandClick").replace("</u></b>", "</b></u>")
+    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("<i>", " <i>").replace("</i>", "</i> ").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ").replace("</u></b>", "</b></u>")
 
     result = result.replace("  ", " ").strip()
 
     return result
 
 def parse_entry(entry):
+    
     print(f"Requesting {entry.link} content...")
     response = requests.get(entry.link)
-    
+       
     page_content = response.content
     soup = BeautifulSoup(page_content, "html.parser")
     post_body = soup.find("div", class_="post_body")
@@ -271,10 +273,10 @@ def make_tag(description, keyword):
             if re.search('<a.*?>(.*?)</a>', tag):
                 link_text = re.search('<a.*?>(.*?)</a>', tag).group(1)
                 new_link_text = f"еще игры этого жанра"
-                clean_tag = link_text.replace(' ', '').replace('&', 'and').replace('-', '')
+                clean_tag = link_text.replace(' ', '').replace('&', 'And').replace('-', '').replace('amp;', '').replace("BAndW", "BlackAndWhite")
                 formatted_tag = re.sub(r'(<a.*?>)(.*?)(</a>)', f" #{clean_tag} (\\1{new_link_text}\\3)", tag)
             else:
-                clean_tag = tag.replace(' ', '').replace('&', 'and').replace('amp;', 'and').replace('-', '').replace('\'', '')
+                clean_tag = tag.replace(' ', '').replace('&', 'And').replace('-', '').replace('\'', '')
                 formatted_tag = f" #{clean_tag}"
             formatted_tags.append(formatted_tag)
 

@@ -1,0 +1,58 @@
+1685279453510	geckodriver	INFO	Listening on 127.0.0.1:51424
+1685279456540	mozrunner::runner	INFO	Running command: "C:\\Program Files\\Mozilla Firefox\\firefox.exe" "--marionette" "--remote-debugging-port" "51425" "--remote-allow-hosts" "localhost" "-no-remote" "-profile" "H:\\temp\\local\\rust_mozprofileUyCtKy"
+console.warn: services.settings: Ignoring preference override of remote settings server
+console.warn: services.settings: Allow by setting MOZ_REMOTE_SETTINGS_DEVTOOLS=1 in the environment
+1685279457037	Marionette	INFO	Marionette enabled
+Dynamically enable window occlusion 0
+1685279457215	Marionette	INFO	Listening on port 51467
+WebDriver BiDi listening on ws://127.0.0.1:51425
+Read port: 51467
+[ERROR glean_core] Error setting metrics feature config: Json(Error("EOF while parsing a value", line: 1, column: 0))
+DevTools listening on ws://127.0.0.1:51425/devtools/browser/6a211540-0c31-4602-876b-f6088396afcc
+Read port: 51467
+Read port: 51467
+Read port: 51467
+Read port: 51467
+Read port: 51467
+Read port: 51467
+Read port: 51467
+1685347697856	geckodriver	INFO	Listening on 127.0.0.1:55873
+1685347700942	mozrunner::runner	INFO	Running command: "C:\\Program Files\\Mozilla Firefox\\firefox.exe" "--marionette" "--remote-debugging-port" "55874" "--remote-allow-hosts" "localhost" "-no-remote" "-profile" "H:\\temp\\local\\rust_mozprofile3MtupR"
+console.warn: services.settings: Ignoring preference override of remote settings server
+console.warn: services.settings: Allow by setting MOZ_REMOTE_SETTINGS_DEVTOOLS=1 in the environment
+1685347701374	Marionette	INFO	Marionette enabled
+Dynamically enable window occlusion 0
+1685347701602	Marionette	INFO	Listening on port 55927
+WebDriver BiDi listening on ws://127.0.0.1:55874
+Read port: 55927
+[ERROR glean_core] Error setting metrics feature config: Json(Error("EOF while parsing a value", line: 1, column: 0))
+DevTools listening on ws://127.0.0.1:55874/devtools/browser/98343287-d8cb-481c-b5ca-c900386b1211
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+Read port: 55927
+1685347750606	geckodriver	INFO	Listening on 127.0.0.1:56328
+1685347753659	mozrunner::runner	INFO	Running command: "C:\\Program Files\\Mozilla Firefox\\firefox.exe" "--marionette" "--remote-debugging-port" "56329" "--remote-allow-hosts" "localhost" "-no-remote" "-profile" "H:\\temp\\local\\rust_mozprofileHxOJUs"
+console.warn: services.settings: Ignoring preference override of remote settings server
+console.warn: services.settings: Allow by setting MOZ_REMOTE_SETTINGS_DEVTOOLS=1 in the environment
+1685347753938	Marionette	INFO	Marionette enabled
+Dynamically enable window occlusion 0
+1685347754119	Marionette	INFO	Listening on port 56357
+WebDriver BiDi listening on ws://127.0.0.1:56329
+Read port: 56357
+[ERROR glean_core] Error setting metrics feature config: Json(Error("EOF while parsing a value", line: 1, column: 0))
+DevTools listening on ws://127.0.0.1:56329/devtools/browser/7be9a647-f2dd-45c7-9534-c5a0fa2a23f4
+Read port: 56357
