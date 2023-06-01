@@ -49,62 +49,65 @@ def split_text_by_length(text, length):
     return split_texts
 
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
-    message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n\n{description}"
-    if LOG: print("message_text:\n", message_text)
+    try:
+        message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n\n{description}"
+        if LOG: print("message_text:\n", message_text)
 
-    if image_url:
-        print("Downloading image...")
-        response = requests.get(image_url)
-        if response.status_code == 200:
-            image_data = response.content
-            file = BytesIO(image_data)
-        else:
-            print(f"Failed to download image from {image_url}")
-            file = None
-    else:
-        print("Image not found")
-        file = None
-
-    for group in settings['GROUPS']:
-        chat_id = group['chat_id']
-        topic_id = group['topic_id']
-        group_name = group['group_name']
-        group_lang = group['language']
-
-        print(f"Obtaining message to {group_name}... in {group_lang} language")
-
-        if group_lang == "UA":
-            message_text = translate_ru_to_ua(message_text)
-            print("Translated to UA")
-            
-
-        if file:
-            file.seek(0)
-            message_parts = split_text_for_telegram(message_text, group_lang)
-
-            if len(message_parts) > 1:
-                print(f"Sending photo with truncated caption to {group_name}...")
-                print(f"Current chat_id: {chat_id}, topic_id: {topic_id}")
-
-                if LOG: print("message_parts[0]:\n", message_parts[0])
-                bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_parts[0], parse_mode="HTML")
-                print(f"Sending message with remaining text to {group_name}...")
-
-                if len(message_parts[1]) > 4000:
-                    split_parts = split_text_by_length(message_parts[1], 4000)
-                    for i, part in enumerate(split_parts):
-                        if LOG: print(f"message_parts[{i}]:\n", part)
-                        bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML")
-                else:
-                    bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_parts[1], parse_mode="HTML")
+        if image_url:
+            print("Downloading image...")
+            response = requests.get(image_url)
+            if response.status_code == 200:
+                image_data = response.content
+                file = BytesIO(image_data)
             else:
-                print(f"Sending message with photo to {group_name}...")
-                if LOG: print("message_text:\n", message_text)
-                bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_text, parse_mode="HTML")
+                print(f"Failed to download image from {image_url}")
+                file = None
         else:
-            if LOG: print("message_text:\n", message_text)
-            print(f"Sending message without photo to {group_name}...")
-            bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
+            print("Image not found")
+            file = None
+
+        for group in settings['GROUPS']:
+            chat_id = group['chat_id']
+            topic_id = group['topic_id']
+            group_name = group['group_name']
+            group_lang = group['language']
+
+            print(f"Obtaining message to {group_name}... in {group_lang} language")
+
+            if group_lang == "UA":
+                message_text = translate_ru_to_ua(message_text)
+                print("Translated to UA")
+                
+
+            if file:
+                file.seek(0)
+                message_parts = split_text_for_telegram(message_text, group_lang)
+
+                if len(message_parts) > 1:
+                    print(f"Sending photo with truncated caption to {group_name}...")
+                    print(f"Current chat_id: {chat_id}, topic_id: {topic_id}")
+
+                    if LOG: print("message_parts[0]:\n", message_parts[0])
+                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_parts[0], parse_mode="HTML")
+                    print(f"Sending message with remaining text to {group_name}...")
+
+                    if len(message_parts[1]) > 4000:
+                        split_parts = split_text_by_length(message_parts[1], 4000)
+                        for i, part in enumerate(split_parts):
+                            if LOG: print(f"message_parts[{i}]:\n", part)
+                            bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML")
+                    else:
+                        bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_parts[1], parse_mode="HTML")
+                else:
+                    print(f"Sending message with photo to {group_name}...")
+                    if LOG: print("message_text:\n", message_text)
+                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_text, parse_mode="HTML")
+            else:
+                if LOG: print("message_text:\n", message_text)
+                print(f"Sending message without photo to {group_name}...")
+                bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message_text, parse_mode="HTML")
+    except Exception as e:
+        raise
 
 def split_text_for_telegram(text, language):
     if len(text) > 900:

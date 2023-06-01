@@ -321,15 +321,18 @@ def main():
                     send_to_telegram(title_with_link, image_url, magnet_link, description)
                     break
             else:
-                for entry in feed.entries:
-                    if entry.link != last_entry_link:
-                        feeds.append(entry)
-                        print(f"Added {entry.link}")
-                    else: 
-                        message = "No new feeds found"
-                        print(message)
-                        send_message_to_telegram(message)
-                        break
+                if feed.entries[0].link == last_entry_link:
+                    message = "No new feeds found"
+                    send_message_to_telegram(message)
+                else: 
+                    for entry in feed.entries:
+                        if entry.link != last_entry_link:
+                            feeds.append(entry)
+                            print(f"Added {entry.link}")
+                        else: 
+                            message = "All feeds were parsed"
+                            break
+                print(message)
 
                 for entry in reversed(feeds):
 
