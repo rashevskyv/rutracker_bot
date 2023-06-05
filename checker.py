@@ -153,7 +153,6 @@ def extract_description(post_body):
             return re.sub(r'<span[^>]*>|</span>', '', match.group(0))
 
         entry = re.sub(r'(<pre class="post-pre">.*?</pre>)', remove_spans_inside_pre, entry, flags=re.DOTALL)
-
         entry = re.sub(r"<ul>(.*?)</ul>", lambda match: f"{i}. {match.group(1)}", entry, flags=re.DOTALL)
         entry = re.sub(r"<li>(.*?)", lambda match: f"• {match.group(1)}", entry, flags=re.DOTALL)
 
@@ -170,7 +169,7 @@ def extract_description(post_body):
     break_index = result.find("BREAK")
     print(f"break_index: {break_index}")
 
-    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("<i>", " <i>").replace("</i>", "</i> ").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ").replace("</u></b>", "</b></u>")
+    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("<i>", " <i>").replace("</i>", "</i> ").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ").replace("</u></b>", "</b></u>").replace("<i><b>", "<b><i>")
 
     result = result.replace("  ", " ").strip()
 
