@@ -155,6 +155,8 @@ def extract_description(post_body):
         entry = re.sub(r'(<pre class="post-pre">.*?</pre>)', remove_spans_inside_pre, entry, flags=re.DOTALL)
         entry = re.sub(r"<ul>(.*?)</ul>", lambda match: f"{i}. {match.group(1)}", entry, flags=re.DOTALL)
         entry = re.sub(r"<li>(.*?)", lambda match: f"• {match.group(1)}", entry, flags=re.DOTALL)
+        entry = re.sub(r'<var[^>]*>.*?</var>', '', entry, flags=re.DOTALL)
+
 
         # # Обработка ссылок
         # entry = re.sub(r'<a href="(.*?)">(.*?)</a>', lambda match: f'<a href="{match.group(1)}">{match.group(2)}</a> ', entry)
