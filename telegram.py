@@ -48,23 +48,39 @@ def split_text_by_length(text, length):
 
     return split_texts
 
+import requests
+from io import BytesIO
+import threading
+
+def download_image(image_url, timeout=10):
+    image = None
+    try:
+        print("Downloading image...")
+        response = requests.get(image_url, timeout=timeout)
+        if response.status_code == 200:
+            image_data = response.content
+            image = BytesIO(image_data)
+        else:
+            print(f"Failed to download image from {image_url}")
+    except requests.exceptions.Timeout:
+        print("Image download timed out. Changing the URL...")
+        image_url = 'https://static.komputronik.pl/product-picture/11/NINTENDOSWITCHRB19-1.jpg'
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            image_data = response.content
+            image = BytesIO(image_data)
+        else:
+            print(f"Failed to download image from {image_url}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    return image
+
 def send_to_telegram(title_with_link, image_url, magnet_link, description):
     try:
         message_text = f"{title_with_link}\n\n<b>Скачать</b>: <code>{magnet_link}</code>\n\n{description}"
         if LOG: print("message_text:\n", message_text)
 
-        if image_url:
-            print("Downloading image...")
-            response = requests.get(image_url)
-            if response.status_code == 200:
-                image_data = response.content
-                file = BytesIO(image_data)
-            else:
-                print(f"Failed to download image from {image_url}")
-                file = None
-        else:
-            print("Image not found")
-            file = None
+        image = download_image(image_url)
 
         for group in settings['GROUPS']:
             chat_id = group['chat_id']
@@ -79,8 +95,8 @@ def send_to_telegram(title_with_link, image_url, magnet_link, description):
                 print("Translated to UA")
                 
 
-            if file:
-                file.seek(0)
+            if image:
+                image.seek(0)
                 message_parts = split_text_for_telegram(message_text, group_lang)
 
                 if len(message_parts) > 1:
@@ -88,7 +104,7 @@ def send_to_telegram(title_with_link, image_url, magnet_link, description):
                     print(f"Current chat_id: {chat_id}, topic_id: {topic_id}")
 
                     if LOG: print("message_parts[0]:\n", message_parts[0])
-                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_parts[0], parse_mode="HTML")
+                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=image, caption=message_parts[0], parse_mode="HTML")
                     print(f"Sending message with remaining text to {group_name}...")
 
                     if len(message_parts[1]) > 4000:
@@ -101,7 +117,7 @@ def send_to_telegram(title_with_link, image_url, magnet_link, description):
                 else:
                     print(f"Sending message with photo to {group_name}...")
                     if LOG: print("message_text:\n", message_text)
-                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=file, caption=message_text, parse_mode="HTML")
+                    bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=image, caption=message_text, parse_mode="HTML")
             else:
                 if LOG: print("message_text:\n", message_text)
                 print(f"Sending message without photo to {group_name}...")
