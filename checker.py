@@ -157,14 +157,17 @@ def extract_description(post_body):
         entry = re.sub(r"<li>(.*?)", lambda match: f"• {match.group(1)}", entry, flags=re.DOTALL)
         entry = re.sub(r'<var[^>]*>.*?</var>', '', entry, flags=re.DOTALL)
 
-
         # # Обработка ссылок
-        # entry = re.sub(r'<a href="(.*?)">(.*?)</a>', lambda match: f'<a href="{match.group(1)}">{match.group(2)}</a> ', entry)
-        entry = re.sub(r'([a-zA-Zа-яА-ЯёЁ])<a', r'\1 <a', entry)
-        entry = re.sub(r"<span class=\"post-u\">(.*?)</span>", lambda match: f"<u>{match.group(1)}</u>", entry, flags=re.DOTALL)
-        entry = re.sub(r"<span class=\"post-i\">(.*?)</span>", lambda match: f"<i>{match.group(1)}</i>", entry, flags=re.DOTALL)
-        entry = re.sub(r"<span class=\"post-b\">(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
-        entry = re.sub(r"<span[^>]*>(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
+        previous_entry = None
+        while entry != previous_entry:
+            previous_entry = entry
+            entry = re.sub(r"<div[^>]*>(.*?)</div>", lambda match: f"{match.group(1)}", entry, flags=re.DOTALL)
+            # entry = re.sub(r'<a href="(.*?)">(.*?)</a>', lambda match: f'<a href="{match.group(1)}">{match.group(2)}</a> ', entry)
+            entry = re.sub(r'([a-zA-Zа-яА-ЯёЁ])<a', r'\1 <a', entry)
+            entry = re.sub(r"<span class=\"post-u\">(.*?)</span>", lambda match: f"<u>{match.group(1)}</u>", entry, flags=re.DOTALL)
+            entry = re.sub(r"<span class=\"post-i\">(.*?)</span>", lambda match: f"<i>{match.group(1)}</i>", entry, flags=re.DOTALL)
+            entry = re.sub(r"<span class=\"post-b\">(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
+            entry = re.sub(r"<span[^>]*>(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
 
         result += entry  + "\n"
 
