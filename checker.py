@@ -168,8 +168,14 @@ def extract_description(post_body):
             entry = re.sub(r"<span class=\"post-i\">(.*?)</span>", lambda match: f"<i>{match.group(1)}</i>", entry, flags=re.DOTALL)
             entry = re.sub(r"<span class=\"post-b\">(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
             entry = re.sub(r"<span[^>]*>(.*?)</span>", lambda match: f"<b>{match.group(1)}</b>", entry, flags=re.DOTALL)
+            entry = re.sub(r"<u>(.*?)<b>(.*?)<\/u>(.*?)<\/b>", lambda match: f"<u>{match.group(1)}<b>{match.group(2)}</b>{match.group(3)}</u>", entry, flags=re.DOTALL)
 
-        result += entry  + "\n"
+            lines = entry.split("\n")
+            processed_lines = [re.sub(r"<u>(.*?)<b>(.*?)<\/u>(.*?)<\/b>", lambda match: f"<u>{match.group(1)}<b>{match.group(2)}</b>{match.group(3)}</u>", line, flags=re.DOTALL) for line in lines]
+            processed_lines = [re.sub(r"<u>(.*?)<b>(.*?)<\/b>(.*?)<\/b>", lambda match: f"<u>{match.group(1)}<b>{match.group(2)}</b>{match.group(3)}</u>", line, flags=re.DOTALL) for line in lines]
+            processed_entry = "\n".join(processed_lines)
+
+        result += processed_entry + "\n"
 
     break_index = result.find("BREAK")
     print(f"break_index: {break_index}")
