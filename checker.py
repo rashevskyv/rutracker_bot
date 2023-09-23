@@ -298,6 +298,7 @@ def main():
     print("Starting...")
     print("LOG: " + str(LOG))
     feeds=[]
+    message = ""
     try:
         if test:
             last_entry_link = settings["test_last_entry_link"]
