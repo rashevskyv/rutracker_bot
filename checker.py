@@ -118,6 +118,9 @@ def process_list_items(tag):
         return "\n".join(formatted_items)
     else:
         return ""
+    
+def post_process(text): 
+    return text.replace("<html>", "")
 
 def extract_description(post_body):
     if LOG: print("post_body: " + str(post_body))
