@@ -3,3 +3,4 @@
 /local_settings.json
 /credentials.json
 /__pycache__
+geckodriver.log
