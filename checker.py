@@ -185,7 +185,7 @@ def extract_description(post_body):
     break_index = result.find("BREAK")
     print(f"break_index: {break_index}")
 
-    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("<i>", " <i>").replace("</i>", "</i> ").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ").replace("</u></b>", "</b></u>").replace("<i><b>", "<b><i>").replace("?(><)?", "").replace("<я>", "я")
+    result = result[:break_index].replace("<span class=\"post-br\"><br/></span>", "\n\r\n").replace("<br/>", "\n").replace("<ol class=\"post-ul\">", "\n\r").replace("</ul>", "").replace("</ol>", "").replace("<li>", "").replace("</li>", "").replace("<span class=\"post-b\">", "").replace("</span>", "").replace("<div class=\"sp-wrap\">", "").replace("\n\n", "\n").replace("<hr class=\"post-hr\"/>", "\n\r").replace(" :", ":").replace(":", ": ").replace(",", ", ").replace("href=\"viewtopic.php", "href=\"https://rutracker.org/forum/viewtopic.php").replace("href=\"tracker.php?", "href=\"https://rutracker.org/forum/tracker.php?").replace("</a>", "</a> ").replace("</a> , ", "</a>, ").replace("/<a", "/ <a").replace("</a> ]", "</a>]").replace("https: //", "https://").replace("<span class=\"post-i\">", "").replace("\n</i>", "</i>").replace("<i>", " <i>").replace("</i>", "</i> ").replace("\n</b>", "").replace("<ol type=\"1\">", "").replace("\" <a ", "\"<a ").replace("</u></b>", "</b></u>").replace("<i><b>", "<b><i>").replace("?(><)?", "").replace("<я>", "я").replace("<30", "меньше 30")
 
     result = result.replace("  ", " ").strip()
 
@@ -374,7 +374,7 @@ def main():
         error_message = str(e)
         stack_trace = traceback.format_exc()
 
-        error_details = f"Error type: {error_type}\nError message: {error_message}\nStack Trace: {stack_trace}"
+        error_details = f"<pre>{specific_entry.link.replace('https://rutracker.org/forum/viewtopic.php?t=', '')}</pre>\n\n<b>Error type</b>:\n {error_type}\n<b>Error message</b>:\n {error_message}\n<b>Stack Trace</b>:\n {stack_trace}"
         print(error_details)
         send_error_to_telegram(error_details)
 
