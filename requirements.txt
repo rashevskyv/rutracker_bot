@@ -7,3 +7,4 @@ selenium
 webdriver-manager
 google-api-python-client
 google-cloud-translate
+bs4

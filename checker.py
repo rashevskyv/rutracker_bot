@@ -322,6 +322,7 @@ def main():
                 specific_entry = None
 
                 for entry in feed.entries:
+                    print(str(entry['link']))
                     if entry['link'] == last_entry_link:
                         specific_entry = entry
                         break

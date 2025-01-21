@@ -1,11 +1,12 @@
-import openai
 import requests
 from google.cloud import translate_v2 as translate
+from settings import client
 import re
+import os 
 
 # translate_ru_to_ua function with select exact translate function
 def translate_ru_to_ua(text):
-    return translate_ru_to_ua_google(text)
+    return translate_ru_to_ua_gpt(text)
 
 def translate_ru_to_ua_google(text):
     translate_client = translate.Client()
@@ -27,21 +28,29 @@ def translate_ru_to_ua_google(text):
 
     return translated_text
 
-def translate_ru_to_ua_gpt3_5(text):
-    prompt = f"Пожалуйста, переведи следующий текст с русского на украинский, оставляя английские слова и теги, начинающиеся с # без изменений (на английском). Ты перевел название жанра, начинающееся на #. Не переводи слова, начинающиеся с #:\n\n{text}\n\nПеревод:"
-
-    response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
+def translate_ru_to_ua_gpt(text, model="gpt-4o-mini"):
+    """
+    Перекладає текст з російської на українську за допомогою GPT.
     
-    return response.choices[0].message.content
+    :param text: Текст для перекладу.
+    :param model: Модель GPT, яка використовується для перекладу. За замовчуванням "gpt-4o-mini".
+    :return: Перекладений текст.
+    """
+    prompt = (
+        f"Пожалуйста, переведи следующий текст с русского на украинский, "
+        f"оставляя английские слова и теги, начинающиеся с # без изменений (на английском). "
+        f"Ты перевел название жанра, начинающееся на #. Не переводи слова, начинающиеся с #:\n\n{text}\n\nПеревод:"
+    )
 
-def translate_ru_to_ua_gpt4(text):
-    prompt = f"Пожалуйста, переведи следующий текст с русского на украинский, оставляя английские слова и теги, начинающиеся с # без изменений (на английском). Ты перевел название жанра, начинающееся на #. Не переводи слова, начинающиеся с #:\n\n{text}\n\nПеревод:"
-
-    openai.organization = "org-wKWxhPRgiQddo9HjjUr1M0Tz"
-    response = openai.ChatCompletion.create(model="gpt-4", messages=[{"role": "user", "content": prompt}])
+    # Виклик API для перекладу
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}]
+    )
     
+    # Повертаємо перекладений текст
     return response.choices[0].message.content
-
+    
 def translate_ru_to_ua_phind(text):
     prompt = f"Просто переведи текст с русского на украинский, оставляя без перевода слова на языках отличных от русского:\n\n{text}\n\nПеревод:"
 
