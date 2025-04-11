@@ -34,7 +34,7 @@ def search_trailer_on_youtube(game_title: str, api_key: Optional[str]) -> Tuple[
     ]
     if '/' in cleaned_game_title: # Handle titles with '/'
         base_title = cleaned_game_title.split('/', 1)[0].strip()
-        if base_title != cleaned_game_title: search_queries.insert(1, f'"{base_title}" Nintendo Switch Trailer')
+        if base_title != cleaned_game_title: search_queries.insert(1, f'"{base_title}" Nintendo Switch Gameplay')
 
     if LOG: print(f"Cleaned game title for YouTube search: '{cleaned_game_title}'")
 
