@@ -1,3 +1,4 @@
+# --- START OF FILE tracker_parser.py ---
 import requests
 from bs4 import BeautifulSoup, NavigableString, Tag
 import re
@@ -24,7 +25,7 @@ def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[B
         if attempt < retries - 1: time.sleep(delay)
         else: print(f"Failed to fetch {url} after {retries} attempts."); return None
 
-# get_last_post_with_phrase remains the same
+# get_last_post_with_phrase - CORRECTED
 def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:
     if LOG: print(f"Searching for update phrase '{phrase}'...")
     posts_per_page = 30; last_page_offset = -1
@@ -53,14 +54,22 @@ def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: in
             post_body_div = post.find("div", class_="post_body")
             if not post_body_div: continue
             for br in post_body_div.find_all("br"): br.replace_with("\n")
-            post_text_content = post_body_div.get_text(separator=" ", strip=True)
+            post_text_content = post_body_div.get_text(separator=" ", strip=True) # Check text content first
             if phrase in post_text_content:
                 if LOG: print(f"Found update phrase '{phrase}' in post on {page_url}")
                 relevant_html_content = ""; found_phrase = False; stop_collecting = False
                 for element in post_body_div.children:
                     element_str = str(element)
-                    if phrase in element_str: found_phrase = True; parts = element_str.split(phrase, 1);
-                    if len(parts) > 1: relevant_html_content += parts[1]; continue
+                    # --- FIX STARTS HERE ---
+                    if phrase in element_str:
+                        found_phrase = True
+                        parts = element_str.split(phrase, 1) # parts is defined HERE
+                        # Check len(parts) immediately after creation
+                        if len(parts) > 1:
+                            relevant_html_content += parts[1]
+                        continue # Move to next element after finding the phrase in this one
+                    # --- FIX ENDS HERE ---
+
                     if found_phrase and not stop_collecting:
                         is_stop_marker = False
                         if isinstance(element, Tag):
@@ -69,6 +78,10 @@ def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: in
                                (element.name == 'span' and element.get('class') and 'post-br' in element.get('class')): is_stop_marker = True
                         if is_stop_marker: stop_collecting = True
                         else: relevant_html_content += element_str
+
+                # Check if anything was collected after the phrase was found
+                if not found_phrase: continue # Should not happen if text check passed, but safety
+
                 update_text_html = relevant_html_content.strip()
                 post_link_tag = post.find("a", class_="p-link small", href=re.compile(r'viewtopic\.php\?p='))
                 post_url = ("https://rutracker.org/forum/" + post_link_tag["href"]) if post_link_tag else base_url
@@ -81,10 +94,14 @@ def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: in
                 update_keyword = "Details";
                 if "внесённые изменения" in cleaned_update_text:
                      word = "внесённые изменения"; link_html = f'<a href="{post_url}">{word}</a>'
-                     if word in cleaned_update_text: return f"<b>Updated:</b> {cleaned_update_text.replace(word, link_html, 1)}"
+                     # Check if word actually exists before replacing
+                     if word in cleaned_update_text:
+                          return f"<b>Updated:</b> {cleaned_update_text.replace(word, link_html, 1)}"
+                # Return even if cleaned_update_text is empty, but with link
                 return f'<b>Updated:</b> <a href="{post_url}">{update_keyword}</a>\n{cleaned_update_text}'
-        if current_offset == 0: break
-    return None
+        if current_offset == 0: break # Exit loop if first page checked
+    return None # Return None if phrase not found after checking pages
+
 
 # clean_description_html remains the same
 def clean_description_html(description_html_str: str) -> str:
@@ -163,21 +180,11 @@ def make_tag(description: str, keyword: str) -> str:
             description = description[:start_index] + formatted_line + description[end_index:]
     return description
 
-
+# parse_tracker_entry remains the same as previous version where return was corrected
 def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str]]:
-    """
-    Parses a single RuTracker entry page. Separates initial title text (for YT search)
-    from the display title (from <title> tag) and the main description.
-
-    Returns:
-        A tuple containing:
-        (page_display_title, title_text_for_youtube, image_url, magnet_link, cleaned_description)
-        Returns None if essential parsing fails.
-    """
     soup = fetch_page_content(entry_url)
     if not soup: return None
 
-    # --- Extract Page Display Title ---
     page_display_title = "Unknown Title"
     title_tag = soup.find('title')
     if title_tag:
@@ -189,11 +196,9 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
         if header_tag: page_display_title = header_tag.get_text().strip()
     page_display_title = page_display_title.replace("[Nintendo Switch]", "").replace("[Обновлено]", "").replace("[Updated]", "").strip()
 
-    # --- Find Post Body ---
     post_body = soup.find("div", class_="post_body")
     if not post_body: print(f"Could not find main post body in {entry_url}."); return None
 
-    # --- Separate Title Block (for YT search) from Description Block ---
     title_elements_html = []; description_elements_html = []; collecting_title = True
     description_start_keywords = ["Год выпуска", "Release year", "Жанр", "Genre", "Разработчик", "Developer", "Описание", "Description"]
     stop_title_collection_tags = ['hr', 'div', 'ol', 'ul']
@@ -217,19 +222,16 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
                   title_elements_html.append(element_str)
         else: description_elements_html.append(element_str)
 
-    # --- Process Title Block (for YT search) ---
     if title_elements_html:
         title_soup = BeautifulSoup("".join(title_elements_html), 'html.parser')
         for br in title_soup.find_all('br'): br.decompose()
         title_text_for_youtube = title_soup.get_text(separator=' ', strip=True)
         title_text_for_youtube = re.sub(r'\s+', ' ', title_text_for_youtube).strip()
     if not title_text_for_youtube or len(title_text_for_youtube) < 3:
-        title_text_for_youtube = page_display_title # Fallback
+        title_text_for_youtube = page_display_title
 
-    # --- Clean Description Block ---
     cleaned_description = clean_description_html("".join(description_elements_html))
 
-    # --- Check for Updates ---
     is_updated = "[Обновлено]" in entry_title_from_feed or "[Updated]" in entry_title_from_feed
     last_post_text = None
     if is_updated:
@@ -239,7 +241,6 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
             last_post_text = get_last_post_with_phrase(phrase, base_url)
             if last_post_text: break
 
-    # --- Extract Image ---
     image_url: Optional[str] = None
     try:
         main_image = post_body.find("img", class_=re.compile(r"postImgAligned|img-right"), src=True)
@@ -249,7 +250,6 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
             if image_tag_var: image_url = image_tag_var["title"]
     except Exception as e: print(f"Warning: Error extracting image URL: {e}")
 
-    # --- Extract Magnet Link ---
     magnet_link: Optional[str] = None
     try:
         magnet_tag = soup.find("a", class_="magnet-link", href=True); match = None
@@ -262,13 +262,13 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
         if not magnet_link: print("Error: Magnet link could not be extracted."); return None
     except Exception as e: print(f"Error extracting magnet link: {e}"); return None
 
-    # --- Apply Tags and Updates ---
     final_description = make_tag(cleaned_description, "Жанр")
     final_description = make_tag(final_description, "Genre")
     final_description = make_tag(final_description, "Год выпуска")
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
-    # --- CORRECTED RETURN STATEMENT ---
     # Return: Title for display, Title for YT, Image, Magnet, Description
     return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description
+
+# --- END OF FILE tracker_parser.py ---
