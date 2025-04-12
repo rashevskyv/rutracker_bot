@@ -8,12 +8,13 @@ import traceback
 import requests
 from urllib.parse import urlparse
 import shutil
+from io import BytesIO # Ensure BytesIO is imported
 from typing import Optional, Dict, Any, List, Tuple, Set
 
 try:
     from settings_loader import LOG
 except ImportError:
-    LOG = False
+    LOG = True
 
 # --- Constants ---
 DEFAULT_REGIONS_TO_CHECK: List[Tuple[str, str]] = [
@@ -93,12 +94,19 @@ class TitleDBManager:
                     if LOG: print(f"  Found potential match ({match_type}, Lvl:{current_match_level}): '{db_title_name}' (R:{region})")
                     best_match_level = current_match_level; best_match_data = game_db_data
                     if title_id: found_ids.add(title_id)
-                    if best_match_level == 1: pass
+                    # --- FIX: Separate LOG check and break ---
+                    if best_match_level == 1:
+                        if LOG:
+                            print(f"Exact match found in {region}.")
+                        # break # Stop searching current region after exact match? Or continue for potential better data? Let's continue for now.
+                    # -----------------------------------------
 
-            if best_match_level == 1: print(f"Stopping search after exact match in {region}."); break
+            # Stop checking other regions if exact match found in this one
+            if best_match_level == 1:
+                 break
 
         if best_match_data:
-            print(f"Best match found (Level {best_match_level}): '{best_match_data.get('name')}'")
+            if LOG: print(f"Best match found (Level {best_match_level}): '{best_match_data.get('name')}'")
             return best_match_data
         else:
             if LOG: print(f"Game matching '{game_title}' not found after all checks.")
@@ -110,20 +118,25 @@ class TitleDBManager:
             ext = os.path.splitext(path)[1].lower()
             if ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
                 return ext
-        except Exception:
-            pass
+        except Exception: pass
         return ".jpg"
 
-    def _download_image(self, url: str, save_path: str, timeout: int = 10) -> bool:
-        if LOG: print(f"  Attempting download: {url} -> {save_path}")
+    def _try_download_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
+        if not image_url or not image_url.startswith(('http://', 'https://')): return None
         try:
-            headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0', 'Accept': 'image/*'}; response = requests.get(url, headers=headers, timeout=timeout, stream=True); response.raise_for_status()
-            content_type = response.headers.get('Content-Type', '').lower();
-            if not content_type.startswith('image/'): print(f"  Skipping non-image content-type '{content_type}' for {url}"); return False
-            with open(save_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
-            if LOG: print(f"  SUCCESS downloaded: {os.path.basename(save_path)}"); return True
-        except Exception as e: print(f"  FAILED download for {url}: {e}"); return False
+            # if LOG: print(f"    Attempting download: {image_url}") # Less verbose
+            headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0', 'Accept': 'image/*'}; response = requests.get(image_url, headers=headers, timeout=timeout, stream=True); response.raise_for_status()
+            image_data = BytesIO()
+            size = 0
+            for chunk in response.iter_content(chunk_size=8192): image_data.write(chunk); size+=len(chunk)
+            if size == 0: print(f"    Download resulted in empty file: {image_url}"); return None
+            image_data.seek(0)
+            # if LOG: print(f"    SUCCESS downloaded ({size} bytes, Content-Type: {response.headers.get('Content-Type', 'N/A')} - IGNORED)") # Less verbose
+            return image_data
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code != 404: print(f"    Download failed (HTTP Error {e.response.status_code}): {image_url}")
+            return None
+        except Exception as e: print(f"    Download failed (Error: {e}): {image_url}"); return None
 
     def _clear_tmp_dir(self):
         if not self.tmp_screenshot_dir or not os.path.isdir(self.tmp_screenshot_dir): return False
@@ -137,15 +150,36 @@ class TitleDBManager:
             except Exception as e: print(f'Failed to delete {file_path}. Reason: {e}'); cleared = False
         return cleared
 
-    def download_screenshots(self, screenshot_urls: List[str], nsuid: Optional[str] = None, game_title: Optional[str] = None, max_screenshots: int = 4) -> List[str]:
-        # --- FIX: Separate checks ---
-        if not self.tmp_screenshot_dir:
-            print("Error: Temp screenshot dir not available.")
-            return []
-        if not screenshot_urls:
-            return []
-        # --------------------------
+    def download_cover_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
+        fallback_url = 'https://via.placeholder.com/300x200.png?text=No+Image+Found'
+        # if LOG: print("Attempting to download cover image...")
+        image = self._try_download_image(image_url, timeout)
+        if image: return image
+        print("Cover download failed. Trying fallback...")
+        if image_url != fallback_url:
+            image = self._try_download_image(fallback_url, timeout)
+            if image: print("Fallback image downloaded."); return image
+            else: print("Fallback image download failed.")
+        return None
 
+    def download_trailer_thumbnail(self, video_id: str, timeout: int = 15) -> Optional[BytesIO]:
+        if not video_id: return None
+        # if LOG: print(f"Attempting to download trailer thumbnail for video ID: {video_id}")
+        thumbnail_urls_to_try = [
+            f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg", f"https://img.youtube.com/vi/{video_id}/sddefault.jpg",
+            f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg", f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",
+            f"https://img.youtube.com/vi/{video_id}/default.jpg",
+        ]
+        for url in thumbnail_urls_to_try:
+            image = self._try_download_image(url, timeout)
+            if image:
+                if LOG: print(f"  Successfully downloaded thumbnail: {url}")
+                return image
+        return None
+
+    def download_screenshots(self, screenshot_urls: List[str], nsuid: Optional[str] = None, game_title: Optional[str] = None, max_screenshots: int = 4) -> List[str]:
+        if not self.tmp_screenshot_dir: print("Error: Temp screenshot dir not available."); return []
+        if not screenshot_urls: return []
         self._clear_tmp_dir()
         if nsuid: file_prefix = str(nsuid)
         elif game_title: file_prefix = re.sub(r'[^\w\-]+', '_', game_title.lower()).strip('_')[:50]
@@ -157,12 +191,17 @@ class TitleDBManager:
             if not url or not isinstance(url, str) or not url.startswith('http'): continue
             extension = self._get_file_extension_from_url(url); filename = f"{file_prefix}_{i}{extension}"
             save_path = os.path.join(self.tmp_screenshot_dir, filename)
-            if self._download_image(url, save_path): downloaded_paths.append(save_path)
+            image_data: Optional[BytesIO] = self._try_download_image(url) # Download first
+            if image_data:
+                try: # Save the downloaded data
+                    with open(save_path, 'wb') as f_out: f_out.write(image_data.getbuffer())
+                    downloaded_paths.append(save_path)
+                except Exception as write_err: print(f"  FAILED to save downloaded image to {save_path}: {write_err}")
             time.sleep(0.1)
         if LOG: print(f"Finished download. Successfully got {len(downloaded_paths)} screenshots.")
         return downloaded_paths
 
-# Testing Block remains the same
+# Testing Block
 if __name__ == "__main__":
     test_titledb_json_path = "titledb"
     print("--- Running TitleDBManager Tests ---")
@@ -173,11 +212,9 @@ if __name__ == "__main__":
         try:
             manager = TitleDBManager(titledb_json_path=test_titledb_json_path)
             test_titles = [
-                "The Legend of Zelda: Breath of the Wild",
-                "Circuit Superstars",
-                "Mario Kart 8 Deluxe",
-                "eBaseball Professional Baseball Spirits 2021 Grand Slam",
-                "eBaseball Pro Yakyuu Spirits 2021 Grand Slam",
+                "The Legend of Zelda: Breath of the Wild", "Circuit Superstars",
+                "Mario Kart 8 Deluxe", "eBaseball Professional Baseball Spirits 2021 Grand Slam",
+                "eBaseball Pro Yakyuu Spirits 2021 Grand Slam", "BIOMORPH",
                 "NonExistentGame 12345"
             ]
             for title in test_titles:
