@@ -3,22 +3,36 @@ import time
 import traceback
 import html # Import html
 import re # Import re for YouTube title check
+import os # Import os for path joining
+from typing import Optional, List # ADDED List import
 
 # Import functions from refactored modules
 from settings_loader import (
     LOG, IS_TEST_MODE, FEED_URL, TEST_LAST_ENTRY_LINK, YOUTUBE_API_KEY,
-    last_entry_file_path
+    last_entry_file_path, current_directory # Import current_directory
 )
 from feed_handler import (
     read_last_entry_link, write_last_entry_link, get_new_feed_entries
 )
 from tracker_parser import parse_tracker_entry
 from youtube_search import search_trailer_on_youtube
-# --- Import the new validator function ---
 from ai_validator import validate_yt_title_with_gpt
-# -----------------------------------------
+# --- Import the new TitleDB manager ---
+from titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR # Import manager and default temp dir path
+# ------------------------------------
 # Import necessary sender functions
 from telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin
+
+# --- Initialize TitleDB Manager ---
+titledb_json_dir_relative = "titledb"
+titledb_json_dir_absolute = os.path.join(current_directory, titledb_json_dir_relative)
+db_manager: Optional[TitleDBManager] = None
+try:
+    db_manager = TitleDBManager(titledb_json_path=titledb_json_dir_relative)
+except FileNotFoundError as e:
+    print(f"Error initializing TitleDBManager: {e}")
+    print("Screenshots from titledb will be unavailable.")
+# ---------------------------------
 
 def main_loop():
     """The main execution loop of the checker."""
@@ -45,8 +59,6 @@ def main_loop():
             print(f"Processing {len(new_entries)} new entries...")
             entries_to_process = new_entries
 
-        latest_link_processed_in_run = None if IS_TEST_MODE else read_last_entry_link(last_entry_file_path)
-
         for entry in entries_to_process:
             entry_link = entry.get('link')
             entry_title_feed_or_placeholder = entry.get('title', 'TEST_MODE_FETCH_TITLE')
@@ -58,57 +70,86 @@ def main_loop():
             parsed_data = parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
 
             if parsed_data:
-                page_display_title, title_text_for_youtube, image_url, magnet_link, cleaned_description = parsed_data
+                # --- CORRECTED UNPACKING based on tracker_parser return ---
+                # Returns: (page_display_title, title_text_for_youtube, image_url, magnet_link, final_description)
+                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description = parsed_data
+                # ---------------------------------------------------------
 
+                # Validate titles
                 if not page_display_title or page_display_title == "Unknown Title":
                      print(f"Error: Parser failed to extract display title for {entry_link}. Skipping.")
                      send_error_to_telegram(f"Parser failed to extract display title for link: {entry_link}")
                      continue
                 if not title_text_for_youtube:
-                     print(f"Warning: Parser failed to extract title block for YT search for {entry_link}. Using display title as fallback.")
+                     print(f"Warning: Parser failed to extract title block for YT search. Using display title '{page_display_title}' as fallback.")
                      title_text_for_youtube = page_display_title
 
                 print(f"Display Title: '{page_display_title}'")
-                print(f"Title for YT Search: '{title_text_for_youtube}'")
+                print(f"Title for Search/Lookup: '{title_text_for_youtube}'")
 
+                # Construct the display title
                 is_updated = "[Обновлено]" in entry_title_feed_or_placeholder or "[Updated]" in entry_title_feed_or_placeholder
                 update_prefix = "<b>[Updated]</b> " if is_updated else ""
                 title_link_html = f'<a href="{entry_link}">{html.escape(page_display_title)}</a>'
                 final_title_for_telegram = f"{update_prefix}{title_link_html}"
 
-                # --- Search for Trailer ---
+                # Search for Trailer
                 try:
                     trailer_url, found_yt_title = search_trailer_on_youtube(title_text_for_youtube, YOUTUBE_API_KEY)
-
-                    # --- Validate Title with GPT (if trailer found) ---
                     if trailer_url and found_yt_title:
-                        # Call the validator function
                         is_title_relevant = validate_yt_title_with_gpt(title_text_for_youtube, found_yt_title)
-
                         if is_title_relevant:
-                            # Add link only if GPT confirms relevance
                             if 'Trailer</a>' not in final_title_for_telegram:
                                 final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
                                 print(f"Added Trailer link (Validated by GPT): {trailer_url}")
                         else:
-                            # If GPT says False or validation failed, notify admin
-                            print(f"Warning: GPT validation failed or deemed YouTube title '{found_yt_title}' not relevant for '{title_text_for_youtube}'. NOT adding link.")
+                            print(f"Warning: GPT validation deemed YT title not relevant. NOT adding link.")
                             notify_mismatched_trailer(title_text_for_youtube, found_yt_title, trailer_url)
                     elif trailer_url:
-                         # Handle case where URL is found but title is missing from YT response (unlikely)
-                         print(f"Warning: Found trailer URL but YT title missing. Cannot validate with GPT. Adding link cautiously.")
+                         print(f"Warning: Found trailer URL but YT title missing. Adding link cautiously.")
                          if 'Trailer</a>' not in final_title_for_telegram:
                               final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
-
                 except Exception as yt_err:
-                     print(f"Warning: YouTube search/validation failed for '{title_text_for_youtube}': {yt_err}")
+                     print(f"Warning: YouTube search/validation failed: {yt_err}")
 
-                # --- Send to Telegram ---
+                # Get and Download Screenshots from TitleDB
+                local_screenshot_paths: List[str] = [] # Ensure type hint
+                if db_manager:
+                    if LOG: print(f"Attempting to find game data in titledb for: '{title_text_for_youtube}'")
+                    game_db_data = db_manager.find_game_data(title_text_for_youtube)
+                    if game_db_data:
+                        nsuid_from_db = game_db_data.get('nsuId')
+                        screenshot_urls_from_db = game_db_data.get('screenshots', [])
+                        if screenshot_urls_from_db and isinstance(screenshot_urls_from_db, list):
+                             if LOG: print(f"Found {len(screenshot_urls_from_db)} screenshot URLs in titledb.")
+                             local_screenshot_paths = db_manager.download_screenshots(
+                                 screenshot_urls_from_db,
+                                 nsuid=nsuid_from_db,
+                                 game_title=title_text_for_youtube
+                             )
+                        else:
+                             if LOG: print(f"No valid 'screenshots' field found in titledb.")
+                    else:
+                         if LOG: print(f"Game '{title_text_for_youtube}' not found in titledb data.")
+                else:
+                    print("Warning: TitleDBManager not initialized. Cannot fetch screenshots.")
+
+                # Send to Telegram
                 try:
-                     send_to_telegram(final_title_for_telegram, image_url, magnet_link, cleaned_description)
+                     send_to_telegram(
+                         final_title_for_telegram,
+                         cover_image_url,
+                         magnet_link, # Pass correct magnet link
+                         cleaned_description, # Pass correct description
+                         local_screenshot_paths
+                     )
                      processed_count += 1
                      if not IS_TEST_MODE:
                           write_last_entry_link(last_entry_file_path, entry_link)
+                except TypeError as te:
+                     print(f"!!! TypeError calling send_to_telegram: {te}. Check function signature.")
+                     traceback.print_exc(); send_error_to_telegram(f"TypeError calling send_to_telegram for {entry_link}.")
+                     continue
                 except Exception as tg_err:
                      print(f"!!! Error sending entry {entry_link} to Telegram: {tg_err}")
                      continue
@@ -132,7 +173,6 @@ def main_loop():
         entry_link_in_progress = "N/A"
 
     except Exception as e:
-        # Error handling remains the same
         error_type = type(e).__name__; error_message = str(e); stack_trace = traceback.format_exc()
         error_details = (f"Unhandled error in main loop.\n"
                          f"Last Link Attempted: {entry_link_in_progress}\n\n"
@@ -141,7 +181,6 @@ def main_loop():
                          f"<b>Stack Trace</b>:\n<pre>{html.escape(stack_trace)}</pre>")
         print("\n---!!! FATAL ERROR in main_loop !!!---"); traceback.print_exc(limit=5); print("---!!! END ERROR !!!---")
         send_error_to_telegram(error_details)
-
 
 if __name__ == "__main__":
     main_loop()
