@@ -21,7 +21,7 @@ from ai_validator import validate_yt_title_with_gpt
 from titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR # Import manager and default temp dir path
 # ------------------------------------
 # Import necessary sender functions
-from telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin
+from telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin # Ensure send_message_to_admin is imported
 
 # --- Initialize TitleDB Manager ---
 titledb_json_dir_relative = "titledb"
@@ -46,19 +46,33 @@ def main_loop():
 
     try:
         if IS_TEST_MODE:
+            # --- TEST MODE ---
             specific_entry_link_for_test = TEST_LAST_ENTRY_LINK
             if not specific_entry_link_for_test or not specific_entry_link_for_test.startswith('http'):
                 print("Error: Test mode enabled, but 'test_last_entry_link' is invalid or not set."); return
             entries_to_process = [{'link': specific_entry_link_for_test, 'title': 'TEST_MODE_FETCH_TITLE'}]
             print(f"TEST MODE: Processing single link: {specific_entry_link_for_test}")
         else:
+            # --- PRODUCTION MODE ---
             last_processed_link = read_last_entry_link(last_entry_file_path)
             new_entries = get_new_feed_entries(FEED_URL, last_processed_link)
-            if new_entries is None: send_error_to_telegram("Failed to fetch or parse feed."); return
-            if not new_entries: print("No new feed entries found."); send_message_to_admin("No new feed entries found."); return
+
+            if new_entries is None:
+                send_error_to_telegram("Failed to fetch or parse feed.")
+                return
+
+            if not new_entries:
+                message = "No new feed entries found."
+                print(message)
+                # --- RESTORED: Send notification to admin ---
+                send_message_to_admin(message)
+                # ------------------------------------------
+                return # Exit normally if no new entries
+
             print(f"Processing {len(new_entries)} new entries...")
             entries_to_process = new_entries
 
+        # --- Process Entries ---
         for entry in entries_to_process:
             entry_link = entry.get('link')
             entry_title_feed_or_placeholder = entry.get('title', 'TEST_MODE_FETCH_TITLE')
@@ -70,12 +84,8 @@ def main_loop():
             parsed_data = parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
 
             if parsed_data:
-                # --- CORRECTED UNPACKING based on tracker_parser return ---
-                # Returns: (page_display_title, title_text_for_youtube, image_url, magnet_link, final_description)
                 page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description = parsed_data
-                # ---------------------------------------------------------
 
-                # Validate titles
                 if not page_display_title or page_display_title == "Unknown Title":
                      print(f"Error: Parser failed to extract display title for {entry_link}. Skipping.")
                      send_error_to_telegram(f"Parser failed to extract display title for link: {entry_link}")
@@ -87,13 +97,11 @@ def main_loop():
                 print(f"Display Title: '{page_display_title}'")
                 print(f"Title for Search/Lookup: '{title_text_for_youtube}'")
 
-                # Construct the display title
                 is_updated = "[Обновлено]" in entry_title_feed_or_placeholder or "[Updated]" in entry_title_feed_or_placeholder
                 update_prefix = "<b>[Updated]</b> " if is_updated else ""
                 title_link_html = f'<a href="{entry_link}">{html.escape(page_display_title)}</a>'
                 final_title_for_telegram = f"{update_prefix}{title_link_html}"
 
-                # Search for Trailer
                 try:
                     trailer_url, found_yt_title = search_trailer_on_youtube(title_text_for_youtube, YOUTUBE_API_KEY)
                     if trailer_url and found_yt_title:
@@ -112,8 +120,7 @@ def main_loop():
                 except Exception as yt_err:
                      print(f"Warning: YouTube search/validation failed: {yt_err}")
 
-                # Get and Download Screenshots from TitleDB
-                local_screenshot_paths: List[str] = [] # Ensure type hint
+                local_screenshot_paths: List[str] = []
                 if db_manager:
                     if LOG: print(f"Attempting to find game data in titledb for: '{title_text_for_youtube}'")
                     game_db_data = db_manager.find_game_data(title_text_for_youtube)
@@ -134,13 +141,12 @@ def main_loop():
                 else:
                     print("Warning: TitleDBManager not initialized. Cannot fetch screenshots.")
 
-                # Send to Telegram
                 try:
                      send_to_telegram(
                          final_title_for_telegram,
                          cover_image_url,
-                         magnet_link, # Pass correct magnet link
-                         cleaned_description, # Pass correct description
+                         magnet_link,
+                         cleaned_description,
                          local_screenshot_paths
                      )
                      processed_count += 1
@@ -154,7 +160,6 @@ def main_loop():
                      print(f"!!! Error sending entry {entry_link} to Telegram: {tg_err}")
                      continue
 
-                # --- Delay ---
                 if not IS_TEST_MODE and len(entries_to_process) > 1 and entry is not entries_to_process[-1]:
                     print("Waiting 60 seconds before processing next entry...")
                     time.sleep(60)
@@ -164,7 +169,6 @@ def main_loop():
                 if not IS_TEST_MODE and 'new_entries' in locals() and new_entries is None: send_error = False
                 if send_error: send_error_to_telegram(f"Failed to parse tracker page: {entry_link}")
 
-        # --- Loop Finished ---
         if processed_count > 0: print(f"\nSuccessfully processed {processed_count} entries.")
         elif IS_TEST_MODE and processed_count == 0: print("\nTest run finished, but the test entry failed processing.")
         elif not IS_TEST_MODE and 'entries_to_process' in locals() and not entries_to_process: pass
@@ -181,6 +185,7 @@ def main_loop():
                          f"<b>Stack Trace</b>:\n<pre>{html.escape(stack_trace)}</pre>")
         print("\n---!!! FATAL ERROR in main_loop !!!---"); traceback.print_exc(limit=5); print("---!!! END ERROR !!!---")
         send_error_to_telegram(error_details)
+
 
 if __name__ == "__main__":
     main_loop()
