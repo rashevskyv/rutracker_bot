@@ -6,6 +6,9 @@ import time
 import html # Import html for escaping
 from settings_loader import LOG # Use the refactored settings module
 from typing import Optional, Tuple, List # Import Optional, Tuple, List
+# --- Import functions moved to html_utils ---
+from html_utils import clean_description_html, make_tag
+# --------------------------------------------
 
 # fetch_page_content remains the same
 def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[BeautifulSoup]:
@@ -25,7 +28,7 @@ def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[B
         if attempt < retries - 1: time.sleep(delay)
         else: print(f"Failed to fetch {url} after {retries} attempts."); return None
 
-# get_last_post_with_phrase - CORRECTED
+# get_last_post_with_phrase remains the same
 def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:
     if LOG: print(f"Searching for update phrase '{phrase}'...")
     posts_per_page = 30; last_page_offset = -1
@@ -96,91 +99,17 @@ def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: in
                      word = "внесённые изменения"; link_html = f'<a href="{post_url}">{word}</a>'
                      # Check if word actually exists before replacing
                      if word in cleaned_update_text:
-                          return f"<b>Updated:</b> {cleaned_update_text.replace(word, link_html, 1)}"
+                          return f"<b>Обновлено:</b> {cleaned_update_text.replace(word, link_html, 1)}"
                 # Return even if cleaned_update_text is empty, but with link
-                return f'<b>Updated:</b> <a href="{post_url}">{update_keyword}</a>\n{cleaned_update_text}'
+                return f'<b>Обновлено:</b> <a href="{post_url}">{update_keyword}</a>\n{cleaned_update_text}'
         if current_offset == 0: break # Exit loop if first page checked
     return None # Return None if phrase not found after checking pages
 
 
-# clean_description_html remains the same
-def clean_description_html(description_html_str: str) -> str:
-    if not description_html_str: return ""
-    description_soup = BeautifulSoup(description_html_str, 'html.parser')
-    tags_to_remove = ['script', 'style', 'iframe', 'object', 'embed', 'var', 'img']
-    sections_to_remove_classes = ['attach_wrap', 'attach_fu', 'signature', 'sp-head', 'q-head']
-    for tag_name in tags_to_remove:
-        for tag in description_soup.find_all(tag_name): tag.decompose()
-    for class_name in sections_to_remove_classes:
-        for section in description_soup.find_all(class_=class_name): section.decompose()
-    for spoiler in description_soup.find_all("div", class_="sp-wrap"):
-        sp_body = spoiler.find("div", class_="sp-body"); content = sp_body.get_text(strip=True) if sp_body else "Spoiler Content"
-        spoiler.replace_with(NavigableString(f"\n<tg-spoiler>{html.escape(content)}</tg-spoiler>\n"))
-    for quote in description_soup.find_all("div", class_="q-wrap"):
-        q_body = quote.find("div", class_="q"); content = q_body.get_text(strip=True) if q_body else "Quoted Text"
-        quote.replace_with(NavigableString(f"\n> {html.escape(content)}\n"))
-    for tag in description_soup.find_all("span", class_="post-u"): tag.name = "u"; tag.attrs = {}
-    for tag in description_soup.find_all("span", class_="post-i"): tag.name = "i"; tag.attrs = {}
-    for tag in description_soup.find_all("span", class_="post-b"): tag.name = "b"; tag.attrs = {}
-    for tag in description_soup.find_all("span", class_="post-strike"): tag.name = "s"; tag.attrs = {}
-    for tag in description_soup.find_all("pre", class_="post-pre"):
-         pre_content = tag.get_text(); tag.name = "pre"; tag.string = html.escape(pre_content); tag.attrs = {}
-    spans_to_unwrap = description_soup.find_all('span', {'class': lambda x: x and ('post-color' in x or 'post-size' in x)})
-    spans_to_unwrap.extend(description_soup.find_all('span', style=True))
-    for tag in spans_to_unwrap: tag.unwrap()
-    for ul in description_soup.find_all(['ul', 'ol']):
-        list_items = []; is_ordered = ul.name == 'ol'; i = 1
-        for li in ul.find_all('li', recursive=False):
-            prefix = f"{i}. " if is_ordered else "• "
-            for br in li.find_all('br'): br.replace_with("\n" + " " * len(prefix))
-            li_text = li.get_text(separator=' ', strip=True); list_items.append(f"{prefix}{li_text}")
-            if is_ordered: i += 1
-        ul.replace_with(NavigableString("\n" + "\n".join(list_items) + "\n"))
-    for a in description_soup.find_all('a', href=True):
-        href = a['href']
-        if href.startswith('viewtopic.php'): a['href'] = 'https://rutracker.org/forum/' + href
-        elif href.startswith('tracker.php'): a['href'] = 'https://rutracker.org/forum/' + href
-        elif href.startswith('magnet:'):
-             magnet_text = a.get_text(strip=True) or a['href']; a.name = 'code'; a.string = magnet_text; del a['href']
-        else:
-             link_text = a.get_text(strip=True);
-             if not link_text: a.unwrap()
-             else: a.string = link_text
-    for hr in description_soup.find_all('hr'): hr.replace_with('\n---\n')
-    for br_like in description_soup.find_all(['br', 'span'], class_="post-br"): br_like.replace_with('\n')
-    cleaned_html = description_soup.decode_contents()
-    allowed_tags = ['b', 'i', 'u', 's', 'tg-spoiler', 'a', 'code', 'pre', 'blockquote']
-    def strip_tags(match): tag = match.group(1).lower(); return match.group(0) if tag in allowed_tags else ''
-    cleaned_html = re.sub(r'</?([a-zA-Z0-9]+)[^>]*>', strip_tags, cleaned_html)
-    cleaned_html = cleaned_html.replace('\r', ''); cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
-    cleaned_html = re.sub(r'\n{3,}', '\n\n', cleaned_html); cleaned_html = re.sub(r' +', ' ', cleaned_html).strip()
-    cleaned_html = cleaned_html.replace(" :", ":"); cleaned_html = html.unescape(cleaned_html)
-    return cleaned_html
+# --- clean_description_html and make_tag moved to html_utils.py ---
 
-# make_tag remains the same
-def make_tag(description: str, keyword: str) -> str:
-    tag_header_pattern = re.compile(r"<b>" + re.escape(keyword) + r"</b>\s*:\s*(.*?)\s*(\n|<br|$)", re.IGNORECASE | re.DOTALL)
-    match = tag_header_pattern.search(description)
-    if match:
-        line_after_header = match.group(1).strip(); placeholder = "@@COMMA@@"
-        temp_line = re.sub(r'<[^>]+>', lambda m: m.group(0).replace(',', placeholder), line_after_header)
-        items = [item.replace(placeholder, ',').strip() for item in temp_line.split(',')]
-        formatted_tags = []
-        for item in items:
-            if not item: continue
-            item_soup = BeautifulSoup(item, 'html.parser'); tag_text = item_soup.get_text(strip=True)
-            clean_tag_text = re.sub(r'\W+', '', tag_text);
-            if not clean_tag_text: continue
-            link_tag = item_soup.find('a')
-            if link_tag: link_href = link_tag.get('href', '#'); formatted_tag = f" #{clean_tag_text} (<a href=\"{link_href}\">more...</a>)"
-            else: formatted_tag = f" #{clean_tag_text}"
-            formatted_tags.append(formatted_tag)
-        if formatted_tags:
-            formatted_line = ", ".join(formatted_tags); start_index = match.start(1); end_index = match.end(1)
-            description = description[:start_index] + formatted_line + description[end_index:]
-    return description
 
-# parse_tracker_entry remains the same as previous version where return was corrected
+# parse_tracker_entry remains the same (uses functions from html_utils)
 def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str]]:
     soup = fetch_page_content(entry_url)
     if not soup: return None
@@ -230,6 +159,7 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
     if not title_text_for_youtube or len(title_text_for_youtube) < 3:
         title_text_for_youtube = page_display_title
 
+    # Use the imported cleaning function
     cleaned_description = clean_description_html("".join(description_elements_html))
 
     is_updated = "[Обновлено]" in entry_title_from_feed or "[Updated]" in entry_title_from_feed
@@ -262,6 +192,7 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
         if not magnet_link: print("Error: Magnet link could not be extracted."); return None
     except Exception as e: print(f"Error extracting magnet link: {e}"); return None
 
+    # Use the imported tagging function
     final_description = make_tag(cleaned_description, "Жанр")
     final_description = make_tag(final_description, "Genre")
     final_description = make_tag(final_description, "Год выпуска")

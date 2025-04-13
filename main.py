@@ -14,6 +14,7 @@ from settings_loader import (
 from feed_handler import (
     read_last_entry_link, write_last_entry_link, get_new_feed_entries
 )
+# Import the updated function
 from tracker_parser import parse_tracker_entry
 from youtube_search import search_trailer_on_youtube
 from ai_validator import validate_yt_title_with_gpt
@@ -56,6 +57,7 @@ def main_loop():
             specific_entry_link_for_test = TEST_LAST_ENTRY_LINK
             if not specific_entry_link_for_test or not specific_entry_link_for_test.startswith('http'):
                 print("Error: Test mode enabled, but 'test_last_entry_link' is invalid or not set."); return
+            # Use the actual title from the feed if available, otherwise a placeholder
             entries_to_process = [{'link': specific_entry_link_for_test, 'title': 'TEST_MODE_FETCH_TITLE'}]
             print(f"TEST MODE: Processing single link: {specific_entry_link_for_test}")
         else:
@@ -74,6 +76,7 @@ def main_loop():
 
             print(f"\n--- Processing Entry ---"); print(f"Link: {entry_link}")
 
+            # Pass entry_link to the parser
             parsed_data = parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
 
             if parsed_data:
@@ -90,7 +93,7 @@ def main_loop():
                 print(f"Title for Search/Lookup: '{title_text_for_youtube}'")
 
                 is_updated = "[Обновлено]" in entry_title_feed_or_placeholder or "[Updated]" in entry_title_feed_or_placeholder
-                update_prefix = "<b>[Updated]</b> " if is_updated else ""
+                update_prefix = "<b>[Обновлено]</b> " if is_updated else ""
                 title_link_html = f'<a href="{entry_link}">{html.escape(page_display_title)}</a>'
                 final_title_for_telegram = f"{update_prefix}{title_link_html}"
 
@@ -102,13 +105,11 @@ def main_loop():
                     if trailer_url and found_yt_title:
                         is_title_relevant = validate_yt_title_with_gpt(title_text_for_youtube, found_yt_title)
                         if is_title_relevant:
-                            # --- Get video ID ---
                             video_id_for_thumbnail = get_youtube_video_id(trailer_url)
                             if video_id_for_thumbnail:
                                 print(f"Trailer validated. Video ID for thumbnail: {video_id_for_thumbnail}")
                             else:
                                 print(f"Warning: Could not extract video ID from validated trailer URL: {trailer_url}")
-                            # --- Add text link ---
                             if 'Trailer</a>' not in final_title_for_telegram:
                                 final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
                         else:
@@ -138,16 +139,14 @@ def main_loop():
 
                 # Send to Telegram
                 try:
-                     # --- Pass video_id instead of pre-formatted URL ---
                      send_to_telegram(
                          final_title_for_telegram,
                          cover_image_url,
                          magnet_link,
                          cleaned_description,
-                         video_id_for_thumbnail, # Pass only the ID
+                         video_id_for_thumbnail,
                          local_screenshot_paths
                      )
-                     # ----------------------------------------------------
                      processed_count += 1
                      if not IS_TEST_MODE:
                           write_last_entry_link(last_entry_file_path, entry_link)
@@ -157,6 +156,7 @@ def main_loop():
                      continue
                 except Exception as tg_err:
                      print(f"!!! Error sending entry {entry_link} to Telegram: {tg_err}")
+                     # Don't write last entry link if sending failed
                      continue
 
                 # Delay
@@ -166,19 +166,19 @@ def main_loop():
             else:
                 print(f"Failed to parse data for entry: {entry_link}. Skipping.")
                 send_error = True;
+                # Avoid sending error if the feed itself failed (new_entries would be None)
                 if not IS_TEST_MODE and 'new_entries' in locals() and new_entries is None: send_error = False
                 if send_error: send_error_to_telegram(f"Failed to parse tracker page: {entry_link}")
 
         # Loop Finished
         if processed_count > 0: print(f"\nSuccessfully processed {processed_count} entries.")
         elif IS_TEST_MODE and processed_count == 0: print("\nTest run finished, but the test entry failed processing.")
-        elif not IS_TEST_MODE and 'entries_to_process' in locals() and not entries_to_process: pass
+        elif not IS_TEST_MODE and 'entries_to_process' in locals() and not entries_to_process: pass # Normal case: no new entries
         elif not IS_TEST_MODE and 'entries_to_process' in locals() and entries_to_process and processed_count == 0:
              print("\nFinished processing feed, but no entries were successfully parsed and sent.")
         entry_link_in_progress = "N/A"
 
     except Exception as e:
-        # Error handling
         error_type = type(e).__name__; error_message = str(e); stack_trace = traceback.format_exc()
         error_details = (f"Unhandled error in main loop.\n"
                          f"Last Link Attempted: {entry_link_in_progress}\n\n"
