@@ -58,17 +58,15 @@ def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
 
     # --- Updated Prompt ---
     prompt = (
-        f"Please translate the following text from Russian to Ukrainian.\n"
+        f"Perform a literal and direct translation of the following text from Russian to Ukrainian. Do not change the meaning, context, or add any information that is not present in the original text.\n"
         f"**Formatting Requirements:**\n"
         f"1.  Strictly preserve all original HTML tags allowed by Telegram: `<b>`, `<i>`, `<u>`, `<s>`, `<tg-spoiler>`, `<a>`, `<code>`, `<pre>`.\n"
         f"2.  Remove any other HTML tags (like `<span>`, `<div>`) but keep their content.\n"
         f"3.  Keep English words and words starting with # (hashtags) untranslated.\n"
         f"4.  Do not translate content inside `<code>` and `<pre>` tags.\n"
-        f"5.  Structure the translated text logically. If the original text uses bold tags (`<b>...</b>:`) for headers (like 'Год выпуска:', 'Жанр:', 'Описание:'), use bold tags (`<b>`) for the corresponding translated headers.\n"
-        # --- MODIFIED POINT ---
-        f"6.  To improve readability, use bold (`<b>`) or italics (`<i>`) tags to emphasize key points or terms where appropriate, even if not present in the original text.\n"
-        # --- END MODIFIED POINT ---
-        f"7.  Do NOT add any emojis or markdown formatting like ```.\n\n" # Renumbered
+        f"5.  If the original text uses bold tags (`<b>...</b>:`) for headers (like 'Год выпуска:', 'Жанр:', 'Описание:'), use bold tags (`<b>`) for the corresponding translated headers.\n"
+        f"6.  Do not add any extra formatting (like bold or italics) that isn't in the original text.\n"
+        f"7.  Do NOT add any emojis or markdown formatting like ```.\n\n"
         f"**Text to translate:**\n{text}\n\n**Ukrainian Translation:**"
     )
     # --- End of Updated Prompt ---

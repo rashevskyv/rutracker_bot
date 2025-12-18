@@ -59,4 +59,48 @@ def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: 
     except Exception as e:
         print(f"Error during GPT validation API call: {e}")
         return False # Default to False on API error
-# --- END OF FILE ai_validator.py ---
+
+def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-4o-mini") -> str:
+    """
+    Summarizes a long description using an AI model to fit within a target length.
+
+    Args:
+        description: The long text to summarize.
+        target_length: The desired character length for the summary.
+        model: The OpenAI model to use.
+
+    Returns:
+        The summarized description, or the original if an error occurs.
+    """
+    if not openai_client:
+        print("Warning: OpenAI client unavailable for summarization. Returning original description.")
+        return description
+
+    if LOG: print(f"Description length ({len(description)}) is too long. Summarizing with {model}...")
+
+    prompt = (
+        f"You are an expert content summarizer for a Telegram channel. Your task is to shorten the following game description to be under {target_length} characters. "
+        f"The summary must be clear, concise, and retain all essential information, such as game features, plot overview, and system requirements.\n\n"
+        f"**Requirements:**\n"
+        f"1.  The final text must be under {target_length} characters.\n"
+        f"2.  Preserve all original HTML tags (`<b>`, `<i>`, `<a>`, etc.) as they are used for Telegram formatting.\n"
+        f"3.  Do not remove or alter the meaning of important sections like 'Особенности игры' (Game Features) or 'Системные требования' (System Requirements). Summarize the content within them if necessary.\n"
+        f"4.  The language of the summary must be the same as the original text (Russian).\n"
+        f"5.  Ensure the summary is well-structured and easy to read.\n\n"
+        f"**Original Text:**\n{description}\n\n"
+        f"**Summarized Text (under {target_length} chars):**"
+    )
+
+    try:
+        response = openai_client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,  # Allow for a substantial summary
+            temperature=0.5
+        )
+        summary = response.choices[0].message.content.strip()
+        if LOG: print(f"Successfully summarized description. New length: {len(summary)}")
+        return summary
+    except Exception as e:
+        print(f"Error during AI summarization: {e}")
+        return description # Fallback to original text on error

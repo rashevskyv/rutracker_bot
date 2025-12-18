@@ -2,6 +2,7 @@
 from io import BytesIO
 import requests
 from translation import translate_ru_to_ua
+from ai_validator import summarize_description_with_ai
 try:
     from settings_loader import GROUPS, ERROR_TG, LOG, bot, TOKEN
 except ImportError:
@@ -27,6 +28,7 @@ from telegram_utils import (
 MAX_MEDIA_GROUP_SIZE = 10
 MIN_MEDIA_FOR_GROUP_STRATEGY = 6 # Send as media group if >= 6 items total (cover+thumb+screenshots)
 GOOGLE_IMG_SEARCH_URL = "https://www.google.com/search?tbm=isch&q=Nintendo+Switch"
+MAX_DESCRIPTION_LENGTH = 7000 # Summarize if longer than this
 
 
 # --- Private Helper Function for Strategy 1 (Separate Media) ---
@@ -226,6 +228,29 @@ def send_to_telegram(title_for_caption: str,
 
     if local_screenshot_paths is None:
         local_screenshot_paths = []
+
+    # --- AI Summarization for long descriptions ---
+    if len(description) > MAX_DESCRIPTION_LENGTH:
+        print(f"Description length ({len(description)}) exceeds {MAX_DESCRIPTION_LENGTH}. Summarizing with AI...")
+        original_description = description  # Keep a copy of the original
+        summarized_description = summarize_description_with_ai(description, target_length=MAX_DESCRIPTION_LENGTH - 1000)
+
+        # Check if summarization was successful and different from original
+        if summarized_description != original_description:
+            description = summarized_description  # Replace original description
+            
+            # Send a notification to the admin/log channel
+            log_message = (
+                f"📝 Description Summarized for Post\n\n"
+                f"Original Length: {len(original_description)}\n"
+                f"Summarized Length: {len(summarized_description)}\n\n"
+                f"--- ORIGINAL ---\n{html.escape(original_description[:1500])}...\n\n"
+                f"--- SUMMARY ---\n{html.escape(summarized_description[:1500])}..."
+            )
+            send_message_to_admin(log_message)
+        else:
+            print("Summarization did not produce a different result. Using original description.")
+    # ---
 
     # Download media needed for all groups first
     cover_image_file = download_cover_image_tg(cover_image_url)
