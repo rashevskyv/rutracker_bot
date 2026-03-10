@@ -5,11 +5,13 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 import re
 import time
 import html # Import html for escaping
-from settings_loader import LOG # Use the refactored settings module
+import logging
 from typing import Optional, Tuple, List # Import Optional, Tuple, List
 # --- Import functions moved to html_utils ---
 from html_utils import clean_description_html, make_tag
 # --------------------------------------------
+
+logger = logging.getLogger(__name__)
 
 # fetch_page_content remains the same
 async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[BeautifulSoup]:
@@ -23,22 +25,22 @@ async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Opti
                     soup = BeautifulSoup(content, "html.parser")
                     return soup
         except aiohttp.ClientConnectorError as e:
-            print(f"Connection error fetching {url}: {e}")
+            logger.error(f"Connection error fetching {url}: {e}")
         except aiohttp.ClientResponseError as e:
-            print(f"HTTP Error fetching {url}: {e.status}")
+            logger.error(f"HTTP Error fetching {url}: {e.status}")
             if e.status == 404: return None
             if 400 <= e.status < 500 and e.status != 429: return None
         except asyncio.TimeoutError:
-            print(f"Timeout fetching {url} (Attempt {attempt + 1}/{retries})")
+            logger.warning(f"Timeout fetching {url} (Attempt {attempt + 1}/{retries})")
         except Exception as e:
-            print(f"An unexpected error occurred fetching {url}: {e}")
+            logger.error(f"An unexpected error occurred fetching {url}: {e}")
             break
         if attempt < retries - 1: await asyncio.sleep(delay)
-        else: print(f"Failed to fetch {url} after {retries} attempts."); return None
+        else: logger.error(f"Failed to fetch {url} after {retries} attempts."); return None
 
 # get_last_post_with_phrase remains the same
 async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:
-    if LOG: print(f"Searching for update phrase '{phrase}'...")
+    logger.debug(f"Searching for update phrase '{phrase}'...")
     posts_per_page = 30; last_page_offset = -1
     soup_first_page = await fetch_page_content(base_url)
     if soup_first_page:
@@ -67,7 +69,7 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
             for br in post_body_div.find_all("br"): br.replace_with("\n")
             post_text_content = post_body_div.get_text(separator=" ", strip=True) # Check text content first
             if phrase in post_text_content:
-                if LOG: print(f"Found update phrase '{phrase}' in post on {page_url}")
+                logger.info(f"Found update phrase '{phrase}' in post on {page_url}")
                 relevant_html_content = ""; found_phrase = False; stop_collecting = False
                 for element in post_body_div.children:
                     element_str = str(element)
@@ -128,7 +130,7 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     page_display_title = page_display_title.replace("[Nintendo Switch]", "").replace("[Обновлено]", "").replace("[Updated]", "").strip()
 
     post_body = soup.find("div", class_="post_body")
-    if not post_body: print(f"Could not find main post body in {entry_url}."); return None
+    if not post_body: logger.error(f"Could not find main post body in {entry_url}."); return None
 
     title_elements_html = []; description_elements_html = []; collecting_title = True
     description_start_keywords = ["Год выпуска", "Release year", "Жанр", "Genre", "Разработчик", "Developer", "Описание", "Description"]
@@ -179,7 +181,7 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
         else:
             image_tag_var = post_body.find("var", class_="postImg", title=True)
             if image_tag_var: image_url = image_tag_var["title"]
-    except Exception as e: print(f"Warning: Error extracting image URL: {e}")
+    except Exception as e: logger.warning(f"Warning: Error extracting image URL: {e}")
 
     magnet_link: Optional[str] = None
     try:
@@ -201,10 +203,10 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
                     magnet_link = match.group(1)
         
         if not magnet_link:
-            print("Error: Magnet link could not be extracted.")
+            logger.error("Error: Magnet link could not be extracted.")
             return None
     except Exception as e:
-        print(f"Error extracting magnet link: {e}")
+        logger.error(f"Error extracting magnet link: {e}")
         return None
 
     final_description = make_tag(cleaned_description, "Жанр")

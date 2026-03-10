@@ -7,6 +7,7 @@ import re
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, List
 import os
+import logging
 
 from settings_loader import (
     LOG, IS_TEST_MODE, FEED_URL, TEST_LAST_ENTRY_LINK, YOUTUBE_API_KEY,
@@ -15,12 +16,13 @@ from settings_loader import (
 from feed_handler import (
     read_last_entry_link, write_last_entry_link, get_new_feed_entries
 )
-# Import the updated function
 from tracker_parser import parse_tracker_entry
 from youtube_search import search_trailer_on_youtube
 from ai_validator import validate_yt_title_with_gpt
 from titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
 from telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin
+
+logger = logging.getLogger(__name__)
 
 # Initialize TitleDB Manager
 titledb_json_dir_relative = "titledb"
@@ -29,8 +31,8 @@ db_manager: Optional[TitleDBManager] = None
 try:
     db_manager = TitleDBManager(titledb_json_path=titledb_json_dir_relative)
 except FileNotFoundError as e:
-    print(f"Error initializing TitleDBManager: {e}")
-    print("Screenshots from titledb will be unavailable.")
+    logger.error(f"Error initializing TitleDBManager: {e}")
+    logger.warning("Screenshots from titledb will be unavailable.")
 
 def get_youtube_video_id(url: Optional[str]) -> Optional[str]:
     """Extracts YouTube video ID from various URL formats."""
@@ -41,15 +43,15 @@ def get_youtube_video_id(url: Optional[str]) -> Optional[str]:
             if parsed_url.path == "/watch": return parse_qs(parsed_url.query).get("v", [None])[0]
             if parsed_url.path.startswith(("/embed/", "/v/")): return parsed_url.path.split("/")[2]
         elif "youtu.be" in parsed_url.netloc: return parsed_url.path[1:]
-    except Exception as e: print(f"Error parsing YouTube URL {url}: {e}")
+    except Exception as e: logger.error(f"Error parsing YouTube URL {url}: {e}")
     return None
 
 async def main_loop():
-    print("-------------------------------------")
-    print("Starting RuTracker Feed Checker...")
-    print(f"Mode: {'Test' if IS_TEST_MODE else 'Production'}")
-    print(f"Log enabled: {LOG}")
-    print("-------------------------------------")
+    logger.info("-------------------------------------")
+    logger.info("Starting RuTracker Feed Checker...")
+    logger.info(f"Mode: {'Test' if IS_TEST_MODE else 'Production'}")
+    logger.info(f"Log enabled: {LOG}")
+    logger.info("-------------------------------------")
 
     entry_link_in_progress = "N/A"; processed_count = 0
 
@@ -57,25 +59,26 @@ async def main_loop():
         if IS_TEST_MODE:
             specific_entry_link_for_test = TEST_LAST_ENTRY_LINK
             if not specific_entry_link_for_test or not specific_entry_link_for_test.startswith('http'):
-                print("Error: Test mode enabled, but 'test_last_entry_link' is invalid or not set."); return
+                logger.error("Test mode enabled, but 'test_last_entry_link' is invalid or not set."); return
             # Use the actual title from the feed if available, otherwise a placeholder
             entries_to_process = [{'link': specific_entry_link_for_test, 'title': 'TEST_MODE_FETCH_TITLE'}]
-            print(f"TEST MODE: Processing single link: {specific_entry_link_for_test}")
+            logger.info(f"TEST MODE: Processing single link: {specific_entry_link_for_test}")
         else:
             last_processed_link = await asyncio.to_thread(read_last_entry_link, last_entry_file_path)
             new_entries = await get_new_feed_entries(FEED_URL, last_processed_link)
             if new_entries is None: await send_error_to_telegram("Failed to fetch or parse feed."); return
-            if not new_entries: print("No new feed entries found."); await send_message_to_admin("No new feed entries found."); return
-            print(f"Processing {len(new_entries)} new entries...")
+            if not new_entries: logger.info("No new feed entries found."); await send_message_to_admin("No new feed entries found."); return
+            logger.info(f"Processing {len(new_entries)} new entries...")
             entries_to_process = new_entries
 
         for entry in entries_to_process:
             entry_link = entry.get('link')
             entry_title_feed_or_placeholder = entry.get('title', 'TEST_MODE_FETCH_TITLE')
-            if not entry_link: print("Skipping entry with missing link."); continue
+            if not entry_link: logger.warning("Skipping entry with missing link."); continue
             entry_link_in_progress = entry_link
 
-            print(f"\n--- Processing Entry ---"); print(f"Link: {entry_link}")
+            logger.info(f"\n--- Processing Entry ---")
+            logger.info(f"Link: {entry_link}")
 
             # Pass entry_link to the parser
             parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
@@ -84,14 +87,14 @@ async def main_loop():
                 page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description = parsed_data
 
                 if not page_display_title or page_display_title == "Unknown Title":
-                     print(f"Error: Parser failed to extract display title for {entry_link}. Skipping.")
+                     logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
                      await send_error_to_telegram(f"Parser failed to extract display title for link: {entry_link}"); continue
                 if not title_text_for_youtube:
-                     print(f"Warning: Parser failed to extract title block for YT search. Using display title '{page_display_title}' as fallback.")
+                     logger.warning(f"Parser failed to extract title block for YT search. Using display title '{page_display_title}' as fallback.")
                      title_text_for_youtube = page_display_title
 
-                print(f"Display Title: '{page_display_title}'")
-                print(f"Title for Search/Lookup: '{title_text_for_youtube}'")
+                logger.info(f"Display Title: '{page_display_title}'")
+                logger.info(f"Title for Search/Lookup: '{title_text_for_youtube}'")
 
                 is_updated = "[Обновлено]" in entry_title_feed_or_placeholder or "[Updated]" in entry_title_feed_or_placeholder
                 update_prefix = "<b>[Обновлено]</b> " if is_updated else ""
@@ -108,22 +111,22 @@ async def main_loop():
                         if is_title_relevant:
                             video_id_for_thumbnail = get_youtube_video_id(trailer_url)
                             if video_id_for_thumbnail:
-                                print(f"Trailer validated. Video ID for thumbnail: {video_id_for_thumbnail}")
+                                logger.info(f"Trailer validated. Video ID for thumbnail: {video_id_for_thumbnail}")
                             else:
-                                print(f"Warning: Could not extract video ID from validated trailer URL: {trailer_url}")
+                                logger.warning(f"Could not extract video ID from validated trailer URL: {trailer_url}")
                             if 'Trailer</a>' not in final_title_for_telegram:
                                 final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
                         else:
-                            print(f"Warning: GPT validation deemed YT title not relevant.")
+                            logger.warning(f"GPT validation deemed YT title not relevant.")
                             await notify_mismatched_trailer(title_text_for_youtube, found_yt_title, trailer_url)
                     elif trailer_url:
-                         print(f"Warning: Found trailer URL but YT title missing. Adding link cautiously.")
+                         logger.warning(f"Found trailer URL but YT title missing. Adding link cautiously.")
                          if 'Trailer</a>' not in final_title_for_telegram:
                              final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
-                             print(f"Added Trailer link (unvalidated): {trailer_url}")
+                             logger.info(f"Added Trailer link (unvalidated): {trailer_url}")
 
                 except Exception as yt_err:
-                     print(f"Warning: YouTube search/validation failed: {yt_err}")
+                     logger.warning(f"YouTube search/validation failed: {yt_err}")
 
                 # Get and Download Screenshots from TitleDB
                 local_screenshot_paths: List[str] = []
@@ -133,7 +136,7 @@ async def main_loop():
                         nsuid_from_db = game_db_data.get('nsuId')
                         screenshot_urls_from_db = game_db_data.get('screenshots', [])
                         if screenshot_urls_from_db and isinstance(screenshot_urls_from_db, list):
-                             if LOG: print(f"Found {len(screenshot_urls_from_db)} screenshot URLs in titledb.")
+                             logger.debug(f"Found {len(screenshot_urls_from_db)} screenshot URLs in titledb.")
                              local_screenshot_paths = await db_manager.download_screenshots(
                                  screenshot_urls_from_db, nsuid=nsuid_from_db, game_title=title_text_for_youtube
                              )
@@ -152,31 +155,32 @@ async def main_loop():
                      if not IS_TEST_MODE:
                           await asyncio.to_thread(write_last_entry_link, last_entry_file_path, entry_link)
                 except TypeError as te:
-                     print(f"!!! TypeError calling send_to_telegram: {te}. Check function signature.")
-                     traceback.print_exc(); await send_error_to_telegram(f"TypeError calling send_to_telegram for {entry_link}.")
+                     logger.error(f"TypeError calling send_to_telegram: {te}. Check function signature.")
+                     logger.error(traceback.format_exc())
+                     await send_error_to_telegram(f"TypeError calling send_to_telegram for {entry_link}.")
                      continue
                 except Exception as tg_err:
-                     print(f"!!! Error sending entry {entry_link} to Telegram: {tg_err}")
+                     logger.error(f"Error sending entry {entry_link} to Telegram: {tg_err}")
                      # Don't write last entry link if sending failed
                      continue
 
                 # Delay
                 if not IS_TEST_MODE and len(entries_to_process) > 1 and entry is not entries_to_process[-1]:
-                    print("Waiting 60 seconds before processing next entry...")
+                    logger.info("Waiting 60 seconds before processing next entry...")
                     await asyncio.sleep(60)
             else:
-                print(f"Failed to parse data for entry: {entry_link}. Skipping.")
+                logger.warning(f"Failed to parse data for entry: {entry_link}. Skipping.")
                 send_error = True;
                 # Avoid sending error if the feed itself failed (new_entries would be None)
                 if not IS_TEST_MODE and 'new_entries' in locals() and new_entries is None: send_error = False
                 if send_error: await send_error_to_telegram(f"Failed to parse tracker page: {entry_link}")
 
         # Loop Finished
-        if processed_count > 0: print(f"\nSuccessfully processed {processed_count} entries.")
-        elif IS_TEST_MODE and processed_count == 0: print("\nTest run finished, but the test entry failed processing.")
+        if processed_count > 0: logger.info(f"Successfully processed {processed_count} entries.")
+        elif IS_TEST_MODE and processed_count == 0: logger.info("Test run finished, but the test entry failed processing.")
         elif not IS_TEST_MODE and 'entries_to_process' in locals() and not entries_to_process: pass # Normal case: no new entries
         elif not IS_TEST_MODE and 'entries_to_process' in locals() and entries_to_process and processed_count == 0:
-             print("\nFinished processing feed, but no entries were successfully parsed and sent.")
+             logger.info("Finished processing feed, but no entries were successfully parsed and sent.")
         entry_link_in_progress = "N/A"
 
     except Exception as e:
@@ -186,7 +190,7 @@ async def main_loop():
                          f"<b>Error type</b>: {error_type}\n"
                          f"<b>Error message</b>: {html.escape(error_message)}\n\n"
                          f"<b>Stack Trace</b>:\n<pre>{html.escape(stack_trace)}</pre>")
-        print("\n---!!! FATAL ERROR in main_loop !!!---"); traceback.print_exc(limit=5); print("---!!! END ERROR !!!---")
+        logger.error(f"FATAL ERROR in main_loop: {stack_trace}")
         await send_error_to_telegram(error_details)
 
 if __name__ == "__main__":

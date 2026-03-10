@@ -1,7 +1,10 @@
 # --- START OF FILE ai_validator.py ---
-from settings_loader import openai_client, LOG # Import OpenAI client and LOG flag
+from settings_loader import openai_client # Import OpenAI client
 from typing import Optional
 import re # Import re for cleaning title in prompt
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = "gpt-4o-mini") -> bool:
     """
@@ -17,7 +20,7 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
         True if GPT response is exactly 'true', False otherwise (including errors or other responses).
     """
     if not openai_client:
-        print("Warning: OpenAI client unavailable for YouTube title validation. Skipping validation, assuming False.")
+        logger.warning("OpenAI client unavailable for YouTube title validation. Skipping validation, assuming False.")
         return False # Cannot validate without client
 
     # Clean title for the prompt
@@ -33,7 +36,7 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
         f"Is the YouTube video title relevant and specifically about the searched game? Respond ONLY with True or False."
     )
 
-    if LOG: print(f"Requesting GPT validation for: '{prompt_searched_title}' vs '{found_yt_title}'")
+    logger.debug(f"Requesting GPT validation for: '{prompt_searched_title}' vs '{found_yt_title}'")
 
     try:
         response = await openai_client.chat.completions.create(
@@ -43,21 +46,21 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
             temperature=0.1 # Low temperature
         )
         result_text = response.choices[0].message.content.strip().lower() # Get response, strip whitespace, convert to lowercase
-        if LOG: print(f"GPT Validation Raw Response: '{response.choices[0].message.content}', Processed: '{result_text}'")
+        logger.debug(f"GPT Validation Raw Response: '{response.choices[0].message.content}', Processed: '{result_text}'")
 
         # --- Simplified Check ---
         is_relevant = (result_text == "true")
         # ----------------------
 
         if is_relevant:
-            print("GPT Validation: Title judged as RELEVANT.")
+            logger.info("GPT Validation: Title judged as RELEVANT.")
         else:
-            print(f"GPT Validation: Title judged as NOT relevant (Response was: '{result_text}').")
+            logger.info(f"GPT Validation: Title judged as NOT relevant (Response was: '{result_text}').")
 
         return is_relevant
 
     except Exception as e:
-        print(f"Error during GPT validation API call: {e}")
+        logger.error(f"Error during GPT validation API call: {e}")
         return False # Default to False on API error
 
 async def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-4o-mini") -> str:
@@ -73,10 +76,10 @@ async def summarize_description_with_ai(description: str, target_length: int = 6
         The summarized description, or the original if an error occurs.
     """
     if not openai_client:
-        print("Warning: OpenAI client unavailable for summarization. Returning original description.")
+        logger.warning("OpenAI client unavailable for summarization. Returning original description.")
         return description
 
-    if LOG: print(f"Description length ({len(description)}) is too long. Summarizing with {model}...")
+    logger.info(f"Description length ({len(description)}) is too long. Summarizing with {model}...")
 
     prompt = (
         f"You are a professional editor for a Telegram channel. Your task is to summarize the following game description (which could be for a single game or a large collection) to be under {target_length} characters.\n\n"
@@ -100,8 +103,8 @@ async def summarize_description_with_ai(description: str, target_length: int = 6
             temperature=0.5
         )
         summary = response.choices[0].message.content.strip()
-        if LOG: print(f"Successfully summarized description. New length: {len(summary)}")
+        logger.info(f"Successfully summarized description. New length: {len(summary)}")
         return summary
     except Exception as e:
-        print(f"Error during AI summarization: {e}")
+        logger.error(f"Error during AI summarization: {e}")
         return description # Fallback to original text on error

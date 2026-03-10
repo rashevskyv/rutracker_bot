@@ -1,10 +1,11 @@
 import sys
 import os
 import json
-import telebot
+import logging
+from typing import Dict, Optional, Any, List
 from telebot.async_telebot import AsyncTeleBot
 from openai import AsyncOpenAI
-from typing import Dict, Optional, Any, List # Import typing
+from logger_setup import setup_logging
 
 # Function load_config remains the same
 def load_config(file_path: str) -> Optional[Dict[str, Any]]:
@@ -12,8 +13,8 @@ def load_config(file_path: str) -> Optional[Dict[str, Any]]:
     if not os.path.exists(file_path): return None
     try:
         with open(file_path, 'r', encoding='utf-8') as f: return json.load(f)
-    except json.JSONDecodeError as e: print(f'Error loading config file {file_path}: {e}'); sys.exit(f"Invalid JSON in {file_path}")
-    except Exception as e: print(f'An unexpected error occurred loading {file_path}: {e}'); sys.exit(f"Could not load {file_path}")
+    except json.JSONDecodeError as e: logging.error(f'Error loading config file {file_path}: {e}'); sys.exit(f"Invalid JSON in {file_path}")
+    except Exception as e: logging.error(f'An unexpected error occurred loading {file_path}: {e}'); sys.exit(f"Could not load {file_path}")
 
 # Function get_env_or_setting remains the same
 def get_env_or_setting(settings_dict: Dict[str, Any], key: str, env_var: str) -> Optional[Any]: # Return Any to handle bools
@@ -24,7 +25,7 @@ def get_env_or_setting(settings_dict: Dict[str, Any], key: str, env_var: str) ->
         env_value = os.environ.get(env_var)
         if not env_value:
             if key in ['DEEPL_API_KEY', 'YOUTUBE_API_KEY']: # Make optional keys explicit
-                 # print(f"Info: Setting '{key}' uses env var '{env_var}' which is not set. Feature disabled.")
+                 # logging.info(f"Setting '{key}' uses env var '{env_var}' which is not set. Feature disabled.")
                  return None
             sys.exit(f"Error: Environment variable {env_var} is not set, and setting '{key}' requires it.")
         return env_value
@@ -35,7 +36,7 @@ def get_env_or_setting(settings_dict: Dict[str, Any], key: str, env_var: str) ->
             if not env_value:
                  if key == 'OPENAI_API' and settings_dict.get('OPENAI_API_KEY'): return settings_dict.get('OPENAI_API_KEY')
                  sys.exit(f"Error: Setting '{key}' is missing in config and environment variable {env_var} is not set.")
-            print(f"Warning: Setting '{key}' not found in config, using environment variable {env_var}.")
+            logging.warning(f"Setting '{key}' not found in config, using environment variable {env_var}.")
             return env_value
         # Provide defaults or None for non-critical keys
         elif key == 'FEED_URL': return 'https://feed.rutracker.cc/atom/f/1605.atom' # Default even if None
@@ -74,7 +75,6 @@ else:
         settings.update(default_cfg)
     else:
          print("Warning: settings.json (default config) not found.")
-         # sys.exit("Error: Default settings file (settings.json) not found.") # Optionally exit if default is required
 
     local_cfg = load_config(local_settings_path)
     if local_cfg:
@@ -86,20 +86,25 @@ else:
     # Convert string 'true'/'false' to boolean for test flag if necessary
     if isinstance(IS_TEST_MODE, str): IS_TEST_MODE = IS_TEST_MODE.lower() == 'true'
 
-
 if not settings:
     sys.exit("Error: No configuration settings could be loaded.")
 
 # --- Extract Settings using the final 'settings' dictionary ---
-print(f"Final Mode - IS_TEST_MODE: {IS_TEST_MODE}")
+# LOG flag is needed for logging initialization
+LOG = settings.get('LOG', False)
+if isinstance(LOG, str): LOG = LOG.lower() == 'true' # Ensure boolean
+
+# Initialize logging immediately after determining LOG flag
+log_level = logging.DEBUG if LOG else logging.INFO
+setup_logging(log_level=log_level)
+
+logging.info(f"Final Mode - IS_TEST_MODE: {IS_TEST_MODE}")
 
 TOKEN = get_env_or_setting(settings, 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN')
 OPENAI_API_KEY = get_env_or_setting(settings, 'OPENAI_API', 'OPENAI_API_KEY')
-FEED_URL = settings.get('FEED_URL', 'https://feed.rutracker.cc/atom/f/1605.atom') # Still need feed url for production
+FEED_URL = settings.get('FEED_URL', 'https://feed.rutracker.cc/atom/f/1605.atom')
 YOUTUBE_API_KEY = get_env_or_setting(settings, 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEY')
 DEEPL_API_KEY = get_env_or_setting(settings, 'DEEPL_API_KEY', 'DEEPL_API_KEY')
-LOG = settings.get('LOG', False)
-if isinstance(LOG, str): LOG = LOG.lower() == 'true' # Ensure boolean
 
 GROUPS = settings.get('GROUPS', [])
 ERROR_TG = settings.get('ERROR_TG', [])
@@ -107,28 +112,26 @@ ERROR_TG = settings.get('ERROR_TG', [])
 TEST_LAST_ENTRY_LINK = settings.get('test_last_entry_link') if IS_TEST_MODE else None
 
 # --- Validate Critical Settings ---
-if not TOKEN: sys.exit("Error: TELEGRAM_BOT_TOKEN is not configured.")
-if not OPENAI_API_KEY: print("Warning: OPENAI_API_KEY not configured. GPT translation disabled.")
-# YouTube API key validation moved to where it's used, as it's optional
+if not TOKEN: logging.critical("TELEGRAM_BOT_TOKEN is not configured."); sys.exit("Error: TELEGRAM_BOT_TOKEN is not configured.")
+if not OPENAI_API_KEY: logging.warning("OPENAI_API_KEY not configured. GPT translation disabled.")
 
 # Set Google credentials path
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
 if not os.path.exists(credentials_path):
-     print(f"Warning: Google credentials file ({credentials_path}) not found. Google services might fail.")
+     logging.warning(f"Google credentials file ({credentials_path}) not found. Google services might fail.")
 
 # --- Initialize API Clients ---
 try:
     bot = AsyncTeleBot(TOKEN)
-    # Note: bot.get_me() is now async, so we'll skip the username print here or handle it in main
-    print(f"Telegram AsyncBot initialized with token ending in ...{TOKEN[-5:]}")
-except Exception as e: sys.exit(f"Error initializing Telegram Bot: {e}")
+    logging.info(f"Telegram AsyncBot initialized with token ending in ...{TOKEN[-5:]}")
+except Exception as e: logging.error(f"Error initializing Telegram Bot: {e}"); sys.exit(f"Error initializing Telegram Bot: {e}")
 
 openai_client: Optional[AsyncOpenAI] = None
 if OPENAI_API_KEY:
-    try: openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY); print("OpenAI Async client initialized.")
-    except Exception as e: print(f"Warning: Error initializing OpenAI client: {e}. GPT functions disabled.")
-else: print("OpenAI client not initialized (no API key).")
+    try: openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY); logging.info("OpenAI Async client initialized.")
+    except Exception as e: logging.warning(f"Error initializing OpenAI client: {e}. GPT functions disabled.")
+else: logging.info("OpenAI client not initialized (no API key).")
 
 # Warnings about GROUPS/ERROR_TG
-if not GROUPS: print("Warning: No 'GROUPS' defined in settings. Posting to groups will not work.")
-if not ERROR_TG: print("Warning: No 'ERROR_TG' defined in settings. Error notifications disabled.")
+if not GROUPS: logging.warning("No 'GROUPS' defined in settings. Posting to groups will not work.")
+if not ERROR_TG: logging.warning("No 'ERROR_TG' defined in settings. Error notifications disabled.")
