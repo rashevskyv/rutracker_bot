@@ -10,6 +10,7 @@ except ImportError:
     import os; LOG = True; bot = None; TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN"); GROUPS = []; ERROR_TG = []
 import re
 import html
+import asyncio
 import time
 import traceback
 import os
@@ -28,18 +29,18 @@ from telegram_utils import (
 MAX_MEDIA_GROUP_SIZE = 10
 MIN_MEDIA_FOR_GROUP_STRATEGY = 6 # Send as media group if >= 6 items total (cover+thumb+screenshots)
 GOOGLE_IMG_SEARCH_URL = "https://www.google.com/search?tbm=isch&q=Nintendo+Switch"
-MAX_DESCRIPTION_LENGTH = 7000 # Summarize if longer than this
+MAX_DESCRIPTION_LENGTH = 5000 # Summarize if longer than this (approx 2 posts limit)
 
 
 # --- Private Helper Function for Strategy 1 (Separate Media) ---
-def _send_strategy_separate(
+async def _send_strategy_separate(
     chat_id: int,
     topic_id: Optional[int],
     message_text: str,
     cover_image_file: Optional[BytesIO],
     trailer_thumbnail_file: Optional[BytesIO],
     local_screenshot_paths: List[str]
-) -> List[IO]: # Returns list of opened file handles to be closed
+) -> List[IO]:
     """Handles sending logic when media count is below the threshold."""
     media_files_opened: List[IO] = []
     caption_for_photo = ""
@@ -54,8 +55,8 @@ def _send_strategy_separate(
         caption_for_photo = caption_parts[0] if caption_parts else ""
         remaining_text = "\n".join(caption_parts[1:])
 
-        bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=cover_image_file, caption=caption_for_photo, parse_mode="HTML")
-        time.sleep(1)
+        await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=cover_image_file, caption=caption_for_photo, parse_mode="HTML")
+        await asyncio.sleep(1)
         primary_photo_sent = True
 
     # If no cover, try sending Thumbnail
@@ -66,8 +67,8 @@ def _send_strategy_separate(
         caption_for_photo = caption_parts[0] if caption_parts else ""
         remaining_text = "\n".join(caption_parts[1:])
 
-        bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=trailer_thumbnail_file, caption=caption_for_photo, parse_mode="HTML")
-        time.sleep(1)
+        await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=trailer_thumbnail_file, caption=caption_for_photo, parse_mode="HTML")
+        await asyncio.sleep(1)
         primary_photo_sent = True
 
     # Send Remaining Text (if any)
@@ -79,8 +80,8 @@ def _send_strategy_separate(
         for i, part in enumerate(message_parts):
             # --- FIX: Ensure part is not empty/whitespace before sending ---
             if part.strip():
-                bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML", disable_web_page_preview=(disable_first_preview or i > 0))
-                time.sleep(1)
+                await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML", disable_web_page_preview=(disable_first_preview or i > 0))
+                await asyncio.sleep(1)
             else:
                 print("Strategy 1: Skipped sending empty part of remaining text.")
     else:
@@ -108,14 +109,14 @@ def _send_strategy_separate(
 
         if screenshot_media_group:
             print(f"Sending screenshot-only media group ({screenshots_added_count} items)...")
-            bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=screenshot_media_group)
-            time.sleep(2)
+            await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=screenshot_media_group)
+            await asyncio.sleep(2)
 
     return media_files_opened
 
 
 # --- Private Helper Function for Strategy 2 (Grouped Media) ---
-def _send_strategy_grouped(
+async def _send_strategy_grouped(
     chat_id: int,
     topic_id: Optional[int],
     message_text: str,
@@ -123,7 +124,7 @@ def _send_strategy_grouped(
     trailer_thumbnail_file: Optional[BytesIO],
     local_screenshot_paths: List[str],
     is_max_res_thumbnail: bool
-) -> List[IO]: # Returns list of opened file handles to be closed
+) -> List[IO]:
     """Handles sending logic when media count meets or exceeds the threshold."""
     media_files_opened: List[IO] = []
     media_group_to_send: List[InputMediaPhoto] = []
@@ -177,15 +178,15 @@ def _send_strategy_grouped(
         # Send Media Group or Single Photo
         if len(media_group_to_send) > 1:
             print(f"Sending media group ({len(media_group_to_send)} items)...")
-            bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=media_group_to_send)
-            time.sleep(2)
+            await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=media_group_to_send)
+            await asyncio.sleep(2)
         elif len(media_group_to_send) == 1:
             print("Sending single photo...")
             single_media_obj = media_group_to_send[0]
             media_content = single_media_obj.media
             if hasattr(media_content, 'seek'): media_content.seek(0)
-            bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=media_content, caption=single_media_obj.caption, parse_mode="HTML")
-            time.sleep(1)
+            await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=media_content, caption=single_media_obj.caption, parse_mode="HTML")
+            await asyncio.sleep(1)
 
     # Send Remaining Text (if any)
     # --- FIX: Check if remaining_text_group has content before sending ---
@@ -195,8 +196,8 @@ def _send_strategy_grouped(
         for i, part in enumerate(message_parts):
              # --- FIX: Ensure part is not empty/whitespace before sending ---
              if part.strip():
-                 bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML", disable_web_page_preview=True)
-                 time.sleep(1)
+                 await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML", disable_web_page_preview=True)
+                 await asyncio.sleep(1)
              else:
                   print("Strategy 2: Skipped sending empty part of remaining text.")
     else:
@@ -207,7 +208,7 @@ def _send_strategy_grouped(
 
 
 # --- Main Sending Function (remains the same structure, calls helpers) ---
-def send_to_telegram(title_for_caption: str,
+async def send_to_telegram(title_for_caption: str,
                      cover_image_url: Optional[str],
                      magnet_link: str,
                      description: str,
@@ -233,7 +234,7 @@ def send_to_telegram(title_for_caption: str,
     if len(description) > MAX_DESCRIPTION_LENGTH:
         print(f"Description length ({len(description)}) exceeds {MAX_DESCRIPTION_LENGTH}. Summarizing with AI...")
         original_description = description  # Keep a copy of the original
-        summarized_description = summarize_description_with_ai(description, target_length=MAX_DESCRIPTION_LENGTH - 1000)
+        summarized_description = await summarize_description_with_ai(description, target_length=MAX_DESCRIPTION_LENGTH - 1000)
 
         # Check if summarization was successful and different from original
         if summarized_description != original_description:
@@ -247,14 +248,14 @@ def send_to_telegram(title_for_caption: str,
                 f"--- ORIGINAL ---\n{html.escape(original_description[:1500])}...\n\n"
                 f"--- SUMMARY ---\n{html.escape(summarized_description[:1500])}..."
             )
-            send_message_to_admin(log_message)
+            await send_message_to_admin(log_message)
         else:
             print("Summarization did not produce a different result. Using original description.")
     # ---
 
     # Download media needed for all groups first
-    cover_image_file = download_cover_image_tg(cover_image_url)
-    trailer_thumbnail_file, thumbnail_resolution = download_trailer_thumbnail_tg(video_id_for_thumbnail)
+    cover_image_file = await download_cover_image_tg(cover_image_url)
+    trailer_thumbnail_file, thumbnail_resolution = await download_trailer_thumbnail_tg(video_id_for_thumbnail)
 
     # Calculate total potential media items to decide strategy
     potential_total_media = 0
@@ -264,11 +265,21 @@ def send_to_telegram(title_for_caption: str,
 
     is_max_res_thumbnail = (thumbnail_resolution == "maxres")
 
+    # Track sent groups to avoid double posting
+    sent_group_keys = set()
+    
     # Iterate through each configured group
     for group in GROUPS:
         chat_id = group.get('chat_id')
         topic_id = None
         group_name = group.get('group_name', 'Unknown Group')
+
+        # Create a unique key for this group/topic
+        group_key = (str(chat_id), str(topic_id) if topic_id else "")
+        if group_key in sent_group_keys:
+            print(f"Skipping duplicate group entry: {group_name} ({chat_id}, Topic: {topic_id})")
+            continue
+        sent_group_keys.add(group_key)
 
         # Validate chat_id
         try:
@@ -301,7 +312,7 @@ def send_to_telegram(title_for_caption: str,
         # Translate if necessary
         if group_lang == "UA":
             print("Translating message to UA...")
-            try: message_text = translate_ru_to_ua(base_message_text)
+            try: message_text = await translate_ru_to_ua(base_message_text)
             except Exception as e: print(f"Error translating message for {group_name}: {e}. Sending in original language.")
 
         # --- Execute Sending Strategy ---
@@ -309,12 +320,12 @@ def send_to_telegram(title_for_caption: str,
         try:
             if potential_total_media < MIN_MEDIA_FOR_GROUP_STRATEGY:
                 # print(f"Strategy 1: Sending cover/thumb separately (potential media: {potential_total_media} < {MIN_MEDIA_FOR_GROUP_STRATEGY}).") # Logged inside helper
-                opened_files_for_group = _send_strategy_separate(
+                opened_files_for_group = await _send_strategy_separate(
                     chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths
                 )
             else:
                 # print(f"Strategy 2: Sending combined media group/photo (potential media: {potential_total_media}).") # Logged inside helper
-                opened_files_for_group = _send_strategy_grouped(
+                opened_files_for_group = await _send_strategy_grouped(
                     chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths, is_max_res_thumbnail
                 )
 
@@ -323,7 +334,7 @@ def send_to_telegram(title_for_caption: str,
             if LOG: traceback.print_exc()
             error_info = f"Failed sending to {group_name} ({chat_id}): {type(e).__name__}: {str(e)[:100]}"
             if hasattr(e, 'result_json'): error_info += f"\nAPI Response: {str(e.result_json)[:200]}..."
-            send_error_to_telegram(error_info)
+            await send_error_to_telegram(error_info)
         finally:
             # --- Close files opened specifically for this group's send ---
             for f in opened_files_for_group:
@@ -334,7 +345,7 @@ def send_to_telegram(title_for_caption: str,
                         print(f"Error closing screenshot file handle {getattr(f, 'name', '')}: {close_err}")
 
         # Pause between groups
-        time.sleep(2)
+        await asyncio.sleep(2)
 
     # --- Final Cleanup: Close the main BytesIO objects after processing all groups ---
     if cover_image_file and hasattr(cover_image_file, 'close') and not cover_image_file.closed:
@@ -346,7 +357,7 @@ def send_to_telegram(title_for_caption: str,
 # --- Other sender functions (send_message_to_admin, send_error_to_telegram, notify_mismatched_trailer) ---
 # These remain unchanged.
 
-def send_message_to_admin(message: str):
+async def send_message_to_admin(message: str):
     """Sends a plain text or HTML message to all configured admin/error groups."""
     global bot
     if not bot:
@@ -367,11 +378,11 @@ def send_message_to_admin(message: str):
             topic_id_str = error_group.get('topic_id');
             if topic_id_str and str(topic_id_str).isdigit(): topic_id = int(topic_id_str)
 
-            bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message, parse_mode=parse_mode, disable_web_page_preview=True)
-            time.sleep(0.5)
+            await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message, parse_mode=parse_mode, disable_web_page_preview=True)
+            await asyncio.sleep(0.5)
         except Exception as e: print(f"!!! CRITICAL: Failed to send admin message to {error_group.get('chat_id')} (Topic: {topic_id}): {type(e).__name__} - {e}")
 
-def send_error_to_telegram(error_message: str):
+async def send_error_to_telegram(error_message: str):
     """Formats an error message and sends it to admin groups, often using <pre> tags."""
     temp_message = error_message.strip(); max_error_len = 4000
     if temp_message.startswith("<pre>") and temp_message.endswith("</pre>"): formatted_message = temp_message
@@ -380,11 +391,11 @@ def send_error_to_telegram(error_message: str):
     else: formatted_message = html.escape(error_message)
     if len(formatted_message) > max_error_len: formatted_message = formatted_message[:max_error_len] + "\n... (message truncated)"
     final_message = f"❗ Bot Error:\n\n{formatted_message}"
-    send_message_to_admin(final_message)
+    await send_message_to_admin(final_message)
 
-def notify_mismatched_trailer(searched_title: str, found_title: str, trailer_url: str):
+async def notify_mismatched_trailer(searched_title: str, found_title: str, trailer_url: str):
     """Sends a specific warning about potentially mismatched YouTube trailers."""
     message = (f"⚠️ YouTube Search Warning:\n\n" f"Searched: <code>{html.escape(searched_title)}</code>\n" f"Found: <code>{html.escape(found_title)}</code>\n" f"URL: {trailer_url}\n\n" f"Title mismatch or potential irrelevance detected (by GPT or logic).")
-    send_message_to_admin(message)
+    await send_message_to_admin(message)
 
 # --- END OF FILE telegram_sender.py ---

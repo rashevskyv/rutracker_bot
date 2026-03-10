@@ -1,5 +1,6 @@
 # --- START OF FILE tracker_parser.py ---
-import requests
+import aiohttp
+import asyncio
 from bs4 import BeautifulSoup, NavigableString, Tag
 import re
 import time
@@ -11,28 +12,35 @@ from html_utils import clean_description_html, make_tag
 # --------------------------------------------
 
 # fetch_page_content remains the same
-def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[BeautifulSoup]:
+async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[BeautifulSoup]:
     headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0'}
     for attempt in range(retries):
         try:
-            response = requests.get(url, headers=headers, timeout=25); response.raise_for_status()
-            if 'text/html' not in response.headers.get('Content-Type', ''): pass
-            soup = BeautifulSoup(response.content, "html.parser"); return soup
-        except requests.exceptions.Timeout: print(f"Timeout fetching {url} (Attempt {attempt + 1}/{retries})")
-        except requests.exceptions.HTTPError as e:
-             print(f"HTTP Error fetching {url}: {e.response.status_code}");
-             if e.response.status_code == 404: return None
-             if 400 <= e.response.status_code < 500 and e.response.status_code != 429: return None
-        except requests.exceptions.RequestException as e: print(f"Network-related error fetching {url}: {e}")
-        except Exception as e: print(f"An unexpected error occurred fetching {url}: {e}"); break
-        if attempt < retries - 1: time.sleep(delay)
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(url, timeout=25) as response:
+                    response.raise_for_status()
+                    content = await response.read()
+                    soup = BeautifulSoup(content, "html.parser")
+                    return soup
+        except aiohttp.ClientConnectorError as e:
+            print(f"Connection error fetching {url}: {e}")
+        except aiohttp.ClientResponseError as e:
+            print(f"HTTP Error fetching {url}: {e.status}")
+            if e.status == 404: return None
+            if 400 <= e.status < 500 and e.status != 429: return None
+        except asyncio.TimeoutError:
+            print(f"Timeout fetching {url} (Attempt {attempt + 1}/{retries})")
+        except Exception as e:
+            print(f"An unexpected error occurred fetching {url}: {e}")
+            break
+        if attempt < retries - 1: await asyncio.sleep(delay)
         else: print(f"Failed to fetch {url} after {retries} attempts."); return None
 
 # get_last_post_with_phrase remains the same
-def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:
+async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:
     if LOG: print(f"Searching for update phrase '{phrase}'...")
     posts_per_page = 30; last_page_offset = -1
-    soup_first_page = fetch_page_content(base_url)
+    soup_first_page = await fetch_page_content(base_url)
     if soup_first_page:
         last_page_link = soup_first_page.find('a', class_='pg', string='Last')
         match = None
@@ -48,7 +56,7 @@ def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: in
     for i in range(max_pages_to_check):
         current_offset = max(0, last_page_offset - (i * posts_per_page)); page_url = f"{base_url}&start={current_offset}"
         if page_url in checked_urls: continue; checked_urls.add(page_url)
-        soup = fetch_page_content(page_url)
+        soup = await fetch_page_content(page_url)
         if not soup:
             if current_offset == 0: break; continue
         user_posts = soup.find_all("tbody", class_=re.compile(r"row[12]"))
@@ -63,27 +71,23 @@ def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: in
                 relevant_html_content = ""; found_phrase = False; stop_collecting = False
                 for element in post_body_div.children:
                     element_str = str(element)
-                    # --- FIX STARTS HERE ---
                     if phrase in element_str:
                         found_phrase = True
-                        parts = element_str.split(phrase, 1) # parts is defined HERE
-                        # Check len(parts) immediately after creation
+                        parts = element_str.split(phrase, 1)
                         if len(parts) > 1:
                             relevant_html_content += parts[1]
-                        continue # Move to next element after finding the phrase in this one
-                    # --- FIX ENDS HERE ---
+                        continue 
 
                     if found_phrase and not stop_collecting:
                         is_stop_marker = False
                         if isinstance(element, Tag):
                              if element.name == 'hr' or \
-                               (element.get('class') and ('sp-wrap' in element.get('class') or 'q-wrap' in element.get('class'))) or \
-                               (element.name == 'span' and element.get('class') and 'post-br' in element.get('class')): is_stop_marker = True
+                                (element.get('class') and ('sp-wrap' in element.get('class') or 'q-wrap' in element.get('class'))) or \
+                                (element.name == 'span' and element.get('class') and 'post-br' in element.get('class')): is_stop_marker = True
                         if is_stop_marker: stop_collecting = True
                         else: relevant_html_content += element_str
 
-                # Check if anything was collected after the phrase was found
-                if not found_phrase: continue # Should not happen if text check passed, but safety
+                if not found_phrase: continue 
 
                 update_text_html = relevant_html_content.strip()
                 post_link_tag = post.find("a", class_="p-link small", href=re.compile(r'viewtopic\.php\?p='))
@@ -97,21 +101,19 @@ def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: in
                 update_keyword = "Details";
                 if "внесённые изменения" in cleaned_update_text:
                      word = "внесённые изменения"; link_html = f'<a href="{post_url}">{word}</a>'
-                     # Check if word actually exists before replacing
                      if word in cleaned_update_text:
                           return f"<b>Обновлено:</b> {cleaned_update_text.replace(word, link_html, 1)}"
-                # Return even if cleaned_update_text is empty, but with link
                 return f'<b>Обновлено:</b> <a href="{post_url}">{update_keyword}</a>\n{cleaned_update_text}'
-        if current_offset == 0: break # Exit loop if first page checked
-    return None # Return None if phrase not found after checking pages
+        if current_offset == 0: break 
+    return None 
 
 
 # --- clean_description_html and make_tag moved to html_utils.py ---
 
 
 # parse_tracker_entry remains the same (uses functions from html_utils)
-def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str]]:
-    soup = fetch_page_content(entry_url)
+async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str]]:
+    soup = await fetch_page_content(entry_url)
     if not soup: return None
 
     page_display_title = "Unknown Title"
@@ -159,7 +161,6 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
     if not title_text_for_youtube or len(title_text_for_youtube) < 3:
         title_text_for_youtube = page_display_title
 
-    # Use the imported cleaning function
     cleaned_description = clean_description_html("".join(description_elements_html))
 
     is_updated = "[Обновлено]" in entry_title_from_feed or "[Updated]" in entry_title_from_feed
@@ -168,7 +169,7 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
         update_phrases = ["Раздача обновлена", "Distribution updated"]
         base_url = entry_url.split('&start=')[0]
         for phrase in update_phrases:
-            last_post_text = get_last_post_with_phrase(phrase, base_url)
+            last_post_text = await get_last_post_with_phrase(phrase, base_url)
             if last_post_text: break
 
     image_url: Optional[str] = None
@@ -182,24 +183,36 @@ def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[
 
     magnet_link: Optional[str] = None
     try:
-        magnet_tag = soup.find("a", class_="magnet-link", href=True); match = None
-        if magnet_tag: full_magnet_link = magnet_tag["href"]; match = re.search(r'(magnet:\?xt=urn:btih:[a-zA-Z0-9]+)', full_magnet_link)
-        if match: magnet_link = match.group(1)
+        magnet_tag = soup.find("a", class_="magnet-link", href=True)
+        match = None
+        if magnet_tag:
+            full_magnet_link = magnet_tag["href"]
+            match = re.search(r'(magnet:\?xt=urn:btih:[a-zA-Z0-9]+)', full_magnet_link)
+        
+        if match:
+            magnet_link = match.group(1)
+        
         if not magnet_link:
-            magnet_tag_fallback = soup.find("a", href=re.compile(r'magnet:\?xt='));
-            if magnet_tag_fallback: full_magnet_link = magnet_tag_fallback["href"]; match = re.search(r'(magnet:\?xt=urn:btih:[a-zA-Z0-9]+)', full_magnet_link)
-            if match: magnet_link = match.group(1)
-        if not magnet_link: print("Error: Magnet link could not be extracted."); return None
-    except Exception as e: print(f"Error extracting magnet link: {e}"); return None
+            magnet_tag_fallback = soup.find("a", href=re.compile(r'magnet:\?xt='))
+            if magnet_tag_fallback:
+                full_magnet_link = magnet_tag_fallback["href"]
+                match = re.search(r'(magnet:\?xt=urn:btih:[a-zA-Z0-9]+)', full_magnet_link)
+                if match:
+                    magnet_link = match.group(1)
+        
+        if not magnet_link:
+            print("Error: Magnet link could not be extracted.")
+            return None
+    except Exception as e:
+        print(f"Error extracting magnet link: {e}")
+        return None
 
-    # Use the imported tagging function
     final_description = make_tag(cleaned_description, "Жанр")
     final_description = make_tag(final_description, "Genre")
     final_description = make_tag(final_description, "Год выпуска")
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
-    # Return: Title for display, Title for YT, Image, Magnet, Description
     return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description
 
 # --- END OF FILE tracker_parser.py ---

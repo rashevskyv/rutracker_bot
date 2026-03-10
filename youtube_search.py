@@ -6,6 +6,7 @@ try: from settings_loader import LOG
 except ImportError: LOG = True
 from typing import Optional, Tuple
 import os, time, shutil, traceback, json
+import asyncio
 try:
     import yt_dlp; YTDLP_AVAILABLE = True
 except ImportError: print("WARNING: yt-dlp missing. pip install yt-dlp"); YTDLP_AVAILABLE = False
@@ -13,7 +14,7 @@ except ImportError: print("WARNING: yt-dlp missing. pip install yt-dlp"); YTDLP_
 _SCRIPT_DIR_YT = os.path.dirname(os.path.abspath(__file__))
 VIDEO_DOWNLOAD_DIR = os.path.join(_SCRIPT_DIR_YT, "tmp_videos")
 
-def search_trailer_on_youtube(game_title: str, api_key: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+async def search_trailer_on_youtube(game_title: str, api_key: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
     if not api_key: return None, None
     cleaned_game_title = re.sub(r'\[.*?\]', '', game_title).strip(); cleaned_game_title = re.sub(r'\b(Deluxe|Ultimate|Gold|Standard|Complete|GOTY|Edition)\b', '', cleaned_game_title, flags=re.IGNORECASE).strip(); cleaned_game_title = re.sub(r'[^\w\s\-\:]+$', '', cleaned_game_title).strip()
     if not cleaned_game_title: return None, None
@@ -28,10 +29,12 @@ def search_trailer_on_youtube(game_title: str, api_key: Optional[str]) -> Tuple[
     # --- End FIX ---
     # if LOG: print(f"Cleaned game title for YouTube search: '{cleaned_game_title}'")
     try:
-        youtube = build("youtube", "v3", developerKey=api_key)
+        youtube = await asyncio.to_thread(build, "youtube", "v3", developerKey=api_key)
         for query in search_queries:
             try:
-                search_response = youtube.search().list(q=query, part="id,snippet", type="video", order="relevance", maxResults=1, relevanceLanguage="en", videoDefinition="high").execute()
+                # Wrap search in thread
+                list_call = youtube.search().list(q=query, part="id,snippet", type="video", order="relevance", maxResults=1, relevanceLanguage="en", videoDefinition="high")
+                search_response = await asyncio.to_thread(list_call.execute)
                 items = search_response.get("items", [])
                 if items: video = items[0]; video_id = video["id"]["videoId"]; video_title = video["snippet"]["title"]; trailer_url = f"https://www.youtube.com/watch?v={video_id}"; print(f"Found video: '{video_title}' - URL: {trailer_url} (Query: '{query}')"); return trailer_url, video_title
             except HttpError as e:
@@ -43,16 +46,21 @@ def search_trailer_on_youtube(game_title: str, api_key: Optional[str]) -> Tuple[
     except Exception as e: print(f"Failed to build YouTube API service: {e}"); return None, None
 
 # --- download_youtube_video using yt-dlp ---
-# (download_youtube_video remains unchanged)
-def download_youtube_video(video_url: str, video_id: str, max_filesize_mb: int = 48) -> Optional[str]:
+# (download_youtube_video remains unchanged, wrapped in async)
+async def download_youtube_video(video_url: str, video_id: str, max_filesize_mb: int = 48) -> Optional[str]:
     if not YTDLP_AVAILABLE: print("yt-dlp not available."); return None
     if not video_url or not video_id: return None
     max_bytes = max_filesize_mb * 1024 * 1024; os.makedirs(VIDEO_DOWNLOAD_DIR, exist_ok=True)
     output_template = os.path.join(VIDEO_DOWNLOAD_DIR, f'{video_id}.%(ext)s'); downloaded_file_path = None; best_format_id = None; final_filename = None # Initialize final_filename
     # Step 1: Get available formats
     ydl_opts_info = {'quiet': True, 'no_warnings': True, 'listformats': False, 'skip_download': True, 'noplaylist': True}
+    def get_info():
+        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+             return ydl.extract_info(video_url, download=False)
+    
     try:
-        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl: info_dict = ydl.extract_info(video_url, download=False); formats = info_dict.get('formats', [])
+        info_dict = await asyncio.to_thread(get_info)
+        formats = info_dict.get('formats', [])
         eligible_formats = []
         if formats:
             for f in formats:
@@ -80,9 +88,13 @@ def download_youtube_video(video_url: str, video_id: str, max_filesize_mb: int =
                  except OSError as e: print(f"Could not remove existing file {fpath}: {e}")
         ydl_opts_download = {'format': best_format_id, 'outtmpl': output_template, 'noplaylist': True, 'quiet': False, 'no_warnings': True, 'noprogress': False, 'retries': 3, 'socket_timeout': 30, 'merge_output_format': 'mp4'}
         download_success = False # Flag to track success
+        def perform_download():
+            with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
+                ydl.download([video_url])
+
         try:
             print(f"Attempting download of format {best_format_id}..."); start_time = time.time()
-            with yt_dlp.YoutubeDL(ydl_opts_download) as ydl: ydl.download([video_url])
+            await asyncio.to_thread(perform_download)
             # Find downloaded file again AFTER download completes
             for fname in os.listdir(VIDEO_DOWNLOAD_DIR):
                 if fname.startswith(video_id) and not fname.endswith(".part"): final_filename = fname; break

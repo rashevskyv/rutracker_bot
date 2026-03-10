@@ -1,26 +1,26 @@
-# --- START OF FILE translation.py ---
-import requests
+import aiohttp
+import asyncio
 from google.cloud import translate_v2 as translate
-from settings_loader import openai_client, DEEPL_API_KEY, LOG # Import necessary items
+from settings_loader import openai_client, DEEPL_API_KEY, LOG 
 import re
 import os
 from typing import Optional # Import Optional
 
 # Translate RU to UA function with select exact translate function
-def translate_ru_to_ua(text: str) -> str:
+async def translate_ru_to_ua(text: str) -> str:
     """
     Translates text from Russian to Ukrainian using the preferred method.
     Currently set to use GPT if available, otherwise returns original text.
     """
     if openai_client:
         if LOG: print("Translating text RU -> UA using GPT...")
-        return translate_ru_to_ua_gpt(text)
+        return await translate_ru_to_ua_gpt(text)
     else:
         print("Warning: OpenAI client not available for translation. Returning original text.")
         return text # Fallback if GPT client failed initialization
 
-# Function translate_ru_to_ua_google remains the same
-def translate_ru_to_ua_google(text: str) -> str:
+# Function translate_ru_to_ua_google remains the same (made async-friendly)
+async def translate_ru_to_ua_google(text: str) -> str:
     """Translates text from Russian to Ukrainian using Google Translate API."""
     if LOG: print("Translating text RU -> UA using Google Translate...")
     try:
@@ -31,7 +31,10 @@ def translate_ru_to_ua_google(text: str) -> str:
         translate_client = translate.Client()
         paragraphs = text.split('\n'); translated_paragraphs = []
         for paragraph in paragraphs:
-            if paragraph.strip(): result = translate_client.translate(paragraph, target_language='uk', source_language='ru'); translated_paragraphs.append(result['translatedText'])
+            if paragraph.strip(): 
+                # Run sync Google call in thread
+                result = await asyncio.to_thread(translate_client.translate, paragraph, target_language='uk', source_language='ru')
+                translated_paragraphs.append(result['translatedText'])
             else: translated_paragraphs.append(paragraph)
         translated_text = '\n'.join(translated_paragraphs)
         translated_text = translated_text.replace(' <a', '<a').replace('</a> ', '</a>')
@@ -41,7 +44,7 @@ def translate_ru_to_ua_google(text: str) -> str:
         return translated_text
     except Exception as e: print(f"Error during Google translation: {e}"); return text
 
-def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
+async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
     """
     Translates text from Russian to Ukrainian using GPT, requesting logical formatting
     and allowing light emphasis for readability.
@@ -73,10 +76,9 @@ def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
 
     try:
         if openai_client:
-             response = openai_client.chat.completions.create(
+             response = await openai_client.chat.completions.create(
                  model=model,
                  messages=[{"role": "user", "content": prompt}],
-                 # temperature=0.5 # Optional: Adjust temperature if needed
              )
              translated_text = response.choices[0].message.content
 
@@ -94,18 +96,21 @@ def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         print(f"Error during GPT translation: {e}")
         return text # Fallback to original text
 
-# Function translate_ru_to_ua_deepl remains the same
-def translate_ru_to_ua_deepl(text: str) -> str:
+# Function translate_ru_to_ua_deepl remains the same (using aiohttp)
+async def translate_ru_to_ua_deepl(text: str) -> str:
     """Translates text from Russian to Ukrainian using DeepL API."""
     if not DEEPL_API_KEY: return text
     if LOG: print("Translating text RU -> UA using DeepL...")
     url = "https://api-free.deepl.com/v2/translate"
     params = {"auth_key": DEEPL_API_KEY, "text": text, "source_lang": "RU", "target_lang": "UK", "tag_handling": "html"}
     try:
-        response = requests.post(url, data=params, timeout=20); response.raise_for_status()
-        translated_text = response.json()['translations'][0]['text']; return translated_text
-    except requests.exceptions.RequestException as e: print(f"Error during DeepL translation request: {e}")
-    except (KeyError, IndexError) as e: print(f"Error parsing DeepL translation response: {e}")
-    except Exception as e: print(f"An unexpected error occurred during DeepL translation: {e}")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=params, timeout=20) as response:
+                response.raise_for_status()
+                data = await response.json()
+                translated_text = data['translations'][0]['text']
+                return translated_text
+    except Exception as e:
+        print(f"Error during DeepL translation: {e}")
     return text
 # --- END OF FILE translation.py ---

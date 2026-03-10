@@ -2,7 +2,8 @@ import sys
 import os
 import json
 import telebot
-from openai import OpenAI
+from telebot.async_telebot import AsyncTeleBot
+from openai import AsyncOpenAI
 from typing import Dict, Optional, Any, List # Import typing
 
 # Function load_config remains the same
@@ -117,13 +118,14 @@ if not os.path.exists(credentials_path):
 
 # --- Initialize API Clients ---
 try:
-    bot = telebot.TeleBot(TOKEN)
-    bot_info = bot.get_me(); print(f"Telegram Bot initialized: {bot_info.username}")
+    bot = AsyncTeleBot(TOKEN)
+    # Note: bot.get_me() is now async, so we'll skip the username print here or handle it in main
+    print(f"Telegram AsyncBot initialized with token ending in ...{TOKEN[-5:]}")
 except Exception as e: sys.exit(f"Error initializing Telegram Bot: {e}")
 
-openai_client: Optional[OpenAI] = None
+openai_client: Optional[AsyncOpenAI] = None
 if OPENAI_API_KEY:
-    try: openai_client = OpenAI(api_key=OPENAI_API_KEY); print("OpenAI client initialized.")
+    try: openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY); print("OpenAI Async client initialized.")
     except Exception as e: print(f"Warning: Error initializing OpenAI client: {e}. GPT functions disabled.")
 else: print("OpenAI client not initialized (no API key).")
 

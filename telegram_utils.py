@@ -1,5 +1,5 @@
-# --- START OF FILE telegram_utils.py ---
-import requests
+import aiohttp
+import asyncio
 from io import BytesIO
 from html.parser import HTMLParser
 from typing import List, Optional, Tuple
@@ -129,51 +129,35 @@ def split_text(text: str, max_length: int) -> List[str]:
 
 # --- Image Downloading for Telegram ---
 
-def _try_download_image_tg(image_url: str, timeout: int = 15) -> Optional[BytesIO]:
+async def _try_download_image_tg(image_url: str, timeout: int = 15) -> Optional[BytesIO]:
     """Attempts to download an image from a URL into a BytesIO object."""
     if not image_url or not image_url.startswith(('http://', 'https://')):
         if LOG: print(f"    TG: Invalid image URL: {image_url}")
         return None
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0 (TelegramSender)'} # Specific UA
-        response = requests.get(image_url, headers=headers, timeout=timeout, stream=False) # stream=False for direct content access
-        response.raise_for_status() # Check for HTTP errors
+        headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0 (TelegramSender)'}
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.get(image_url, timeout=timeout) as response:
+                response.raise_for_status()
+                content = await response.read()
+                
+                content_type = response.headers.get('Content-Type', '').lower()
+                if not content_type.startswith('image/'):
+                     print(f"    TG: URL is not an image (Content-Type: {content_type}): {image_url}")
+                     return None
 
-        # Check content type - basic check
-        content_type = response.headers.get('Content-Type', '').lower()
-        if not content_type.startswith('image/'):
-             print(f"    TG: URL is not an image (Content-Type: {content_type}): {image_url}")
-             return None
+                img_data = BytesIO(content)
+                if img_data.getbuffer().nbytes == 0:
+                    if LOG: print(f"    TG: Download resulted in empty file: {image_url}")
+                    return None
 
-        img_data = BytesIO(response.content)
-
-        # Check if downloaded data is empty
-        if img_data.getbuffer().nbytes == 0:
-            if LOG: print(f"    TG: Download resulted in empty file: {image_url}")
-            return None
-
-        img_data.seek(0) # Rewind for reading
-        # if LOG: print(f"    TG: SUCCESS downloaded ({img_data.getbuffer().nbytes} bytes)") # Less verbose success
-        return img_data
-    except requests.exceptions.Timeout:
-        print(f"    TG: Timeout downloading {image_url}")
-        return None
-    except requests.exceptions.HTTPError as e:
-        # Log non-404 errors more visibly
-        if e.response.status_code != 404:
-            print(f"    TG: Download failed (HTTP Error {e.response.status_code}): {image_url}")
-        # else: # Quietly ignore 404s
-        #    pass
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"    TG: Network-related error downloading {image_url}: {e}")
-        return None
+                img_data.seek(0)
+                return img_data
     except Exception as e:
-        # Catch other potential errors (e.g., invalid URL structure)
         print(f"    TG: Download failed (Error: {e}): {image_url}")
         return None
 
-def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -> Optional[BytesIO]:
+async def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -> Optional[BytesIO]:
     """
     Downloads the cover image, with a fallback placeholder if needed.
     Returns a BytesIO object or None.
@@ -181,7 +165,7 @@ def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -> Opti
     fallback_url = 'https://via.placeholder.com/300x200.png/EEEEEE/000000?text=No+Cover'
     if LOG: print("TG: Attempting to download cover image...")
 
-    image = _try_download_image_tg(image_url, timeout) if image_url else None
+    image = await _try_download_image_tg(image_url, timeout) if image_url else None
 
     if image:
         if LOG: print("TG: Cover image downloaded successfully.")
@@ -190,7 +174,7 @@ def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -> Opti
         print("TG: Cover download failed or URL was empty. Trying fallback...")
         # Only try fallback if the original URL wasn't already the fallback
         if image_url != fallback_url:
-            fallback_image = _try_download_image_tg(fallback_url, timeout)
+            fallback_image = await _try_download_image_tg(fallback_url, timeout)
             if fallback_image:
                 print("TG: Fallback image downloaded.")
                 return fallback_image
@@ -200,7 +184,7 @@ def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -> Opti
             print("TG: Original URL was the fallback, not attempting again.")
         return None
 
-def download_trailer_thumbnail_tg(video_id: Optional[str], timeout: int = 15) -> Tuple[Optional[BytesIO], Optional[str]]:
+async def download_trailer_thumbnail_tg(video_id: Optional[str], timeout: int = 15) -> Tuple[Optional[BytesIO], Optional[str]]:
     """
     Downloads the best available YouTube thumbnail for a video ID.
 
@@ -229,7 +213,7 @@ def download_trailer_thumbnail_tg(video_id: Optional[str], timeout: int = 15) ->
 
     for res_key, filename_part in resolutions:
         url = f"https://img.youtube.com/vi/{video_id}/{filename_part}.jpg"
-        image = _try_download_image_tg(url, timeout)
+        image = await _try_download_image_tg(url, timeout)
         if image:
             if LOG: print(f"  TG: Successfully downloaded thumbnail ({res_key}): {url}")
             return image, res_key # Return image data and resolution key
