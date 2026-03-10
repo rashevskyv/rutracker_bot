@@ -1,14 +1,12 @@
+# --- START OF FILE telegram_utils.py ---
 import aiohttp
 import asyncio
 from io import BytesIO
 from html.parser import HTMLParser
 from typing import List, Optional, Tuple
+import logging
 
-try:
-    # Attempt to import LOG, default to True if settings_loader is unavailable
-    from settings_loader import LOG
-except ImportError:
-    LOG = True
+logger = logging.getLogger(__name__)
 
 MAX_CAPTION_LENGTH = 1024
 MAX_MESSAGE_LENGTH = 4096
@@ -31,7 +29,6 @@ class HTMLTagParser(HTMLParser):
         if tag not in ('br', 'img', 'hr'):
             if self.tags and self.tags[-1] == tag:
                 self.tags.pop()
-            # else: Mismatched tag, ignore for this purpose
 
     def get_unclosed_tags(self) -> List[str]:
         """Returns a copy of the current stack of unclosed tags."""
@@ -112,9 +109,6 @@ def split_text(text: str, max_length: int) -> List[str]:
                 # Reset for next part (assume the forced split broke tags)
                 current_part = ""
                 open_tags_stack = []
-                # Note: This doesn't handle the remainder of the split line.
-                # This edge case is less likely with typical message structures.
-                # A more robust solution would involve character-level splitting.
 
     # Add the last part if it contains text
     if current_part.strip():
@@ -132,7 +126,7 @@ def split_text(text: str, max_length: int) -> List[str]:
 async def _try_download_image_tg(image_url: str, timeout: int = 15) -> Optional[BytesIO]:
     """Attempts to download an image from a URL into a BytesIO object."""
     if not image_url or not image_url.startswith(('http://', 'https://')):
-        if LOG: print(f"    TG: Invalid image URL: {image_url}")
+        logger.debug(f"TG: Invalid image URL: {image_url}")
         return None
     try:
         headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0 (TelegramSender)'}
@@ -143,18 +137,18 @@ async def _try_download_image_tg(image_url: str, timeout: int = 15) -> Optional[
                 
                 content_type = response.headers.get('Content-Type', '').lower()
                 if not content_type.startswith('image/'):
-                     print(f"    TG: URL is not an image (Content-Type: {content_type}): {image_url}")
+                     logger.warning(f"TG: URL is not an image (Content-Type: {content_type}): {image_url}")
                      return None
 
                 img_data = BytesIO(content)
                 if img_data.getbuffer().nbytes == 0:
-                    if LOG: print(f"    TG: Download resulted in empty file: {image_url}")
+                    logger.warning(f"TG: Download resulted in empty file: {image_url}")
                     return None
 
                 img_data.seek(0)
                 return img_data
     except Exception as e:
-        print(f"    TG: Download failed (Error: {e}): {image_url}")
+        logger.error(f"TG: Download failed (Error: {e}): {image_url}")
         return None
 
 async def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -> Optional[BytesIO]:
@@ -163,25 +157,24 @@ async def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -
     Returns a BytesIO object or None.
     """
     fallback_url = 'https://via.placeholder.com/300x200.png/EEEEEE/000000?text=No+Cover'
-    if LOG: print("TG: Attempting to download cover image...")
+    logger.debug("TG: Attempting to download cover image...")
 
     image = await _try_download_image_tg(image_url, timeout) if image_url else None
 
     if image:
-        if LOG: print("TG: Cover image downloaded successfully.")
+        logger.debug("TG: Cover image downloaded successfully.")
         return image
     else:
-        print("TG: Cover download failed or URL was empty. Trying fallback...")
-        # Only try fallback if the original URL wasn't already the fallback
+        logger.warning("TG: Cover download failed or URL was empty. Trying fallback...")
         if image_url != fallback_url:
             fallback_image = await _try_download_image_tg(fallback_url, timeout)
             if fallback_image:
-                print("TG: Fallback image downloaded.")
+                logger.info("TG: Fallback image downloaded.")
                 return fallback_image
             else:
-                print("TG: Fallback image download also failed.")
+                logger.error("TG: Fallback image download also failed.")
         else:
-            print("TG: Original URL was the fallback, not attempting again.")
+            logger.debug("TG: Original URL was the fallback, not attempting again.")
         return None
 
 async def download_trailer_thumbnail_tg(video_id: Optional[str], timeout: int = 15) -> Tuple[Optional[BytesIO], Optional[str]]:
@@ -200,7 +193,7 @@ async def download_trailer_thumbnail_tg(video_id: Optional[str], timeout: int = 
     if not video_id:
         return None, None
 
-    if LOG: print(f"TG: Attempting to download trailer thumbnail for video ID: {video_id}")
+    logger.debug(f"TG: Attempting to download trailer thumbnail for video ID: {video_id}")
 
     # Try resolutions from highest to lowest
     resolutions = [
@@ -215,10 +208,10 @@ async def download_trailer_thumbnail_tg(video_id: Optional[str], timeout: int = 
         url = f"https://img.youtube.com/vi/{video_id}/{filename_part}.jpg"
         image = await _try_download_image_tg(url, timeout)
         if image:
-            if LOG: print(f"  TG: Successfully downloaded thumbnail ({res_key}): {url}")
+            logger.debug(f"  TG: Successfully downloaded thumbnail ({res_key}): {url}")
             return image, res_key # Return image data and resolution key
 
-    if LOG: print(f"  TG: Failed to download any thumbnail for video ID: {video_id}")
+    logger.warning(f"  TG: Failed to download any thumbnail for video ID: {video_id}")
     return None, None # Return None if all resolutions failed
 
 # --- END OF FILE telegram_utils.py ---

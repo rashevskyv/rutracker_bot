@@ -3,17 +3,14 @@ from io import BytesIO
 import requests
 from translation import translate_ru_to_ua
 from ai_validator import summarize_description_with_ai
-try:
-    from settings_loader import GROUPS, ERROR_TG, LOG, bot, TOKEN
-except ImportError:
-    print("WARNING: Could not import from settings_loader. Using dummy values for direct script execution.")
-    import os; LOG = True; bot = None; TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN"); GROUPS = []; ERROR_TG = []
+from settings_loader import GROUPS, ERROR_TG, bot, TOKEN
 import re
 import html
 import asyncio
 import time
 import traceback
 import os
+import logging
 from telebot.types import InputMediaPhoto
 from typing import List, Optional, Tuple, IO # Import IO for type hinting file handles
 import shutil
@@ -24,6 +21,8 @@ from telegram_utils import (
     MAX_CAPTION_LENGTH, MAX_MESSAGE_LENGTH,
 )
 # ---------------------------------------------
+
+logger = logging.getLogger(__name__)
 
 # --- Constants ---
 MAX_MEDIA_GROUP_SIZE = 10
@@ -49,7 +48,7 @@ async def _send_strategy_separate(
 
     # Try sending Cover first
     if cover_image_file:
-        print("Strategy 1: Sending cover image...")
+        logger.debug("Strategy 1: Sending cover image...")
         cover_image_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
         caption_for_photo = caption_parts[0] if caption_parts else ""
@@ -61,7 +60,7 @@ async def _send_strategy_separate(
 
     # If no cover, try sending Thumbnail
     elif trailer_thumbnail_file:
-        print("Strategy 1: No cover, sending trailer thumbnail...")
+        logger.debug("Strategy 1: No cover, sending trailer thumbnail...")
         trailer_thumbnail_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
         caption_for_photo = caption_parts[0] if caption_parts else ""
@@ -72,21 +71,18 @@ async def _send_strategy_separate(
         primary_photo_sent = True
 
     # Send Remaining Text (if any)
-    # --- FIX: Check if remaining_text has content before sending ---
     if remaining_text.strip():
-        print("Strategy 1: Sending remaining text...")
+        logger.debug("Strategy 1: Sending remaining text...")
         disable_first_preview = primary_photo_sent
         message_parts = split_text(remaining_text, MAX_MESSAGE_LENGTH)
         for i, part in enumerate(message_parts):
-            # --- FIX: Ensure part is not empty/whitespace before sending ---
             if part.strip():
                 await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML", disable_web_page_preview=(disable_first_preview or i > 0))
                 await asyncio.sleep(1)
             else:
-                print("Strategy 1: Skipped sending empty part of remaining text.")
+                logger.debug("Strategy 1: Skipped sending empty part of remaining text.")
     else:
-        print("Strategy 1: No remaining text to send.")
-    # --- END FIX ---
+        logger.debug("Strategy 1: No remaining text to send.")
 
     # Send ONLY Screenshots
     if local_screenshot_paths:
@@ -94,10 +90,10 @@ async def _send_strategy_separate(
         screenshots_added_count = 0
         for file_path in local_screenshot_paths:
             if len(screenshot_media_group) >= MAX_MEDIA_GROUP_SIZE:
-                print(f"Reached max media group size ({MAX_MEDIA_GROUP_SIZE}), stopping screenshot add.")
+                logger.warning(f"Reached max media group size ({MAX_MEDIA_GROUP_SIZE}), stopping screenshot add.")
                 break
             if not os.path.exists(file_path):
-                print(f"Warning: Screenshot file not found: {file_path}")
+                logger.warning(f"Warning: Screenshot file not found: {file_path}")
                 continue
             try:
                 file_handle = open(file_path, 'rb')
@@ -105,10 +101,10 @@ async def _send_strategy_separate(
                 screenshot_media_group.append(InputMediaPhoto(media=file_handle))
                 screenshots_added_count += 1
             except Exception as open_err:
-                print(f"Error opening screenshot file {file_path}: {open_err}")
+                logger.error(f"Error opening screenshot file {file_path}: {open_err}")
 
         if screenshot_media_group:
-            print(f"Sending screenshot-only media group ({screenshots_added_count} items)...")
+            logger.info(f"Sending screenshot-only media group ({screenshots_added_count} items)...")
             await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=screenshot_media_group)
             await asyncio.sleep(2)
 
@@ -151,10 +147,10 @@ async def _send_strategy_grouped(
         screenshots_added_count = 0
         for file_path in local_screenshot_paths:
             if len(media_group_to_send) >= MAX_MEDIA_GROUP_SIZE:
-                 print(f"Reached max media group size ({MAX_MEDIA_GROUP_SIZE}), stopping screenshot add.")
+                 logger.warning(f"Reached max media group size ({MAX_MEDIA_GROUP_SIZE}), stopping screenshot add.")
                  break
             if not os.path.exists(file_path):
-                print(f"Warning: Screenshot file not found: {file_path}")
+                logger.warning(f"Warning: Screenshot file not found: {file_path}")
                 continue
             try:
                 file_handle = open(file_path, 'rb')
@@ -162,7 +158,7 @@ async def _send_strategy_grouped(
                 media_group_to_send.append(InputMediaPhoto(media=file_handle))
                 screenshots_added_count += 1
             except Exception as open_err:
-                print(f"Error opening screenshot file {file_path}: {open_err}")
+                logger.error(f"Error opening screenshot file {file_path}: {open_err}")
 
     # --- Assign Caption and Send ---
     if media_group_to_send:
@@ -177,11 +173,11 @@ async def _send_strategy_grouped(
 
         # Send Media Group or Single Photo
         if len(media_group_to_send) > 1:
-            print(f"Sending media group ({len(media_group_to_send)} items)...")
+            logger.info(f"Sending media group ({len(media_group_to_send)} items)...")
             await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=media_group_to_send)
             await asyncio.sleep(2)
         elif len(media_group_to_send) == 1:
-            print("Sending single photo...")
+            logger.info("Sending single photo...")
             single_media_obj = media_group_to_send[0]
             media_content = single_media_obj.media
             if hasattr(media_content, 'seek'): media_content.seek(0)
@@ -189,20 +185,17 @@ async def _send_strategy_grouped(
             await asyncio.sleep(1)
 
     # Send Remaining Text (if any)
-    # --- FIX: Check if remaining_text_group has content before sending ---
     if remaining_text_group.strip():
-        print("Strategy 2: Sending remaining text...")
+        logger.debug("Strategy 2: Sending remaining text...")
         message_parts = split_text(remaining_text_group, MAX_MESSAGE_LENGTH)
         for i, part in enumerate(message_parts):
-             # --- FIX: Ensure part is not empty/whitespace before sending ---
              if part.strip():
                  await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML", disable_web_page_preview=True)
                  await asyncio.sleep(1)
              else:
-                  print("Strategy 2: Skipped sending empty part of remaining text.")
+                  logger.debug("Strategy 2: Skipped sending empty part of remaining text.")
     else:
-         print("Strategy 2: No remaining text to send.")
-    # --- END FIX ---
+         logger.debug("Strategy 2: No remaining text to send.")
 
     return media_files_opened
 
@@ -219,12 +212,11 @@ async def send_to_telegram(title_for_caption: str,
     Handles translation, media grouping, and message splitting.
     Uses helper functions for different sending strategies.
     """
-    global bot
     if not bot:
-        print("ERROR in send_to_telegram: Bot is not initialized.")
+        logger.error("ERROR in send_to_telegram: Bot is not initialized.")
         return
     if not GROUPS:
-        print("No target groups configured.")
+        logger.warning("No target groups configured.")
         return
 
     if local_screenshot_paths is None:
@@ -232,7 +224,7 @@ async def send_to_telegram(title_for_caption: str,
 
     # --- AI Summarization for long descriptions ---
     if len(description) > MAX_DESCRIPTION_LENGTH:
-        print(f"Description length ({len(description)}) exceeds {MAX_DESCRIPTION_LENGTH}. Summarizing with AI...")
+        logger.info(f"Description length ({len(description)}) exceeds {MAX_DESCRIPTION_LENGTH}. Summarizing with AI...")
         original_description = description  # Keep a copy of the original
         summarized_description = await summarize_description_with_ai(description, target_length=MAX_DESCRIPTION_LENGTH - 1000)
 
@@ -250,7 +242,7 @@ async def send_to_telegram(title_for_caption: str,
             )
             await send_message_to_admin(log_message)
         else:
-            print("Summarization did not produce a different result. Using original description.")
+            logger.info("Summarization did not produce a different result. Using original description.")
     # ---
 
     # Download media needed for all groups first
@@ -277,7 +269,7 @@ async def send_to_telegram(title_for_caption: str,
         # Create a unique key for this group/topic
         group_key = (str(chat_id), str(topic_id) if topic_id else "")
         if group_key in sent_group_keys:
-            print(f"Skipping duplicate group entry: {group_name} ({chat_id}, Topic: {topic_id})")
+            logger.info(f"Skipping duplicate group entry: {group_name} ({chat_id}, Topic: {topic_id})")
             continue
         sent_group_keys.add(group_key)
 
@@ -288,7 +280,7 @@ async def send_to_telegram(title_for_caption: str,
             elif not isinstance(chat_id, int):
                 raise ValueError("Invalid chat_id type")
         except (ValueError, TypeError):
-            print(f"Skipping group '{group_name}': invalid chat_id {group.get('chat_id')}")
+            logger.error(f"Skipping group '{group_name}': invalid chat_id {group.get('chat_id')}")
             continue
 
         # Validate and set topic_id (message_thread_id)
@@ -298,7 +290,7 @@ async def send_to_telegram(title_for_caption: str,
 
         group_lang = group.get('language', 'RU').upper()
 
-        print(f"\nProcessing message for group: {group_name} (Lang: {group_lang}, ChatID: {chat_id}, TopicID: {topic_id})")
+        logger.info(f"Processing message for group: {group_name} (Lang: {group_lang}, ChatID: {chat_id}, TopicID: {topic_id})")
 
         # Prepare the base message text (before translation)
         description_part = description.strip()
@@ -311,27 +303,24 @@ async def send_to_telegram(title_for_caption: str,
         message_text = base_message_text
         # Translate if necessary
         if group_lang == "UA":
-            print("Translating message to UA...")
+            logger.info("Translating message to UA...")
             try: message_text = await translate_ru_to_ua(base_message_text)
-            except Exception as e: print(f"Error translating message for {group_name}: {e}. Sending in original language.")
+            except Exception as e: logger.error(f"Error translating message for {group_name}: {e}. Sending in original language.")
 
         # --- Execute Sending Strategy ---
         opened_files_for_group: List[IO] = [] # Track files opened for this specific group send
         try:
             if potential_total_media < MIN_MEDIA_FOR_GROUP_STRATEGY:
-                # print(f"Strategy 1: Sending cover/thumb separately (potential media: {potential_total_media} < {MIN_MEDIA_FOR_GROUP_STRATEGY}).") # Logged inside helper
                 opened_files_for_group = await _send_strategy_separate(
                     chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths
                 )
             else:
-                # print(f"Strategy 2: Sending combined media group/photo (potential media: {potential_total_media}).") # Logged inside helper
                 opened_files_for_group = await _send_strategy_grouped(
                     chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths, is_max_res_thumbnail
                 )
 
         except Exception as e:
-            print(f"!!! Failed to send message to group {group_name}: {type(e).__name__}: {e}")
-            if LOG: traceback.print_exc()
+            logger.error(f"!!! Failed to send message to group {group_name}: {type(e).__name__}: {e}")
             error_info = f"Failed sending to {group_name} ({chat_id}): {type(e).__name__}: {str(e)[:100]}"
             if hasattr(e, 'result_json'): error_info += f"\nAPI Response: {str(e.result_json)[:200]}..."
             await send_error_to_telegram(error_info)
@@ -342,7 +331,7 @@ async def send_to_telegram(title_for_caption: str,
                     try:
                         f.close()
                     except Exception as close_err:
-                        print(f"Error closing screenshot file handle {getattr(f, 'name', '')}: {close_err}")
+                        logger.error(f"Error closing screenshot file handle {getattr(f, 'name', '')}: {close_err}")
 
         # Pause between groups
         await asyncio.sleep(2)
@@ -355,16 +344,13 @@ async def send_to_telegram(title_for_caption: str,
 
 
 # --- Other sender functions (send_message_to_admin, send_error_to_telegram, notify_mismatched_trailer) ---
-# These remain unchanged.
 
 async def send_message_to_admin(message: str):
     """Sends a plain text or HTML message to all configured admin/error groups."""
-    global bot
     if not bot:
-        print("ERROR in send_message_to_admin: Bot not initialized.")
+        logger.error("ERROR in send_message_to_admin: Bot not initialized.")
         return
     if not ERROR_TG:
-        # print("No ERROR_TG configured. Admin message not sent.")
         return
 
     parse_mode = 'HTML' if '<' in message and '>' in message else None
@@ -380,7 +366,7 @@ async def send_message_to_admin(message: str):
 
             await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message, parse_mode=parse_mode, disable_web_page_preview=True)
             await asyncio.sleep(0.5)
-        except Exception as e: print(f"!!! CRITICAL: Failed to send admin message to {error_group.get('chat_id')} (Topic: {topic_id}): {type(e).__name__} - {e}")
+        except Exception as e: logger.error(f"!!! CRITICAL: Failed to send admin message to {error_group.get('chat_id')} (Topic: {topic_id}): {type(e).__name__} - {e}")
 
 async def send_error_to_telegram(error_message: str):
     """Formats an error message and sends it to admin groups, often using <pre> tags."""

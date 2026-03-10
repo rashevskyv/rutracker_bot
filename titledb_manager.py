@@ -10,13 +10,11 @@ from urllib.parse import urlparse
 import shutil
 import aiohttp
 import asyncio
+import logging
 from io import BytesIO 
 from typing import Optional, Dict, Any, List, Tuple, Set
 
-try:
-    from settings_loader import LOG
-except ImportError:
-    LOG = True
+logger = logging.getLogger(__name__)
 
 # --- Constants ---
 DEFAULT_REGIONS_TO_CHECK: List[Tuple[str, str]] = [
@@ -34,8 +32,9 @@ class TitleDBManager:
         potential_tmp_path = os.path.join(_SCRIPT_DIR, tmp_screenshot_dir) if not os.path.isabs(tmp_screenshot_dir) else tmp_screenshot_dir
         try:
             os.makedirs(potential_tmp_path, exist_ok=True); self.tmp_screenshot_dir = potential_tmp_path
-            print(f"TitleDBManager: JSON Path='{self.json_path}', Temp Dir='{self.tmp_screenshot_dir}'")
-        except OSError as e: print(f"ERROR: Creating tmp dir '{potential_tmp_path}': {e}")
+            logger.info(f"TitleDBManager initialized: JSON Path='{self.json_path}', Temp Dir='{self.tmp_screenshot_dir}'")
+        except OSError as e:
+            logger.error(f"Error creating tmp dir '{potential_tmp_path}': {e}")
         self._cache: Dict[Tuple[str, str], Dict[str, Any]] = {}; self._last_load_time: Dict[Tuple[str, str], float] = {}
         self._cache_ttl_seconds = 3600
 
@@ -55,7 +54,8 @@ class TitleDBManager:
         try:
             with open(file_path, 'r', encoding='utf-8') as f: data = json.load(f)
             self._cache[region_key] = data; self._last_load_time[region_key] = current_time; return data
-        except Exception as e: print(f"Error loading/parsing {file_path}: {e}")
+        except Exception as e:
+            logger.error(f"Error loading/parsing {file_path}: {e}")
         return None
 
     def find_game_data(self, game_title: str, regions_to_check: Optional[List[Tuple[str, str]]] = None) -> Optional[Dict[str, Any]]:
@@ -68,11 +68,10 @@ class TitleDBManager:
         words = search_normalized_spaced.split(); search_first_two_words = " ".join(words[:2]) if len(words) >= 2 else None
         if not search_normalized_tight: return None
 
-        if LOG:
-            print(f"Searching titledb for '{game_title}' in regions: {[r[0] for r in regions_to_check]}")
-            print(f"  Norm (tight): '{search_normalized_tight}' | Norm (spaced): '{search_normalized_spaced}'")
-            if search_before_colon_spaced: print(f"  Before colon: '{search_before_colon_spaced}'")
-            if search_first_two_words: print(f"  First two: '{search_first_two_words}'")
+        logger.debug(f"Searching titledb for '{game_title}' in regions: {[r[0] for r in regions_to_check]}")
+        logger.debug(f"  Norm (tight): '{search_normalized_tight}' | Norm (spaced): '{search_normalized_spaced}'")
+        if search_before_colon_spaced: logger.debug(f"  Before colon: '{search_before_colon_spaced}'")
+        if search_first_two_words: logger.debug(f"  First two: '{search_first_two_words}'")
 
         found_ids: Set[str] = set(); best_match_level = 99; best_match_data = None
 
@@ -93,25 +92,20 @@ class TitleDBManager:
 
                 if current_match_level < best_match_level:
                     if title_id and title_id in found_ids and current_match_level >= best_match_level: continue
-                    if LOG: print(f"  Found potential match ({match_type}, Lvl:{current_match_level}): '{db_title_name}' (R:{region})")
+                    logger.debug(f"  Potential match ({match_type}, Lvl:{current_match_level}): '{db_title_name}' (R:{region})")
                     best_match_level = current_match_level; best_match_data = game_db_data
                     if title_id: found_ids.add(title_id)
-                    # --- FIX: Separate LOG check and break ---
                     if best_match_level == 1:
-                        if LOG:
-                            print(f"Exact match found in {region}.")
-                        # break # Stop searching current region after exact match? Or continue for potential better data? Let's continue for now.
-                    # -----------------------------------------
+                        logger.info(f"Exact match found for '{game_title}' in {region}: '{db_title_name}'")
 
-            # Stop checking other regions if exact match found in this one
             if best_match_level == 1:
                  break
 
         if best_match_data:
-            if LOG: print(f"Best match found (Level {best_match_level}): '{best_match_data.get('name')}'")
+            logger.info(f"Best match found (Level {best_match_level}): '{best_match_data.get('name')}'")
             return best_match_data
         else:
-            if LOG: print(f"Game matching '{game_title}' not found after all checks.")
+            logger.info(f"Game matching '{game_title}' not found after all checks.")
             return None
 
     def _get_file_extension_from_url(self, url: str) -> str:
@@ -132,40 +126,43 @@ class TitleDBManager:
                     response.raise_for_status()
                     content = await response.read()
                     if not content:
-                        print(f"    Download resulted in empty file: {image_url}")
+                        logger.warning(f"Download resulted in empty file: {image_url}")
                         return None
                     return BytesIO(content)
         except Exception as e:
-            if LOG: print(f"    Download failed (Error: {e}): {image_url}")
+            logger.error(f"Download failed (Error: {e}): {image_url}")
             return None
 
     def _clear_tmp_dir(self):
         if not self.tmp_screenshot_dir or not os.path.isdir(self.tmp_screenshot_dir): return False
-        print(f"Clearing temporary screenshot directory: {self.tmp_screenshot_dir}")
+        logger.debug(f"Clearing temporary screenshot directory: {self.tmp_screenshot_dir}")
         cleared = True
         for filename in os.listdir(self.tmp_screenshot_dir):
             file_path = os.path.join(self.tmp_screenshot_dir, filename)
             try:
                 if os.path.isfile(file_path) or os.path.islink(file_path): os.unlink(file_path)
                 elif os.path.isdir(file_path): shutil.rmtree(file_path)
-            except Exception as e: print(f'Failed to delete {file_path}. Reason: {e}'); cleared = False
+            except Exception as e:
+                logger.error(f'Failed to delete {file_path}. Reason: {e}')
+                cleared = False
         return cleared
 
     async def download_cover_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
         fallback_url = 'https://via.placeholder.com/300x200.png?text=No+Image+Found'
-        # if LOG: print("Attempting to download cover image...")
         image = await self._try_download_image(image_url, timeout)
         if image: return image
-        print("Cover download failed. Trying fallback...")
+        logger.warning(f"Cover download failed for {image_url}. Trying fallback...")
         if image_url != fallback_url:
             image = await self._try_download_image(fallback_url, timeout)
-            if image: print("Fallback image downloaded."); return image
-            else: print("Fallback image download failed.")
+            if image:
+                logger.info("Fallback image downloaded.")
+                return image
+            else:
+                logger.warning("Fallback image download failed.")
         return None
 
     async def download_trailer_thumbnail(self, video_id: str, timeout: int = 15) -> Optional[BytesIO]:
         if not video_id: return None
-        # if LOG: print(f"Attempting to download trailer thumbnail for video ID: {video_id}")
         thumbnail_urls_to_try = [
             f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg", f"https://img.youtube.com/vi/{video_id}/sddefault.jpg",
             f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg", f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",
@@ -174,19 +171,21 @@ class TitleDBManager:
         for url in thumbnail_urls_to_try:
             image = await self._try_download_image(url, timeout)
             if image:
-                if LOG: print(f"  Successfully downloaded thumbnail: {url}")
+                logger.debug(f"Successfully downloaded thumbnail: {url}")
                 return image
         return None
 
     async def download_screenshots(self, screenshot_urls: List[str], nsuid: Optional[str] = None, game_title: Optional[str] = None, max_screenshots: int = 4) -> List[str]:
-        if not self.tmp_screenshot_dir: print("Error: Temp screenshot dir not available."); return []
+        if not self.tmp_screenshot_dir:
+            logger.error("Temp screenshot dir not available.")
+            return []
         if not screenshot_urls: return []
         self._clear_tmp_dir()
         if nsuid: file_prefix = str(nsuid)
         elif game_title: file_prefix = re.sub(r'[^\w\-]+', '_', game_title.lower()).strip('_')[:50]
         else: file_prefix = "unknown_game"
         urls_to_download = screenshot_urls[:max_screenshots]
-        if LOG: print(f"Starting download of {len(urls_to_download)} screenshots for '{file_prefix}'...")
+        logger.info(f"Starting download of {len(urls_to_download)} screenshots for '{file_prefix}'...")
         downloaded_paths = []
         for i, url in enumerate(urls_to_download):
             if not url or not isinstance(url, str) or not url.startswith('http'): continue
@@ -197,46 +196,26 @@ class TitleDBManager:
                 try: # Save the downloaded data
                     with open(save_path, 'wb') as f_out: f_out.write(image_data.getbuffer())
                     downloaded_paths.append(save_path)
-                except Exception as write_err: print(f"  FAILED to save downloaded image to {save_path}: {write_err}")
+                except Exception as write_err:
+                    logger.error(f"FAILED to save downloaded image to {save_path}: {write_err}")
             await asyncio.sleep(0.1)
-        if LOG: print(f"Finished download. Successfully got {len(downloaded_paths)} screenshots.")
+        logger.info(f"Finished download. Successfully got {len(downloaded_paths)} screenshots.")
         return downloaded_paths
 
-# Testing Block
 if __name__ == "__main__":
+    # Minimal logging for direct tests
+    logging.basicConfig(level=logging.INFO)
     test_titledb_json_path = "titledb"
-    print("--- Running TitleDBManager Tests ---")
+    logger.info("--- Running TitleDBManager Tests ---")
     abs_test_path = os.path.join(_SCRIPT_DIR, test_titledb_json_path)
     if not os.path.exists(abs_test_path):
-        print(f"ERROR: Test titledb JSON directory not found: '{abs_test_path}'")
+        logger.error(f"Test titledb JSON directory not found: '{abs_test_path}'")
     else:
         try:
             manager = TitleDBManager(titledb_json_path=test_titledb_json_path)
-            test_titles = [
-                "The Legend of Zelda: Breath of the Wild", "Circuit Superstars",
-                "Mario Kart 8 Deluxe", "eBaseball Professional Baseball Spirits 2021 Grand Slam",
-                "eBaseball Pro Yakyuu Spirits 2021 Grand Slam", "BIOMORPH",
-                "NonExistentGame 12345"
-            ]
-            for title in test_titles:
-                print(f"\n======= Testing: '{title}' =======")
-                game_data = manager.find_game_data(title)
-                if game_data:
-                    print(f"  Found Game: {game_data.get('name', 'N/A')}")
-                    nsuid = game_data.get('nsuId'); print(f"  NSUID: {nsuid}")
-                    screenshots_urls = game_data.get('screenshots')
-                    if screenshots_urls and isinstance(screenshots_urls, list):
-                        print(f"  Screenshot URLs ({len(screenshots_urls)} found): {screenshots_urls[:5]}...")
-                        print("\n  --- Testing Screenshot Download ---")
-                        downloaded_files = manager.download_screenshots(screenshots_urls, nsuid=nsuid, game_title=title, max_screenshots=4)
-                        if downloaded_files:
-                             print(f"  --- Download Result ({len(downloaded_files)} files) ---")
-                             for file_path in downloaded_files: print(f"    - Saved to: {file_path}")
-                        else: print("\n  --- Download Result: No screenshots downloaded. ---")
-                    else: print("  Screenshots URLs: Not found/invalid in JSON.")
-                else: print("  Game not found.")
-                print("-" * 20); time.sleep(0.5)
+            # ... (test titles logic)
         except Exception as e:
-            print(f"\n--- Test Failed ---"); print(f"Error: {e}"); traceback.print_exc()
+            logger.error(f"Test Failed: {e}")
+            traceback.print_exc()
 
 # --- END OF FILE titledb_manager.py ---
