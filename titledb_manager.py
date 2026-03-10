@@ -8,7 +8,9 @@ import traceback
 import requests
 from urllib.parse import urlparse
 import shutil
-from io import BytesIO # Ensure BytesIO is imported
+import aiohttp
+import asyncio
+from io import BytesIO 
 from typing import Optional, Dict, Any, List, Tuple, Set
 
 try:
@@ -121,22 +123,21 @@ class TitleDBManager:
         except Exception: pass
         return ".jpg"
 
-    def _try_download_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
+    async def _try_download_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
         if not image_url or not image_url.startswith(('http://', 'https://')): return None
         try:
-            # if LOG: print(f"    Attempting download: {image_url}") # Less verbose
-            headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0', 'Accept': 'image/*'}; response = requests.get(image_url, headers=headers, timeout=timeout, stream=True); response.raise_for_status()
-            image_data = BytesIO()
-            size = 0
-            for chunk in response.iter_content(chunk_size=8192): image_data.write(chunk); size+=len(chunk)
-            if size == 0: print(f"    Download resulted in empty file: {image_url}"); return None
-            image_data.seek(0)
-            # if LOG: print(f"    SUCCESS downloaded ({size} bytes, Content-Type: {response.headers.get('Content-Type', 'N/A')} - IGNORED)") # Less verbose
-            return image_data
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code != 404: print(f"    Download failed (HTTP Error {e.response.status_code}): {image_url}")
+            headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0', 'Accept': 'image/*'}
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(image_url, timeout=timeout) as response:
+                    response.raise_for_status()
+                    content = await response.read()
+                    if not content:
+                        print(f"    Download resulted in empty file: {image_url}")
+                        return None
+                    return BytesIO(content)
+        except Exception as e:
+            if LOG: print(f"    Download failed (Error: {e}): {image_url}")
             return None
-        except Exception as e: print(f"    Download failed (Error: {e}): {image_url}"); return None
 
     def _clear_tmp_dir(self):
         if not self.tmp_screenshot_dir or not os.path.isdir(self.tmp_screenshot_dir): return False
@@ -150,19 +151,19 @@ class TitleDBManager:
             except Exception as e: print(f'Failed to delete {file_path}. Reason: {e}'); cleared = False
         return cleared
 
-    def download_cover_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
+    async def download_cover_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
         fallback_url = 'https://via.placeholder.com/300x200.png?text=No+Image+Found'
         # if LOG: print("Attempting to download cover image...")
-        image = self._try_download_image(image_url, timeout)
+        image = await self._try_download_image(image_url, timeout)
         if image: return image
         print("Cover download failed. Trying fallback...")
         if image_url != fallback_url:
-            image = self._try_download_image(fallback_url, timeout)
+            image = await self._try_download_image(fallback_url, timeout)
             if image: print("Fallback image downloaded."); return image
             else: print("Fallback image download failed.")
         return None
 
-    def download_trailer_thumbnail(self, video_id: str, timeout: int = 15) -> Optional[BytesIO]:
+    async def download_trailer_thumbnail(self, video_id: str, timeout: int = 15) -> Optional[BytesIO]:
         if not video_id: return None
         # if LOG: print(f"Attempting to download trailer thumbnail for video ID: {video_id}")
         thumbnail_urls_to_try = [
@@ -171,13 +172,13 @@ class TitleDBManager:
             f"https://img.youtube.com/vi/{video_id}/default.jpg",
         ]
         for url in thumbnail_urls_to_try:
-            image = self._try_download_image(url, timeout)
+            image = await self._try_download_image(url, timeout)
             if image:
                 if LOG: print(f"  Successfully downloaded thumbnail: {url}")
                 return image
         return None
 
-    def download_screenshots(self, screenshot_urls: List[str], nsuid: Optional[str] = None, game_title: Optional[str] = None, max_screenshots: int = 4) -> List[str]:
+    async def download_screenshots(self, screenshot_urls: List[str], nsuid: Optional[str] = None, game_title: Optional[str] = None, max_screenshots: int = 4) -> List[str]:
         if not self.tmp_screenshot_dir: print("Error: Temp screenshot dir not available."); return []
         if not screenshot_urls: return []
         self._clear_tmp_dir()
@@ -191,13 +192,13 @@ class TitleDBManager:
             if not url or not isinstance(url, str) or not url.startswith('http'): continue
             extension = self._get_file_extension_from_url(url); filename = f"{file_prefix}_{i}{extension}"
             save_path = os.path.join(self.tmp_screenshot_dir, filename)
-            image_data: Optional[BytesIO] = self._try_download_image(url) # Download first
+            image_data: Optional[BytesIO] = await self._try_download_image(url) # Download first
             if image_data:
                 try: # Save the downloaded data
                     with open(save_path, 'wb') as f_out: f_out.write(image_data.getbuffer())
                     downloaded_paths.append(save_path)
                 except Exception as write_err: print(f"  FAILED to save downloaded image to {save_path}: {write_err}")
-            time.sleep(0.1)
+            await asyncio.sleep(0.1)
         if LOG: print(f"Finished download. Successfully got {len(downloaded_paths)} screenshots.")
         return downloaded_paths
 

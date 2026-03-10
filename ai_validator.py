@@ -3,7 +3,7 @@ from settings_loader import openai_client, LOG # Import OpenAI client and LOG fl
 from typing import Optional
 import re # Import re for cleaning title in prompt
 
-def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = "gpt-4o-mini") -> bool:
+async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = "gpt-4o-mini") -> bool:
     """
     Uses ChatGPT to validate if a found YouTube title is relevant to the searched game title.
     Treats only an exact 'true' (case-insensitive) response as relevant.
@@ -36,7 +36,7 @@ def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: 
     if LOG: print(f"Requesting GPT validation for: '{prompt_searched_title}' vs '{found_yt_title}'")
 
     try:
-        response = openai_client.chat.completions.create(
+        response = await openai_client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=10, # Expecting short response
@@ -60,7 +60,7 @@ def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: 
         print(f"Error during GPT validation API call: {e}")
         return False # Default to False on API error
 
-def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-4o-mini") -> str:
+async def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-4o-mini") -> str:
     """
     Summarizes a long description using an AI model to fit within a target length.
 
@@ -79,20 +79,21 @@ def summarize_description_with_ai(description: str, target_length: int = 6000, m
     if LOG: print(f"Description length ({len(description)}) is too long. Summarizing with {model}...")
 
     prompt = (
-        f"You are an expert content summarizer for a Telegram channel. Your task is to shorten the following game description to be under {target_length} characters. "
-        f"The summary must be clear, concise, and retain all essential information, such as game features, plot overview, and system requirements.\n\n"
-        f"**Requirements:**\n"
-        f"1.  The final text must be under {target_length} characters.\n"
-        f"2.  Preserve all original HTML tags (`<b>`, `<i>`, `<a>`, etc.) as they are used for Telegram formatting.\n"
-        f"3.  Do not remove or alter the meaning of important sections like 'Особенности игры' (Game Features) or 'Системные требования' (System Requirements). Summarize the content within them if necessary.\n"
-        f"4.  The language of the summary must be the same as the original text (Russian).\n"
-        f"5.  Ensure the summary is well-structured and easy to read.\n\n"
+        f"You are a professional editor for a Telegram channel. Your task is to summarize the following game description (which could be for a single game or a large collection) to be under {target_length} characters.\n\n"
+        f"**CRITICAL GOAL:** Preserve the 'essence' and minimize loss of specific meaning. The user must not miss important titles or unique features of this release.\n\n"
+        f"**Strategy for Success:**\n"
+        f"1. **Content Preservation:** If the description contains a list of games, mention the total count clearly. Keep only a few most important titles and suggest checking the full list on the original tracker page.\n"
+        f"2. **Structure:** Use bullet points for lists. Do NOT use bold text for individual items in lists. You can use bold text ONLY for section headers.\n"
+        f"3. **Technical Details:** Always keep 'Особенности' (Features) and 'Системные требования' (System Requirements), but summarize the text within those blocks to be more concise.\n"
+        f"4. **Formatting:** You MUST preserve essential HTML tags like `<b>`, `<i>`, and `<a>`, but avoid overusing bolding inside lists.\n"
+        f"5. **Language:** Use the same language as the original text (Russian).\n"
+        f"6. **Constraint:** Strictly stay under {target_length} characters while following the rules above.\n\n"
         f"**Original Text:**\n{description}\n\n"
-        f"**Summarized Text (under {target_length} chars):**"
+        f"**Summarized Text (ESSENCE PRESERVED, under {target_length} chars):**"
     )
 
     try:
-        response = openai_client.chat.completions.create(
+        response = await openai_client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2048,  # Allow for a substantial summary
