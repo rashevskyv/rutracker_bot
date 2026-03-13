@@ -6,3 +6,5 @@ openai
 google-api-python-client
 google-cloud-translate
 yt-dlp
+aiohttp
+pyTelegramBotAPI

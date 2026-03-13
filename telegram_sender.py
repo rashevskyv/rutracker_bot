@@ -20,6 +20,7 @@ from telegram_utils import (
     split_text, download_cover_image_tg, download_trailer_thumbnail_tg,
     MAX_CAPTION_LENGTH, MAX_MESSAGE_LENGTH,
 )
+from html_utils import convert_markdown_to_html
 # ---------------------------------------------
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ async def _send_strategy_separate(
         logger.debug("Strategy 1: Sending cover image...")
         cover_image_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
-        caption_for_photo = caption_parts[0] if caption_parts else ""
+        caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else ""
         remaining_text = "\n".join(caption_parts[1:])
 
         await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=cover_image_file, caption=caption_for_photo, parse_mode="HTML")
@@ -63,7 +64,7 @@ async def _send_strategy_separate(
         logger.debug("Strategy 1: No cover, sending trailer thumbnail...")
         trailer_thumbnail_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
-        caption_for_photo = caption_parts[0] if caption_parts else ""
+        caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else ""
         remaining_text = "\n".join(caption_parts[1:])
 
         await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=trailer_thumbnail_file, caption=caption_for_photo, parse_mode="HTML")
@@ -77,7 +78,8 @@ async def _send_strategy_separate(
         message_parts = split_text(remaining_text, MAX_MESSAGE_LENGTH)
         for i, part in enumerate(message_parts):
             if part.strip():
-                await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML", disable_web_page_preview=(disable_first_preview or i > 0))
+                formatted_part = convert_markdown_to_html(part)
+                await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_part, parse_mode="HTML", disable_web_page_preview=(disable_first_preview or i > 0))
                 await asyncio.sleep(1)
             else:
                 logger.debug("Strategy 1: Skipped sending empty part of remaining text.")
@@ -164,7 +166,7 @@ async def _send_strategy_grouped(
     if media_group_to_send:
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
         if caption_parts:
-            caption_for_group = caption_parts[0]
+            caption_for_group = convert_markdown_to_html(caption_parts[0])
             remaining_text_group = "\n".join(caption_parts[1:])
             media_group_to_send[0].caption = caption_for_group
             media_group_to_send[0].parse_mode = "HTML"
@@ -190,7 +192,8 @@ async def _send_strategy_grouped(
         message_parts = split_text(remaining_text_group, MAX_MESSAGE_LENGTH)
         for i, part in enumerate(message_parts):
              if part.strip():
-                 await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=part, parse_mode="HTML", disable_web_page_preview=True)
+                 formatted_part = convert_markdown_to_html(part)
+                 await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_part, parse_mode="HTML", disable_web_page_preview=True)
                  await asyncio.sleep(1)
              else:
                   logger.debug("Strategy 2: Skipped sending empty part of remaining text.")
@@ -364,7 +367,8 @@ async def send_message_to_admin(message: str):
             topic_id_str = error_group.get('topic_id');
             if topic_id_str and str(topic_id_str).isdigit(): topic_id = int(topic_id_str)
 
-            await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=message, parse_mode=parse_mode, disable_web_page_preview=True)
+            formatted_message = convert_markdown_to_html(message) if parse_mode == 'HTML' else message
+            await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_message, parse_mode=parse_mode, disable_web_page_preview=True)
             await asyncio.sleep(0.5)
         except Exception as e: logger.error(f"!!! CRITICAL: Failed to send admin message to {error_group.get('chat_id')} (Topic: {topic_id}): {type(e).__name__} - {e}")
 

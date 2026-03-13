@@ -9,6 +9,7 @@ import logging
 from typing import Optional, Tuple, List # Import Optional, Tuple, List
 # --- Import functions moved to html_utils ---
 from html_utils import clean_description_html, make_tag
+from settings_loader import get_session
 # --------------------------------------------
 
 logger = logging.getLogger(__name__)
@@ -16,14 +17,14 @@ logger = logging.getLogger(__name__)
 # fetch_page_content remains the same
 async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[BeautifulSoup]:
     headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0'}
+    session = get_session()
     for attempt in range(retries):
         try:
-            async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.get(url, timeout=25) as response:
-                    response.raise_for_status()
-                    content = await response.read()
-                    soup = BeautifulSoup(content, "html.parser")
-                    return soup
+            async with session.get(url, timeout=25, headers=headers) as response:
+                response.raise_for_status()
+                content = await response.read()
+                soup = BeautifulSoup(content, "html.parser")
+                return soup
         except aiohttp.ClientConnectorError as e:
             logger.error(f"Connection error fetching {url}: {e}")
         except aiohttp.ClientResponseError as e:
