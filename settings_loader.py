@@ -132,6 +132,24 @@ if OPENAI_API_KEY:
     except Exception as e: logging.warning(f"Error initializing OpenAI client: {e}. GPT functions disabled.")
 else: logging.info("OpenAI client not initialized (no API key).")
 
+# --- Cleanup ---
+async def close_clients():
+    """Closes all initialized API clients."""
+    if 'bot' in globals() and bot:
+        try:
+            await bot.close_session()
+            logging.info("Telegram AsyncBot session closed.")
+        except Exception as e:
+            logging.error(f"Error closing Telegram Bot session: {e}")
+
+    global openai_client
+    if openai_client:
+        try:
+            await openai_client.close()
+            logging.info("OpenAI Async client closed.")
+        except Exception as e:
+            logging.error(f"Error closing OpenAI client: {e}")
+
 # Warnings about GROUPS/ERROR_TG
 if not GROUPS: logging.warning("No 'GROUPS' defined in settings. Posting to groups will not work.")
 if not ERROR_TG: logging.warning("No 'ERROR_TG' defined in settings. Error notifications disabled.")
