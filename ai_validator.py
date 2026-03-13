@@ -86,13 +86,13 @@ async def summarize_description_with_ai(description: str, target_length: int = 6
         f"**CRITICAL GOAL:** Preserve the 'essence' and minimize loss of specific meaning. The user must not miss important titles or unique features of this release.\n\n"
         f"**Strategy for Success:**\n"
         f"1. **Content Preservation:** If the description contains a list of games, mention the total count clearly. Keep only a few most important titles and suggest checking the full list on the original tracker page.\n"
-        f"2. **Structure:** Use bullet points for lists. Do NOT use bold text for individual items in lists. You can use bold text ONLY for section headers.\n"
+        f"2. **Structure:** Use bullet points for lists. Do NOT use any Markdown formatting like '**' for bold or '*' for lists. Use ONLY HTML tags for formatting if needed.\n"
         f"3. **Technical Details:** Always keep 'Особенности' (Features) and 'Системные требования' (System Requirements), but summarize the text within those blocks to be more concise.\n"
-        f"4. **Formatting:** You MUST preserve essential HTML tags like `<b>`, `<i>`, and `<a>`, but avoid overusing bolding inside lists.\n"
+        f"4. **Formatting:** You MUST use ONLY essential HTML tags like `<b>`, `<i>`, and `<a>`. NEVER use Markdown (e.g., no `**bold**`, use `<b>bold</b>`). Ensure all tags are correctly closed.\n"
         f"5. **Language:** Use the same language as the original text (Russian).\n"
         f"6. **Constraint:** Strictly stay under {target_length} characters while following the rules above.\n\n"
         f"**Original Text:**\n{description}\n\n"
-        f"**Summarized Text (ESSENCE PRESERVED, under {target_length} chars):**"
+        f"**Summarized Text (ESSENCE PRESERVED, under {target_length} chars, ONLY HTML FORMATTING):**"
     )
 
     try:

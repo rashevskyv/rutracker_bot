@@ -140,6 +140,28 @@ def clean_description_html(description_html_str: str) -> str:
     return cleaned_html
 
 
+def convert_markdown_to_html(text: str) -> str:
+    """
+    Simpler converter that handles common Markdown bold/italic patterns
+    that might be returned by AI or exist in text, and converts them to HTML.
+    Does NOT handle complex nesting well, but is safe for simple bold/italic/code.
+    """
+    if not text:
+        return ""
+
+    # 1. Bold: **text** -> <b>text</b>
+    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+
+    # 2. Italic: *text* -> <i>text</i> (Careful with existing underscore-based markers if needed)
+    # We only handle *asterisks* to avoid breaking underscores in links/names
+    text = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'<i>\1</i>', text)
+
+    # 3. Inline code: `text` -> <code>text</code>
+    text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
+
+    return text
+
+
 # make_tag remains the same
 def make_tag(description: str, keyword: str) -> str:
     """

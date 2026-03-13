@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Optional, Any, List
 from telebot.async_telebot import AsyncTeleBot
 from openai import AsyncOpenAI
+import aiohttp
 from logger_setup import setup_logging
 
 # Function load_config remains the same
@@ -132,6 +133,18 @@ if OPENAI_API_KEY:
     except Exception as e: logging.warning(f"Error initializing OpenAI client: {e}. GPT functions disabled.")
 else: logging.info("OpenAI client not initialized (no API key).")
 
+# --- Shared aiohttp Session ---
+app_session: Optional[aiohttp.ClientSession] = None
+
+def get_session() -> aiohttp.ClientSession:
+    """Returns the shared aiohttp.ClientSession, initializing it if necessary."""
+    global app_session
+    if app_session is None or app_session.closed:
+        headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0'}
+        app_session = aiohttp.ClientSession(headers=headers)
+        logging.info("Shared aiohttp ClientSession initialized.")
+    return app_session
+
 # --- Cleanup ---
 async def close_clients():
     """Closes all initialized API clients."""
@@ -149,6 +162,14 @@ async def close_clients():
             logging.info("OpenAI Async client closed.")
         except Exception as e:
             logging.error(f"Error closing OpenAI client: {e}")
+
+    global app_session
+    if app_session and not app_session.closed:
+        try:
+            await app_session.close()
+            logging.info("Shared aiohttp ClientSession closed.")
+        except Exception as e:
+            logging.error(f"Error closing shared aiohttp session: {e}")
 
 # Warnings about GROUPS/ERROR_TG
 if not GROUPS: logging.warning("No 'GROUPS' defined in settings. Posting to groups will not work.")

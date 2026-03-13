@@ -2,7 +2,7 @@
 import aiohttp
 import asyncio
 from google.cloud import translate_v2 as translate
-from settings_loader import openai_client, DEEPL_API_KEY
+from settings_loader import openai_client, DEEPL_API_KEY, get_session
 import re
 import os
 import logging
@@ -105,13 +105,13 @@ async def translate_ru_to_ua_deepl(text: str) -> str:
     logger.info("Translating text RU -> UA using DeepL...")
     url = "https://api-free.deepl.com/v2/translate"
     params = {"auth_key": DEEPL_API_KEY, "text": text, "source_lang": "RU", "target_lang": "UK", "tag_handling": "html"}
+    session = get_session()
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=params, timeout=20) as response:
-                response.raise_for_status()
-                data = await response.json()
-                translated_text = data['translations'][0]['text']
-                return translated_text
+        async with session.post(url, data=params, timeout=20) as response:
+            response.raise_for_status()
+            data = await response.json()
+            translated_text = data['translations'][0]['text']
+            return translated_text
     except Exception as e:
         logger.error(f"Error during DeepL translation: {e}")
     return text

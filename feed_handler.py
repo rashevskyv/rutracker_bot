@@ -4,6 +4,7 @@ import time
 import aiohttp
 import asyncio
 import logging
+from settings_loader import get_session
 from typing import Optional, List
 
 logger = logging.getLogger(__name__)
@@ -50,13 +51,13 @@ async def get_new_feed_entries(feed_url: str, last_entry_link: Optional[str], re
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 RutrackerBot/1.0'
     }
+    session = get_session()
     for attempt in range(retries):
         try:
-            async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.get(feed_url, timeout=25) as response:
-                    response.raise_for_status()
-                    xml_content = await response.text()
-                    feed = feedparser.parse(xml_content)
+            async with session.get(feed_url, timeout=25, headers=headers) as response:
+                response.raise_for_status()
+                xml_content = await response.text()
+                feed = feedparser.parse(xml_content)
 
             if feed.bozo:
                  bozo_exception = feed.get('bozo_exception', 'Unknown parsing error')
