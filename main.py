@@ -11,7 +11,7 @@ import logging
 
 from settings_loader import (
     LOG, IS_TEST_MODE, FEED_URL, TEST_LAST_ENTRY_LINK, YOUTUBE_API_KEY,
-    last_entry_file_path, current_directory
+    last_entry_file_path, current_directory, close_clients
 )
 from feed_handler import (
     read_last_entry_link, write_last_entry_link, get_new_feed_entries
@@ -192,6 +192,8 @@ async def main_loop():
                          f"<b>Stack Trace</b>:\n<pre>{html.escape(stack_trace)}</pre>")
         logger.error(f"FATAL ERROR in main_loop: {stack_trace}")
         await send_error_to_telegram(error_details)
+    finally:
+        await close_clients()
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
