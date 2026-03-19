@@ -50,6 +50,16 @@ def sanitize_html_for_telegram(html_str: str) -> str:
 
 
 def clean_description_html(description_html_str: str) -> str:
+    if not description_html_str: return ""
+    description_soup = BeautifulSoup(description_html_str, 'html.parser')
+    
+    # Sections (identified by class) to remove - Keep sp-head initially for spoiler titles
+    sections_to_remove_classes = ['attach_wrap', 'attach_fu', 'signature', 'q-head'] 
+
+    # Remove unwanted sections by class
+    for class_name in sections_to_remove_classes:
+        for section in description_soup.find_all(class_=class_name):
+            section.decompose()
 
     # Convert spoilers
     for spoiler in description_soup.find_all("div", class_="sp-wrap"):
