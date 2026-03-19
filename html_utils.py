@@ -10,6 +10,8 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     Removes disallowed tags, unwraps styling-only tags, and ensures proper formatting.
     """
     if not html_str: return ""
+    # Pre-unescape to handle any pre-escaped entities from tracker or previous steps (prevents double-escaping)
+    html_str = html.unescape(html_str)
     soup = BeautifulSoup(html_str, 'html.parser')
     
     # 1. Tags to completely remove (and their content)
@@ -44,7 +46,9 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     cleaned_html = cleaned_html.replace('\r', '')
     cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
     cleaned_html = re.sub(r'\n{3,}', '\n\n', cleaned_html)
-    cleaned_html = re.sub(r' +', ' ', cleaned_html).strip()
+    # Be careful not to strip leading/trailing newlines if they are intentional between tags
+    # but for the whole message we can strip
+    cleaned_html = cleaned_html.strip()
     
     return cleaned_html
 

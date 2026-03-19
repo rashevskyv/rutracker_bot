@@ -93,9 +93,12 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
                 if not found_phrase: continue 
 
                 update_text_html = relevant_html_content.strip()
+                # Strips leading commas, periods, and other common separator punctuation
+                update_text_html = re.sub(r'^[.,\s!?:;-]+', '', update_text_html).strip()
+                
                 post_link_tag = post.find("a", class_="p-link small", href=re.compile(r'viewtopic\.php\?p='))
                 post_url = ("https://rutracker.org/forum/" + post_link_tag["href"]) if post_link_tag else base_url
-                cleaned_update_text = sanitize_html_for_telegram(relevant_html_content)
+                cleaned_update_text = sanitize_html_for_telegram(update_text_html)
                 update_keyword = "Details";
                 if "внесённые изменения" in cleaned_update_text:
                      word = "внесённые изменения"; link_html = f'<a href="{post_url}">{word}</a>'
