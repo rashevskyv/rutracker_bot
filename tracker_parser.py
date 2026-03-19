@@ -8,7 +8,7 @@ import html # Import html for escaping
 import logging
 from typing import Optional, Tuple, List # Import Optional, Tuple, List
 # --- Import functions moved to html_utils ---
-from html_utils import clean_description_html, make_tag
+from html_utils import clean_description_html, make_tag, sanitize_html_for_telegram
 from settings_loader import get_session
 # --------------------------------------------
 
@@ -95,12 +95,7 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
                 update_text_html = relevant_html_content.strip()
                 post_link_tag = post.find("a", class_="p-link small", href=re.compile(r'viewtopic\.php\?p='))
                 post_url = ("https://rutracker.org/forum/" + post_link_tag["href"]) if post_link_tag else base_url
-                update_soup = BeautifulSoup(update_text_html, 'html.parser')
-                for tag in update_soup.find_all("span", class_="post-u"): tag.name = "u"; tag.attrs = {}
-                for tag in update_soup.find_all("span", class_="post-i"): tag.name = "i"; tag.attrs = {}
-                for tag in update_soup.find_all("span", class_="post-b"): tag.name = "b"; tag.attrs = {}
-                for span in update_soup.find_all('span'): span.unwrap()
-                cleaned_update_text = update_soup.decode_contents(); cleaned_update_text = re.sub(r'\s+', ' ', cleaned_update_text).strip()
+                cleaned_update_text = sanitize_html_for_telegram(relevant_html_content)
                 update_keyword = "Details";
                 if "внесённые изменения" in cleaned_update_text:
                      word = "внесённые изменения"; link_html = f'<a href="{post_url}">{word}</a>'

@@ -4,27 +4,52 @@ import html
 from bs4 import BeautifulSoup, NavigableString, Tag
 from typing import Optional, List # Import Optional, List needed for clean_description_html
 
-def clean_description_html(description_html_str: str) -> str:
+def sanitize_html_for_telegram(html_str: str) -> str:
     """
-    Cleans and formats HTML string from tracker description for Telegram.
-    Removes unwanted tags, converts spoilers/quotes, formats lists, handles links, etc.
+    Core function to sanitize HTML for Telegram's HTML parse mode.
+    Removes disallowed tags, unwraps styling-only tags, and ensures proper formatting.
     """
-    if not description_html_str: return ""
-    description_soup = BeautifulSoup(description_html_str, 'html.parser')
-    # Tags to completely remove
-    tags_to_remove = ['script', 'style', 'iframe', 'object', 'embed', 'var', 'img', 'hr'] # Added 'hr' here
-    # Sections (identified by class) to remove - Keep sp-head initially for spoiler titles
-    sections_to_remove_classes = ['attach_wrap', 'attach_fu', 'signature', 'q-head'] # Removed 'sp-head' here
-
-    # Remove unwanted tags
+    if not html_str: return ""
+    soup = BeautifulSoup(html_str, 'html.parser')
+    
+    # 1. Tags to completely remove (and their content)
+    tags_to_remove = ['script', 'style', 'iframe', 'object', 'embed', 'var', 'img', 'hr']
     for tag_name in tags_to_remove:
-        for tag in description_soup.find_all(tag_name):
-            tag.decompose() # Use decompose to remove the tag and its content
+        for tag in soup.find_all(tag_name):
+            tag.decompose()
 
-    # Remove unwanted sections by class
-    for class_name in sections_to_remove_classes:
-        for section in description_soup.find_all(class_=class_name):
-            section.decompose()
+    # 2. Unwrap spans and other structural tags that don't add value
+    # Specifically Rutracker classes
+    for tag in soup.find_all("span", class_="post-u"): tag.name = "u"; tag.attrs = {}
+    for tag in soup.find_all("span", class_="post-i"): tag.name = "i"; tag.attrs = {}
+    for tag in soup.find_all("span", class_="post-b"): tag.name = "b"; tag.attrs = {}
+    for tag in soup.find_all("span", class_="post-strike"): tag.name = "s"; tag.attrs = {}
+    
+    # Generic unwrap for other spans or style-only tags
+    for tag in soup.find_all('span'): tag.unwrap()
+    
+    # 3. Get the HTML content (this will escape text content properly)
+    cleaned_html = soup.decode_contents()
+
+    # 4. Final regex pass to ensure ONLY allowed tags remain
+    # Telegram allowed tags: b, strong, i, em, u, ins, s, strike, del, a, code, pre, blockquote
+    allowed_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'a', 'code', 'pre', 'blockquote']
+    def strip_tags(match):
+        tag = match.group(1).lower()
+        return match.group(0) if tag in allowed_tags else ''
+    
+    cleaned_html = re.sub(r'</?([a-zA-Z0-9]+)[^>]*>', strip_tags, cleaned_html)
+
+    # 5. Normalize whitespace
+    cleaned_html = cleaned_html.replace('\r', '')
+    cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
+    cleaned_html = re.sub(r'\n{3,}', '\n\n', cleaned_html)
+    cleaned_html = re.sub(r' +', ' ', cleaned_html).strip()
+    
+    return cleaned_html
+
+
+def clean_description_html(description_html_str: str) -> str:
 
     # Convert spoilers
     for spoiler in description_soup.find_all("div", class_="sp-wrap"):
@@ -62,12 +87,6 @@ def clean_description_html(description_html_str: str) -> str:
         content = q_body.get_text(strip=True) if q_body else "Quoted Text"
         quote.replace_with(NavigableString(f"\n> {html.escape(content)}\n"))
 
-    # Convert specific span classes to basic HTML tags
-    for tag in description_soup.find_all("span", class_="post-u"): tag.name = "u"; tag.attrs = {}
-    for tag in description_soup.find_all("span", class_="post-i"): tag.name = "i"; tag.attrs = {}
-    for tag in description_soup.find_all("span", class_="post-b"): tag.name = "b"; tag.attrs = {}
-    for tag in description_soup.find_all("span", class_="post-strike"): tag.name = "s"; tag.attrs = {}
-
     # Handle preformatted text
     for tag in description_soup.find_all("pre", class_="post-pre"):
         pre_content = tag.get_text()
@@ -76,6 +95,7 @@ def clean_description_html(description_html_str: str) -> str:
         tag.attrs = {}
 
     # Unwrap spans used purely for styling (color, size, inline styles)
+    # Most will be handled by sanitize_html_for_telegram later, but we can do some specific ones here
     spans_to_unwrap = description_soup.find_all('span', {'class': lambda x: x and ('post-color' in x or 'post-size' in x)})
     spans_to_unwrap.extend(description_soup.find_all('span', style=True))
     for tag in spans_to_unwrap: tag.unwrap()
@@ -118,24 +138,10 @@ def clean_description_html(description_html_str: str) -> str:
     for br_like in description_soup.find_all(['br', 'span'], class_="post-br"): br_like.replace_with('\n')
 
     # Get the processed HTML content
-    cleaned_html = description_soup.decode_contents()
+    intermediate_html = description_soup.decode_contents()
 
-    # Final cleanup pass: Remove disallowed tags
-    allowed_tags = ['b', 'i', 'u', 's', 'a', 'code', 'pre', 'blockquote']
-    def strip_tags(match):
-        tag = match.group(1).lower()
-        return match.group(0) if tag in allowed_tags else ''
-    cleaned_html = re.sub(r'</?([a-zA-Z0-9]+)[^>]*>', strip_tags, cleaned_html)
-
-    # Normalize whitespace and remove extra newlines
-    cleaned_html = cleaned_html.replace('\r', '')
-    cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
-    cleaned_html = re.sub(r'\n{3,}', '\n\n', cleaned_html) # Keep collapsing multiple newlines
-    cleaned_html = re.sub(r' +', ' ', cleaned_html).strip()
-    cleaned_html = cleaned_html.replace(" :", ":")
-
-    # Unescape entities *once* at the very end
-    cleaned_html = html.unescape(cleaned_html)
+    # Use the shared sanitizer for final cleanup
+    cleaned_html = sanitize_html_for_telegram(intermediate_html)
 
     return cleaned_html
 
