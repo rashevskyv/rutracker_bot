@@ -67,16 +67,16 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
 
     # --- Updated Prompt ---
     prompt = (
-        f"Perform a literal and direct translation of the following text from Russian to Ukrainian. Do not change the meaning, context, or add any information that is not present in the original text.\n"
-        f"**Formatting Requirements:**\n"
-        f"1.  Strictly preserve all original HTML tags allowed by Telegram: `<b>`, `<i>`, `<u>`, `<s>`, `<tg-spoiler>`, `<a>`, `<code>`, `<pre>`.\n"
-        f"2.  Remove any other HTML tags (like `<span>`, `<div>`) but keep their content.\n"
-        f"3.  Keep English words and words starting with # (hashtags) untranslated.\n"
-        f"4.  Do not translate content inside `<code>` and `<pre>` tags.\n"
-        f"5.  If the original text uses bold tags (`<b>...</b>:`) for headers (like 'Год выпуска:', 'Жанр:', 'Описание:'), use bold tags (`<b>`) for the corresponding translated headers.\n"
-        f"6.  Do not add any extra formatting (like bold or italics) that isn't in the original text.\n"
-        f"7.  Do NOT add any emojis or markdown formatting like ```.\n\n"
-        f"**Text to translate:**\n{text}\n\n**Ukrainian Translation:**"
+        f"Translate the following text from Russian to Ukrainian, making it highly readable and visually appealing for a Telegram post.\n\n"
+        f"**Translation Rules:**\n"
+        f"1.  **Language Naming:** If the text mentions 'Russian language' (русский язык), translate it ONLY as 'мова росії', 'москальська', or 'російська'. NEVER use 'руська'.\n"
+        f"2.  **Improve Text:** You are encouraged to slightly improve the flow, add logical spacing (newlines), use bullet points or markers for lists, and use bold/italics to make the text better readable.\n"
+        f"3.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
+        f"4.  **Preserve Content:** Do not lose ANY original information. Keep the meaning and all technical details intact.\n"
+        f"5.  **Telegram HTML Tags:** Strictly use ONLY these HTML tags: <b>, <i>, <u>, <s>, <tg-spoiler>, <a>, <code>, <pre>. Ensure all tags are correctly closed.\n"
+        f"6.  **Untranslated items:** Keep English words, brand names, and words starting with # (hashtags) untranslated.\n"
+        f"7.  **No Markdown:** Do NOT use markdown like **bold** (use <b>bold</b> instead).\n\n"
+        f"**Text to translate:**\n{text}\n\n**Beautiful Ukrainian Translation (Telegram HTML):**"
     )
     # --- End of Updated Prompt ---
 
