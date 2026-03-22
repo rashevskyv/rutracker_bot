@@ -46,7 +46,7 @@ async def translate_ru_to_ua_google(text: str) -> str:
         translated_text = re.sub(r'([a-zA-Zа-яА-ЯёЁіІїЇєЄ])<a', r'\1 <a', translated_text)
         translated_text = translated_text.replace(" :", ":"); translated_text = re.sub(r'\s{2,}', ' ', translated_text).strip()
         translated_text = translated_text.replace("[оновлено]", "[Оновлено]").replace("Рік виконання", "Рік виходу")
-        return translated_text
+        return sanitize_html_for_telegram(translated_text)
     except Exception as e:
         logger.error(f"Error during Google translation: {e}")
         return text
@@ -116,7 +116,7 @@ async def translate_ru_to_ua_deepl(text: str) -> str:
             response.raise_for_status()
             data = await response.json()
             translated_text = data['translations'][0]['text']
-            return translated_text
+            return sanitize_html_for_telegram(translated_text)
     except Exception as e:
         logger.error(f"Error during DeepL translation: {e}")
     return text

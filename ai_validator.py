@@ -102,7 +102,10 @@ async def summarize_description_with_ai(description: str, target_length: int = 6
             max_tokens=2048,  # Allow for a substantial summary
             temperature=0.5
         )
+        from html_utils import sanitize_html_for_telegram
         summary = response.choices[0].message.content.strip()
+        # Final sanitization to remove any unsupported tags GPT might have included
+        summary = sanitize_html_for_telegram(summary)
         logger.info(f"Successfully summarized description. New length: {len(summary)}")
         return summary
     except Exception as e:
