@@ -12,6 +12,10 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     if not html_str: return ""
     # Pre-unescape to handle any pre-escaped entities from tracker or previous steps (prevents double-escaping)
     html_str = html.unescape(html_str)
+    
+    # Replace <br> tags with newlines before BeautifulSoup parsing to preserve line breaks
+    html_str = re.sub(r'<(br|BR)\s*/?>', '\n', html_str)
+    
     soup = BeautifulSoup(html_str, 'html.parser')
     
     # 1. Tags to completely remove (and their content)
@@ -33,21 +37,32 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # 3. Get the HTML content (this will escape text content properly)
     cleaned_html = soup.decode_contents()
 
+    # 3.5. Replace any <br> tags that BeautifulSoup may have re-generated during decode
+    cleaned_html = re.sub(r'<(br|BR)\s*/?>', '\n', cleaned_html)
+
     # 4. Final regex pass to ensure ONLY allowed tags remain
-    # Telegram allowed tags: b, strong, i, em, u, ins, s, strike, del, a, code, pre, blockquote
-    allowed_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'a', 'code', 'pre', 'blockquote']
-    def strip_tags(match):
-        tag = match.group(1).lower()
-        return match.group(0) if tag in allowed_tags else ''
+    # Telegram allowed tags: b, strong, i, em, u, ins, s, strike, del, a, code, pre, blockquote, tg-spoiler
+    allowed_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'a', 'code', 'pre', 'blockquote', 'tg-spoiler']
     
-    cleaned_html = re.sub(r'</?([a-zA-Z0-9]+)[^>]*>', strip_tags, cleaned_html)
+    # We use BeautifulSoup again to clean attributes and ensure tags are strictly what Telegram wants
+    final_soup = BeautifulSoup(cleaned_html, 'html.parser')
+    for tag in final_soup.find_all(True):
+        if tag.name not in allowed_tags:
+            tag.unwrap()
+        else:
+            # Clean all attributes except 'href' for 'a' tags
+            attrs = dict(tag.attrs)
+            tag.attrs = {}
+            if tag.name == 'a' and 'href' in attrs:
+                tag.attrs['href'] = attrs['href']
+            # For other tags, we keep them clean of attributes
+
+    cleaned_html = final_soup.decode_contents()
 
     # 5. Normalize whitespace
     cleaned_html = cleaned_html.replace('\r', '')
     cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
     cleaned_html = re.sub(r'\n{3,}', '\n\n', cleaned_html)
-    # Be careful not to strip leading/trailing newlines if they are intentional between tags
-    # but for the whole message we can strip
     cleaned_html = cleaned_html.strip()
     
     return cleaned_html
@@ -65,7 +80,25 @@ def clean_description_html(description_html_str: str) -> str:
         for section in description_soup.find_all(class_=class_name):
             section.decompose()
 
-    # Convert spoilers
+    # 1. Process links (a tags) FIRST so they are preserved inside spoilers and quotes
+    for a in description_soup.find_all('a', href=True):
+        href = a['href']
+        if href.startswith('viewtopic.php'): a['href'] = 'https://rutracker.org/forum/' + href
+        elif href.startswith('tracker.php'): a['href'] = 'https://rutracker.org/forum/' + href
+        elif href.startswith('magnet:'):
+            magnet_text = html.escape(a.get_text(strip=True) or a['href'])
+            a.name = 'code'
+            a.string = magnet_text
+            del a['href']
+        else:
+            # Keep the link text but also preserve spacing
+            link_text = a.get_text() # No strip=True here to avoid joining words
+            if not link_text or not link_text.strip():
+                a.unwrap()
+            else:
+                a.string = link_text # BeautifulSoup will escape this
+
+    # 2. Convert spoilers
     for spoiler in description_soup.find_all("div", class_="sp-wrap"):
         sp_head = spoiler.find("div", class_="sp-head")
         sp_body = spoiler.find("div", class_="sp-body")
@@ -81,25 +114,29 @@ def clean_description_html(description_html_str: str) -> str:
             spoiler.decompose() # Remove the entire spoiler div
             continue # Move to the next spoiler
 
-        # Process spoiler body content preserving structure
+        # Process spoiler body content preserving structure (tags still exist here)
         spoiler_content_processed = ""
         if sp_body:
+            # We don't call sanitize here yet, just convert breaks
             for br in sp_body.find_all('br'): br.replace_with('\n')
-            lines = [line.strip() for line in sp_body.get_text(separator='\n').splitlines() if line.strip()]
-            spoiler_content_processed = html.escape("\n".join(lines))
-        elif sp_head:
-             spoiler_content_processed = ""
-
+            # But we get the HTML to preserve tags
+            spoiler_content_processed = sp_body.decode_contents()
+        
         # Replace spoiler div with title and its content directly
         spoiler_replacement = f"\n<b>{html.escape(spoiler_title)}:</b>\n{spoiler_content_processed}\n"
         spoiler.replace_with(NavigableString(spoiler_replacement))
 
 
-    # Convert quotes
+    # 3. Convert quotes (and blockquotes)
     for quote in description_soup.find_all("div", class_="q-wrap"):
         q_body = quote.find("div", class_="q")
-        content = q_body.get_text(strip=True) if q_body else "Quoted Text"
-        quote.replace_with(NavigableString(f"\n> {html.escape(content)}\n"))
+        if q_body:
+            # Preserve links and basic formatting inside quotes by keeping inner HTML
+            content = q_body.decode_contents()
+        else:
+            content = "Quoted Text"
+        # Wrap in Telegram's blockquote tag
+        quote.replace_with(NavigableString(f"\n<blockquote>{content}</blockquote>\n"))
 
     # Handle preformatted text
     for tag in description_soup.find_all("pre", class_="post-pre"):
@@ -127,20 +164,7 @@ def clean_description_html(description_html_str: str) -> str:
             if is_ordered: i += 1
         ul.replace_with(NavigableString("\n" + "\n".join(list_items) + "\n"))
 
-    # Process links (a tags)
-    for a in description_soup.find_all('a', href=True):
-        href = a['href']
-        if href.startswith('viewtopic.php'): a['href'] = 'https://rutracker.org/forum/' + href
-        elif href.startswith('tracker.php'): a['href'] = 'https://rutracker.org/forum/' + href
-        elif href.startswith('magnet:'):
-            magnet_text = html.escape(a.get_text(strip=True) or a['href']) # Escape content
-            a.name = 'code'
-            a.string = magnet_text
-            del a['href']
-        else:
-            link_text = html.escape(a.get_text(strip=True)) # Escape content
-            if not link_text: a.unwrap()
-            else: a.string = link_text
+    # Lists and other structural elements are handled after links and quotes
 
     # --- FIX: Remove horizontal rules processing loop ---
     # The 'hr' tag is now removed by the initial decompose loop
