@@ -3,6 +3,7 @@ import aiohttp
 import asyncio
 from google.cloud import translate_v2 as translate
 from settings_loader import openai_client, DEEPL_API_KEY, get_session
+from html_utils import sanitize_html_for_telegram
 import re
 import os
 import logging
@@ -70,12 +71,13 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         f"Translate the following text from Russian to Ukrainian, making it highly readable and visually appealing for a Telegram post.\n\n"
         f"**Translation Rules:**\n"
         f"1.  **Language Naming:** If the text mentions 'Russian language' (русский язык), translate it ONLY as 'мова росії', 'москальська', or 'російська'. NEVER use 'руська'.\n"
-        f"2.  **Improve Text:** You are encouraged to slightly improve the flow, add logical spacing (newlines), use bullet points or markers for lists, and use bold/italics to make the text better readable.\n"
-        f"3.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
-        f"4.  **Preserve Content:** Do not lose ANY original information. Keep the meaning and all technical details intact.\n"
-        f"5.  **Telegram HTML Tags:** Strictly use ONLY these HTML tags: <b>, <i>, <u>, <s>, <tg-spoiler>, <a>, <code>, <pre>. Ensure all tags are correctly closed.\n"
-        f"6.  **Untranslated items:** Keep English words, brand names, and words starting with # (hashtags) untranslated.\n"
-        f"7.  **No Markdown:** Do NOT use markdown like **bold** (use <b>bold</b> instead).\n\n"
+        f"2.  **Improve Text:** You are encouraged to slightly improve the flow, add logical spacing (newlines), use bullet points (e.g., •) or markers for lists, and use bold/italics to make the text better readable.\n"
+        f"3.  **No HTML Lists:** NEVER use HTML tags like <ul> or <li>. Use plain text bullet characters (•) for lists.\n"
+        f"4.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
+        f"5.  **Preserve Content:** Do not lose ANY original information. Keep the meaning and all technical details intact.\n"
+        f"6.  **Telegram HTML Tags:** Strictly use ONLY these HTML tags: <b>, <i>, <u>, <s>, <tg-spoiler>, <a>, <code>, <pre>. Ensure all tags are correctly closed.\n"
+        f"7.  **Untranslated items:** Keep English words, brand names, and words starting with # (hashtags) untranslated.\n"
+        f"8.  **No Markdown:** Do NOT use markdown like **bold** (use <b>bold</b> instead).\n\n"
         f"**Text to translate:**\n{text}\n\n**Beautiful Ukrainian Translation (Telegram HTML):**"
     )
     # --- End of Updated Prompt ---
@@ -91,8 +93,11 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         cleaned_text = translated_text.strip()
         cleaned_text = re.sub(r"^(```html|```)", "", cleaned_text).strip()
         cleaned_text = re.sub(r"```$", "", cleaned_text).strip()
-
-        return cleaned_text
+        
+        # FINAL SANITIZATION: Clean any unsupported tags from GPT response
+        final_text = sanitize_html_for_telegram(cleaned_text)
+        
+        return final_text
 
     except Exception as e:
         logger.error(f"Error during GPT translation: {e}")
