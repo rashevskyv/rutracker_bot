@@ -347,11 +347,32 @@ async def send_to_telegram(title_for_caption: str,
                 description_part = description_part.replace(header_pattern, f"###GAP###{header_pattern}")
                 break # Only add one gap
 
-        # Use markers to ensure GPT preserves structural gaps
+        # Condense technical parameters block globally (for RU/EN without translation)
+        split_point_desc = -1
+        for header in description_headers:
+            idx = description_part.find(f"###GAP###<b>{header}</b>")
+            if idx == -1:
+                idx = description_part.find(f"<b>{header}</b>")
+            if idx != -1 and (split_point_desc == -1 or idx < split_point_desc):
+                split_point_desc = idx
+        
+        quote_idx_desc = description_part.find("<blockquote>")
+        if quote_idx_desc != -1 and (split_point_desc == -1 or quote_idx_desc < split_point_desc):
+            split_point_desc = quote_idx_desc
+            
+        if split_point_desc != -1:
+            desc_params = description_part[:split_point_desc]
+            desc_rest = description_part[split_point_desc:]
+            desc_params = re.sub(r"\n\n\s*<b>", "\n<b>", desc_params)
+            description_part = desc_params + desc_rest
+        else:
+            description_part = re.sub(r"\n\n\s*<b>", "\n<b>", description_part)
+
+        # Assemble the base message text with isolated download link
         base_message_text = (
-            f"{title_for_caption}\n"
+            f"{title_for_caption}"
             f"###GAP###"
-            f"<b>Скачать</b>: <code>{magnet_link}</code>\n"
+            f"<code>{magnet_link}</code>"
             f"###GAP###"
             f"{description_part}"
         )
@@ -473,6 +494,35 @@ async def send_message_to_admin(message: str):
             await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_message, parse_mode=parse_mode, disable_web_page_preview=True)
             await asyncio.sleep(0.5)
         except Exception as e: logger.error(f"!!! CRITICAL: Failed to send admin message to {error_group.get('chat_id')} (Topic: {topic_id}): {type(e).__name__} - {e}")
+
+async def send_document_to_admin(file_path: str, caption: str = ""):
+    """Sends a document to all configured admin/error groups."""
+    if not bot:
+        logger.error("ERROR in send_document_to_admin: Bot not initialized.")
+        return
+    if not ERROR_TG:
+        return
+
+    import os
+    if not os.path.exists(file_path):
+        logger.warning(f"File {file_path} not found. Skipped sending to admin.")
+        return
+
+    for error_group in ERROR_TG:
+        chat_id = error_group.get('chat_id')
+        topic_id = None
+        try:
+            if isinstance(chat_id, str) and chat_id.startswith('-'): chat_id = int(chat_id)
+            elif not isinstance(chat_id, int): raise ValueError("Invalid chat_id type for error group")
+            topic_id_str = error_group.get('topic_id')
+            if topic_id_str and str(topic_id_str).isdigit(): topic_id = int(topic_id_str)
+
+            with open(file_path, 'rb') as f:
+                from telebot.types import InputFile
+                input_file = InputFile(f)
+                await bot.send_document(chat_id=chat_id, message_thread_id=topic_id, document=input_file, caption=caption)
+            await asyncio.sleep(0.5)
+        except Exception as e: logger.error(f"!!! CRITICAL: Failed to send document to {error_group.get('chat_id')} (Topic: {topic_id}): {type(e).__name__} - {e}")
 
 async def send_error_to_telegram(error_message: str, entry_url: Optional[str] = None):
     """Formats an error message and sends it to admin groups, often using <pre> tags."""

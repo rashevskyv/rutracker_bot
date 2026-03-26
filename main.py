@@ -20,7 +20,7 @@ from tracker_parser import parse_tracker_entry
 from youtube_search import search_trailer_on_youtube
 from ai_validator import validate_yt_title_with_gpt
 from titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
-from telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin
+from telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin, send_document_to_admin
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +190,11 @@ async def main_loop():
         elif not IS_TEST_MODE and 'entries_to_process' in locals() and not entries_to_process: pass # Normal case: no new entries
         elif not IS_TEST_MODE and 'entries_to_process' in locals() and entries_to_process and processed_count == 0:
              logger.info("Finished processing feed, but no entries were successfully parsed and sent.")
+             
+        # Send log file to admin if any entries were processed to check formatting
+        if processed_count > 0 and os.path.exists(cycle_log_file):
+             await send_document_to_admin(cycle_log_file, caption=f"Cycle Log: Processed {processed_count} entries")
+
         entry_link_in_progress = "N/A"
 
     except Exception as e:
