@@ -71,6 +71,13 @@ async def main_loop():
             logger.info(f"Processing {len(new_entries)} new entries...")
             entries_to_process = new_entries
 
+        # Create a single per-cycle log file for all entries
+        cycle_log_file = "log_tg_send.txt"
+        with open(cycle_log_file, "w", encoding="utf-8") as f:
+            from datetime import datetime
+            f.write(f"=== BOT RUN CYCLE {datetime.now().isoformat()} ===\n")
+            f.write(f"Entries to process: {len(entries_to_process)}\n\n")
+
         for entry in entries_to_process:
             entry_link = entry.get('link')
             entry_title_feed_or_placeholder = entry.get('title', 'TEST_MODE_FETCH_TITLE')
@@ -88,7 +95,7 @@ async def main_loop():
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
-                     await send_error_to_telegram(f"Parser failed to extract display title for link: {entry_link}"); continue
+                     await send_error_to_telegram(f"Parser failed to extract display title for link: {entry_link}", entry_url=entry_link); continue
                 if not title_text_for_youtube:
                      logger.warning(f"Parser failed to extract title block for YT search. Using display title '{page_display_title}' as fallback.")
                      title_text_for_youtube = page_display_title
@@ -144,12 +151,14 @@ async def main_loop():
                 # Send to Telegram
                 try:
                      await send_to_telegram(
-                         final_title_for_telegram,
-                         cover_image_url,
-                         magnet_link,
-                         cleaned_description,
-                         video_id_for_thumbnail,
-                         local_screenshot_paths
+                          final_title_for_telegram,
+                          cover_image_url,
+                          magnet_link,
+                          cleaned_description,
+                          entry_link,
+                          video_id_for_thumbnail,
+                          local_screenshot_paths,
+                          cycle_log_file=cycle_log_file
                      )
                      processed_count += 1
                      if not IS_TEST_MODE:
@@ -157,7 +166,7 @@ async def main_loop():
                 except TypeError as te:
                      logger.error(f"TypeError calling send_to_telegram: {te}. Check function signature.")
                      logger.error(traceback.format_exc())
-                     await send_error_to_telegram(f"TypeError calling send_to_telegram for {entry_link}.")
+                     await send_error_to_telegram(f"TypeError calling send_to_telegram for {entry_link}.", entry_url=entry_link)
                      continue
                 except Exception as tg_err:
                      logger.error(f"Error sending entry {entry_link} to Telegram: {tg_err}")
@@ -173,7 +182,7 @@ async def main_loop():
                 send_error = True;
                 # Avoid sending error if the feed itself failed (new_entries would be None)
                 if not IS_TEST_MODE and 'new_entries' in locals() and new_entries is None: send_error = False
-                if send_error: await send_error_to_telegram(f"Failed to parse tracker page: {entry_link}")
+                if send_error: await send_error_to_telegram(f"Failed to parse tracker page: {entry_link}", entry_url=entry_link)
 
         # Loop Finished
         if processed_count > 0: logger.info(f"Successfully processed {processed_count} entries.")
