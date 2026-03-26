@@ -39,7 +39,9 @@ async def _send_strategy_separate(
     message_text: str,
     cover_image_file: Optional[BytesIO],
     trailer_thumbnail_file: Optional[BytesIO],
-    local_screenshot_paths: List[str]
+    local_screenshot_paths: List[str],
+    group_name: str = "Unknown",
+    log_file: str = ""
 ) -> List[IO]:
     """Handles sending logic when media count is below the threshold."""
     media_files_opened: List[IO] = []
@@ -52,10 +54,15 @@ async def _send_strategy_separate(
         logger.debug("Strategy 1: Sending cover image...")
         cover_image_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
-        caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else ""
-        remaining_text = "\n".join(caption_parts[1:])
+        caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else None
+        remaining_text = "\n\n".join(caption_parts[1:])
+        # Merge fragmented blockquotes tightly — no gaps between them
+        remaining_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', remaining_text, flags=re.IGNORECASE)
 
         await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=cover_image_file, caption=caption_for_photo, parse_mode="HTML")
+        if log_file:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"\n=== [{group_name}] STRATEGY 1 PHOTO CAPTION (len {len(caption_for_photo)}) ===\n{caption_for_photo}\n")
         await asyncio.sleep(1)
         primary_photo_sent = True
 
@@ -64,10 +71,15 @@ async def _send_strategy_separate(
         logger.debug("Strategy 1: No cover, sending trailer thumbnail...")
         trailer_thumbnail_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
-        caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else ""
+        caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else None
         remaining_text = "\n".join(caption_parts[1:])
+        # Merge fragmented blockquotes tightly — no gaps between them
+        remaining_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', remaining_text, flags=re.IGNORECASE)
 
         await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=trailer_thumbnail_file, caption=caption_for_photo, parse_mode="HTML")
+        if log_file:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"\n=== [{group_name}] STRATEGY 1 THUMBNAIL CAPTION (len {len(caption_for_photo)}) ===\n{caption_for_photo}\n")
         await asyncio.sleep(1)
         primary_photo_sent = True
 
@@ -79,7 +91,20 @@ async def _send_strategy_separate(
         for i, part in enumerate(message_parts):
             if part.strip():
                 formatted_part = convert_markdown_to_html(part)
-                await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_part, parse_mode="HTML", disable_web_page_preview=(disable_first_preview or i > 0))
+                # Merge fragmented blockquotes tightly
+                formatted_part = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', formatted_part, flags=re.IGNORECASE)
+                logger.debug(f"TG Strategy 1 - Sending Part {i+1} (len {len(formatted_part)}): {formatted_part[:300]}...")
+                if log_file:
+                    with open(log_file, "a", encoding="utf-8") as f:
+                        f.write(f"\n=== [{group_name}] STRATEGY 1 PART {i+1} (len {len(formatted_part)}) ===\n{formatted_part}\n")
+                try:
+                    await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_part, parse_mode="HTML", disable_web_page_preview=(disable_first_preview or i > 0))
+                except Exception as send_err:
+                    # Capture exact HTML if it fails to parse
+                    with open("failing_part.html", "w", encoding="utf-8") as dump_file:
+                        dump_file.write(formatted_part)
+                    logger.error(f"Saved failing HTML part ({len(formatted_part)} bytes) to failing_part.html. Error: {send_err}")
+                    raise send_err
                 await asyncio.sleep(1)
             else:
                 logger.debug("Strategy 1: Skipped sending empty part of remaining text.")
@@ -121,7 +146,9 @@ async def _send_strategy_grouped(
     cover_image_file: Optional[BytesIO],
     trailer_thumbnail_file: Optional[BytesIO],
     local_screenshot_paths: List[str],
-    is_max_res_thumbnail: bool
+    is_max_res_thumbnail: bool,
+    group_name: str = "Unknown",
+    log_file: str = ""
 ) -> List[IO]:
     """Handles sending logic when media count meets or exceeds the threshold."""
     media_files_opened: List[IO] = []
@@ -170,6 +197,9 @@ async def _send_strategy_grouped(
             remaining_text_group = "\n".join(caption_parts[1:])
             media_group_to_send[0].caption = caption_for_group
             media_group_to_send[0].parse_mode = "HTML"
+            if log_file:
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n=== [{group_name}] STRATEGY 2 MEDIA GROUP CAPTION (len {len(caption_for_group)}) ===\n{caption_for_group}\n")
         else:
             remaining_text_group = ""
 
@@ -184,6 +214,9 @@ async def _send_strategy_grouped(
             media_content = single_media_obj.media
             if hasattr(media_content, 'seek'): media_content.seek(0)
             await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=media_content, caption=single_media_obj.caption, parse_mode="HTML")
+            if log_file:
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n=== [{group_name}] STRATEGY 2 SINGLE PHOTO CAPTION (len {len(single_media_obj.caption or '')}) ===\n{single_media_obj.caption}\n")
             await asyncio.sleep(1)
 
     # Send Remaining Text (if any)
@@ -193,6 +226,12 @@ async def _send_strategy_grouped(
         for i, part in enumerate(message_parts):
              if part.strip():
                  formatted_part = convert_markdown_to_html(part)
+                 # Merge fragmented blockquotes tightly
+                 formatted_part = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', formatted_part, flags=re.IGNORECASE)
+                 logger.debug(f"TG Strategy 2 - Sending Part {i+1} (len {len(formatted_part)}): {formatted_part[:300]}...")
+                 if log_file:
+                     with open(log_file, "a", encoding="utf-8") as f:
+                         f.write(f"\n=== [{group_name}] STRATEGY 2 PART {i+1} (len {len(formatted_part)}) ===\n{formatted_part}\n")
                  await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_part, parse_mode="HTML", disable_web_page_preview=True)
                  await asyncio.sleep(1)
              else:
@@ -208,8 +247,10 @@ async def send_to_telegram(title_for_caption: str,
                      cover_image_url: Optional[str],
                      magnet_link: str,
                      description: str,
+                     entry_url: str,
                      video_id_for_thumbnail: Optional[str] = None,
-                     local_screenshot_paths: Optional[List[str]] = None):
+                     local_screenshot_paths: Optional[List[str]] = None,
+                     cycle_log_file: Optional[str] = None):
     """
     Sends the parsed tracker data to configured Telegram groups.
     Handles translation, media grouping, and message splitting.
@@ -295,11 +336,23 @@ async def send_to_telegram(title_for_caption: str,
 
         logger.info(f"Processing message for group: {group_name} (Lang: {group_lang}, ChatID: {chat_id}, TopicID: {topic_id})")
 
-        # Prepare the base message text (before translation)
         description_part = description.strip()
+        
+        # Add a gap before the main description header (if found)
+        # We look for common description headers in Russian/English as they come from the parser
+        description_headers = ["Описание", "Описание игры", "Description", "Опис", "Опис гри"]
+        for header in description_headers:
+            header_pattern = rf"<b>{header}</b>"
+            if header_pattern in description_part:
+                description_part = description_part.replace(header_pattern, f"###GAP###{header_pattern}")
+                break # Only add one gap
+
+        # Use markers to ensure GPT preserves structural gaps
         base_message_text = (
-            f"{title_for_caption}\n\n"
-            f"<b>Скачать</b>: <code>{magnet_link}</code>\n\n"
+            f"{title_for_caption}\n"
+            f"###GAP###"
+            f"<b>Скачать</b>: <code>{magnet_link}</code>\n"
+            f"###GAP###"
             f"{description_part}"
         )
 
@@ -307,26 +360,72 @@ async def send_to_telegram(title_for_caption: str,
         # Translate if necessary
         if group_lang == "UA":
             logger.info("Translating message to UA...")
-            try: message_text = await translate_ru_to_ua(base_message_text)
-            except Exception as e: logger.error(f"Error translating message for {group_name}: {e}. Sending in original language.")
+            try: 
+                # Identify where parameters end to isolate consolidation
+                # Parameters are at the beginning of the description part
+                # We search for the first <blockquote> or a description header
+                split_point = -1
+                for header in description_headers:
+                    idx = base_message_text.find(f"<b>{header}</b>")
+                    if idx != -1 and (split_point == -1 or idx < split_point):
+                        split_point = idx
+                
+                quote_idx = base_message_text.find("<blockquote>")
+                if quote_idx != -1 and (split_point == -1 or quote_idx < split_point):
+                    split_point = quote_idx
+                
+                if split_point != -1:
+                    # Insert a marker to separate params from the rest
+                    prepared_text = base_message_text[:split_point] + "###PARAMS_END###\n" + base_message_text[split_point:]
+                else:
+                    prepared_text = base_message_text
+
+                # Replace <blockquote> tags with opaque tokens before GPT translation.
+                # This PREVENTS GPT from splitting or duplicating blockquote blocks.
+                prepared_text = prepared_text.replace("<blockquote>", "XBQSX")
+                prepared_text = prepared_text.replace("</blockquote>", "XBQEX")
+
+                message_text = await translate_ru_to_ua(prepared_text)
+                
+                # Final safety: merge any consecutive blockquotes tightly
+                message_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', message_text, flags=re.IGNORECASE)
+
+
+                # Force consolidation of technical parameters ONLY
+                if "###PARAMS_END###" in message_text:
+                    params_part, rest_part = message_text.split("###PARAMS_END###", 1)
+                    params_part = re.sub(r"\n\n\s*<b>", "\n<b>", params_part)
+                    message_text = params_part + rest_part
+                else:
+                    message_text = re.sub(r"\n\n\s*<b>", "\n<b>", message_text)
+                
+                # We KEEP ###GAP### here because split_text will use it for splitting
+                # and internal newline conversion.
+                message_text = message_text.replace("###PARAMS_END###", "") # Cleanup marker
+                
+                logger.debug(f"Final processed message text (len {len(message_text)}):\n{message_text}")
+            except Exception as e: 
+                logger.error(f"Error translating message for {group_name}: {e}. Sending in original language.")
 
         # --- Execute Sending Strategy ---
         opened_files_for_group: List[IO] = [] # Track files opened for this specific group send
         try:
             if potential_total_media < MIN_MEDIA_FOR_GROUP_STRATEGY:
                 opened_files_for_group = await _send_strategy_separate(
-                    chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths
+                    chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths,
+                    group_name=group_name, log_file=cycle_log_file
                 )
             else:
                 opened_files_for_group = await _send_strategy_grouped(
-                    chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths, is_max_res_thumbnail
+                    chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths, is_max_res_thumbnail,
+                    group_name=group_name, log_file=cycle_log_file
                 )
 
         except Exception as e:
             logger.error(f"!!! Failed to send message to group {group_name}: {type(e).__name__}: {e}")
-            error_info = f"Failed sending to {group_name} ({chat_id}): {type(e).__name__}: {str(e)[:100]}"
+            error_info = f"Failed sending to {group_name} ({chat_id}): {type(e).__name__}: {str(e)[:200]}"
             if hasattr(e, 'result_json'): error_info += f"\nAPI Response: {str(e.result_json)[:200]}..."
-            await send_error_to_telegram(error_info)
+            await send_error_to_telegram(error_info, entry_url=entry_url)
         finally:
             # --- Close files opened specifically for this group's send ---
             for f in opened_files_for_group:
@@ -368,19 +467,24 @@ async def send_message_to_admin(message: str):
             if topic_id_str and str(topic_id_str).isdigit(): topic_id = int(topic_id_str)
 
             formatted_message = convert_markdown_to_html(message) if parse_mode == 'HTML' else message
+            if not formatted_message.strip():
+                logger.warning("Attempted to send empty admin message, skipped.")
+                continue
             await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_message, parse_mode=parse_mode, disable_web_page_preview=True)
             await asyncio.sleep(0.5)
         except Exception as e: logger.error(f"!!! CRITICAL: Failed to send admin message to {error_group.get('chat_id')} (Topic: {topic_id}): {type(e).__name__} - {e}")
 
-async def send_error_to_telegram(error_message: str):
+async def send_error_to_telegram(error_message: str, entry_url: Optional[str] = None):
     """Formats an error message and sends it to admin groups, often using <pre> tags."""
-    temp_message = error_message.strip(); max_error_len = 4000
+    temp_message = error_message.strip(); max_error_len = 3500
     if temp_message.startswith("<pre>") and temp_message.endswith("</pre>"): formatted_message = temp_message
     elif "Traceback" in error_message or "Error type" in error_message or "Stack Trace" in error_message:
         escaped_message = html.escape(error_message); formatted_message = f"<pre>{escaped_message}</pre>"
     else: formatted_message = html.escape(error_message)
     if len(formatted_message) > max_error_len: formatted_message = formatted_message[:max_error_len] + "\n... (message truncated)"
-    final_message = f"❗ Bot Error:\n\n{formatted_message}"
+    
+    url_prefix = f"🔗 Link: {entry_url}\n" if entry_url else ""
+    final_message = f"❗ Bot Error:\n{url_prefix}\n{formatted_message}"
     await send_message_to_admin(final_message)
 
 async def notify_mismatched_trailer(searched_title: str, found_title: str, trailer_url: str):

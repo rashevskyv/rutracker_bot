@@ -6,3 +6,13 @@
 geckodriver.log
 bot.log
 cron.log
+log_tg_send.txt
+log_yt.txt
+log_tail.txt
+dl.html
+failing_part.html
+debug_bq_pipeline.txt
+tmp_screenshots/
+tmp_videos/
+*.bak
+*.tmp

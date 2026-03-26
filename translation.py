@@ -71,13 +71,20 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         f"Translate the following text from Russian to Ukrainian, making it highly readable and visually appealing for a Telegram post.\n\n"
         f"**Translation Rules:**\n"
         f"1.  **Language Naming:** If the text mentions 'Russian language' (русский язык), translate it ONLY as 'мова росії', 'москальська', or 'російська'. NEVER use 'руська'.\n"
-        f"2.  **Improve Text:** You are encouraged to slightly improve the flow, add logical spacing (newlines), use bullet points (e.g., •) or markers for lists, and use bold/italics to make the text better readable.\n"
-        f"3.  **No HTML Lists:** NEVER use HTML tags like <ul> or <li>. Use plain text bullet characters (•) for lists.\n"
-        f"4.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
-        f"5.  **Preserve Content:** Do not lose ANY original information. Keep the meaning and all technical details intact.\n"
-        f"6.  **Telegram HTML Tags:** Strictly use ONLY these HTML tags: <b>, <i>, <u>, <s>, <tg-spoiler>, <a>, <code>, <pre>. Ensure all tags are correctly closed.\n"
-        f"7.  **Untranslated items:** Keep English words, brand names, and words starting with # (hashtags) untranslated.\n"
-        f"8.  **No Markdown:** Do NOT use markdown like **bold** (use <b>bold</b> instead).\n\n"
+        f"2.  **Structural Spacing (STRICT):** You will see '###GAP###' markers in the text. You MUST preserve these markers exactly as they are on their own lines. Do NOT add any OTHER blank lines anywhere else in the document.\n"
+        f"3.  **Compact Density:** Keep technical parameters (Year, Genre, etc.) on consecutive lines with NO blank lines between them. However, for the 'Description' text and especially inside <blockquote> blocks, you MUST preserve the original structural line breaks and tags for readability.\n"
+        f"4.  **No HTML Lists:** NEVER use HTML tags like <ul> or <li>. Use plain text bullet characters (•) for lists.\n"
+        f"5.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
+        f"6.  **Preserve Content:** Do not lose ANY original information. Keep the meaning and all technical details intact.\n"
+        f"7.  **Telegram HTML Tags:** Strictly use ONLY these HTML tags: <b>, <i>, <u>, <s>, <tg-spoiler>, <a>, <code>, <pre>, <blockquote>. Ensure all tags are correctly closed.\n"
+        f"8.  **Untranslated items:** Keep English words, brand names, and words starting with # (hashtags) untranslated.\n"
+        f"9.  **No Markdown:** Do NOT use markdown like **bold** (use <b>bold</b> instead).\n"
+        f"10. **Line Stability & Link Unity (STRICT):** Do NOT merge paragraphs separated by ###GAP###. Preserve the line unity of the input. If a line contains a link (<a> tag), the entire line INCLUDING the text before and after the link MUST remain on a single line in the output. NEVER add newlines inside or around <a> tags.\n"
+        f"11. **Quote Unity:** Do NOT break a single <blockquote> block into multiple ones. All content between the input <blockquote> tags MUST remain inside a single pair of tags in the output.\n"
+        f"12. **Preserve Markers:** DO NOT remove or replace list markers (like •, -, *). Keep them exactly as they are in the input.\n"
+        f"13. **Token Preservation (CRITICAL):** The tokens XBQSX and XBQEX are structural markers for blockquotes. Preserve them EXACTLY as-is in the output. NEVER add more XBQSX/XBQEX tokens, NEVER remove them, and NEVER split content between them. Also, NEVER use the <blockquote> tag yourself; ONLY use XBQSX for start and XBQEX for end.\n"
+        f"14. **Join Sentences (CRITICAL):** The input HTML may contain arbitrary single line breaks (\\n) in the middle of sentences due to code wrapping. You MUST remove these arbitrary mid-sentence line breaks and join the sentence onto a single continuous line. However, strictly preserve intentional paragraph breaks (double line breaks) and line breaks before list markers (•).\n"
+        f"15. **No Gaps in Quotes:** NEVER use double newlines (\\n\\n) inside a blockquote (between XBQSX and XBQEX). Use only single newlines (\\n).\n\n"
         f"**Text to translate:**\n{text}\n\n**Beautiful Ukrainian Translation (Telegram HTML):**"
     )
     # --- End of Updated Prompt ---
@@ -95,7 +102,78 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         cleaned_text = re.sub(r"```$", "", cleaned_text).strip()
         
         # FINAL SANITIZATION: Clean any unsupported tags from GPT response
+        logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
+        
+        # DEBUG: Write step-by-step to file
+        with open("debug_bq_pipeline.txt", "w", encoding="utf-8") as dbg:
+            dbg.write("=== STEP 1: RAW GPT OUTPUT (cleaned) ===\n")
+            dbg.write(cleaned_text)
+            dbg.write("\n\n")
+            
+            # Count tokens/tags
+            bqsx_count = cleaned_text.upper().count("XBQSX")
+            bqex_count = cleaned_text.upper().count("XBQEX")
+            bq_open = cleaned_text.lower().count("<blockquote>")
+            bq_close = cleaned_text.lower().count("</blockquote>")
+            dbg.write(f"Tokens: XBQSX={bqsx_count}, XBQEX={bqex_count}\n")
+            dbg.write(f"Literal tags: <blockquote>={bq_open}, </blockquote>={bq_close}\n\n")
+        
         final_text = sanitize_html_for_telegram(cleaned_text)
+        
+        with open("debug_bq_pipeline.txt", "a", encoding="utf-8") as dbg:
+            dbg.write("=== STEP 2: AFTER sanitize_html_for_telegram ===\n")
+            dbg.write(final_text)
+            dbg.write("\n\n")
+            bqsx_count = final_text.upper().count("XBQSX")
+            bqex_count = final_text.upper().count("XBQEX")
+            bq_open = final_text.lower().count("<blockquote>")
+            bq_close = final_text.lower().count("</blockquote>")
+            dbg.write(f"Tokens: XBQSX={bqsx_count}, XBQEX={bqex_count}\n")
+            dbg.write(f"Literal tags: <blockquote>={bq_open}, </blockquote>={bq_close}\n\n")
+        
+        # AGGRESSIVE MERGE OF ALL POSSIBLE BLOCKQUOTE MARKERS
+        # First, normalize any literal tags GPT might have used back to tokens
+        final_text = final_text.replace("<blockquote>", "XBQSX").replace("</blockquote>", "XBQEX")
+        
+        with open("debug_bq_pipeline.txt", "a", encoding="utf-8") as dbg:
+            dbg.write("=== STEP 3: AFTER normalize tags->tokens ===\n")
+            bqsx_count = final_text.upper().count("XBQSX")
+            bqex_count = final_text.upper().count("XBQEX")
+            dbg.write(f"Tokens: XBQSX={bqsx_count}, XBQEX={bqex_count}\n")
+            # Find all XBQEX...XBQSX gaps
+            import re as re2
+            gaps = list(re2.finditer(r'XBQEX(.*?)XBQSX', final_text, flags=re.DOTALL|re.IGNORECASE))
+            dbg.write(f"Gaps between XBQEX and XBQSX: {len(gaps)}\n")
+            for gi, gap in enumerate(gaps):
+                dbg.write(f"  Gap {gi}: [{repr(gap.group(1))}]\n")
+            dbg.write("\n")
+        
+        # Merge any XBQEX ... XBQSX pairs
+        # Allow ANY content between them (not just whitespace) since GPT might insert empty tags like <b></b>
+        final_text = re.sub(r'XBQEX[\s\S]*?XBQSX', 'XBQEXXBQSX', final_text, flags=re.IGNORECASE)
+        
+        with open("debug_bq_pipeline.txt", "a", encoding="utf-8") as dbg:
+            dbg.write("=== STEP 4: AFTER merge XBQEX...XBQSX ===\n")
+            bqsx_count = final_text.upper().count("XBQSX")
+            bqex_count = final_text.upper().count("XBQEX")
+            dbg.write(f"Tokens: XBQSX={bqsx_count}, XBQEX={bqex_count}\n\n")
+        
+        # RESTORE blockquote tokens
+        final_text = final_text.replace("XBQSX", "<blockquote>")
+        final_text = final_text.replace("XBQEX", "</blockquote>")
+        
+        # Merge any remaining fragmented blockquotes tightly
+        final_text = re.sub(r'</blockquote>[ \t\n\r]*<blockquote>', '</blockquote><blockquote>', final_text, flags=re.IGNORECASE)
+        
+        # Remove triple+ newlines and leading/trailing whitespace
+        final_text = re.sub(r'\n{3,}', '\n\n', final_text).strip()
+        
+        with open("debug_bq_pipeline.txt", "a", encoding="utf-8") as dbg:
+            dbg.write("=== STEP 5: FINAL OUTPUT ===\n")
+            dbg.write(final_text)
+            dbg.write("\n")
+        
+        logger.debug(f"GPT Response (final bytes {len(final_text)}): {final_text[:300]}...")
         
         return final_text
 

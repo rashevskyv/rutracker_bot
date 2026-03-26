@@ -163,6 +163,7 @@ if __name__ == "__main__":
                 cover_image_url=scenario.get("cover"),
                 magnet_link=test_magnet,
                 description=description_to_use,
+                entry_url="https://rutracker.org/forum/viewtopic.php?t=TEST_ID",
                 video_id_for_thumbnail=scenario.get("vid_id"),
                 local_screenshot_paths=screenshots_to_use
             )

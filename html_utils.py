@@ -62,7 +62,9 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # 5. Normalize whitespace
     cleaned_html = cleaned_html.replace('\r', '')
     cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
-    cleaned_html = re.sub(r'\n{3,}', '\n\n', cleaned_html)
+    cleaned_html = re.sub(r'\n{2,}', '\n\n', cleaned_html) # Max 1 empty line
+    # Remove gaps between list items
+    cleaned_html = re.sub(r'\n{2,}(\s*(?:•|\d+\.) )', r'\n\1', cleaned_html)
     cleaned_html = cleaned_html.strip()
     
     return cleaned_html
@@ -73,7 +75,7 @@ def clean_description_html(description_html_str: str) -> str:
     description_soup = BeautifulSoup(description_html_str, 'html.parser')
     
     # Sections (identified by class) to remove - Keep sp-head initially for spoiler titles
-    sections_to_remove_classes = ['attach_wrap', 'attach_fu', 'signature', 'q-head'] 
+    sections_to_remove_classes = ['attach_wrap', 'attach_fu', 'signature'] 
 
     # Remove unwanted sections by class
     for class_name in sections_to_remove_classes:
@@ -99,44 +101,153 @@ def clean_description_html(description_html_str: str) -> str:
                 a.string = link_text # BeautifulSoup will escape this
 
     # 2. Convert spoilers
-    for spoiler in description_soup.find_all("div", class_="sp-wrap"):
-        sp_head = spoiler.find("div", class_="sp-head")
-        sp_body = spoiler.find("div", class_="sp-body")
+    for target_spoiler in description_soup.find_all("div", class_="sp-wrap"):
+        sp_head = target_spoiler.find("div", class_="sp-head")
+        sp_body = target_spoiler.find("div", class_="sp-body")
 
-        # Get spoiler title
-        spoiler_title = "Spoiler" # Default title
+        spoiler_title = "Spoiler"
         if sp_head:
             for unwanted in sp_head.find_all('span', class_='plusmn'): unwanted.decompose()
             spoiler_title = sp_head.get_text(strip=True).replace(':', '').strip() or spoiler_title
 
         # Check if spoiler title is 'Скриншоты' and skip if it is
-        if spoiler_title.lower() == "скриншоты":
-            spoiler.decompose() # Remove the entire spoiler div
-            continue # Move to the next spoiler
+        if "скриншот" in spoiler_title.lower():
+            target_spoiler.decompose()
+            continue
 
-        # Process spoiler body content preserving structure (tags still exist here)
-        spoiler_content_processed = ""
-        if sp_body:
-            # We don't call sanitize here yet, just convert breaks
-            for br in sp_body.find_all('br'): br.replace_with('\n')
-            # But we get the HTML to preserve tags
-            spoiler_content_processed = sp_body.decode_contents()
+        blockquote = description_soup.new_tag("blockquote")
         
-        # Replace spoiler div with title and its content directly
-        spoiler_replacement = f"\n<b>{html.escape(spoiler_title)}:</b>\n{spoiler_content_processed}\n"
-        spoiler.replace_with(NavigableString(spoiler_replacement))
+        # Title goes BEFORE the blockquote, not inside it
+        b_title = description_soup.new_tag("b")
+        b_title.string = f"{spoiler_title}:"
+        # We'll insert title before blockquote after replacement
+
+        if sp_body:
+            # Code: c-wrap -> <code>
+            for c_wrap in sp_body.find_all("div", class_="c-wrap"):
+                c_head = c_wrap.find("div", class_="c-head")
+                if c_head: c_head.decompose()
+                c_body_tag = c_wrap.find("div", class_="c-body")
+                if c_body_tag:
+                    code_tag = description_soup.new_tag("code")
+                    code_tag.string = c_body_tag.get_text(strip=True)
+                    c_wrap.replace_with(code_tag)
+                else:
+                    c_wrap.decompose()
+
+            # Nested quotes -> unwrap
+            for q_wrap in sp_body.find_all("div", class_="q-wrap"):
+                q_head = q_wrap.find("div", class_="q-head")
+                if q_head: q_head.decompose()
+                q = q_wrap.find("div", class_="q")
+                if q: q.unwrap()
+                q_wrap.unwrap()
+
+            # p -> \n
+            for p in sp_body.find_all("p"):
+                p.append(description_soup.new_string("\n"))
+                p.unwrap()
+
+            # hr -> \n
+            for hr in sp_body.find_all("hr"):
+                hr.replace_with(description_soup.new_string("\n"))
+
+            # br -> \n
+            for br in sp_body.find_all(["br", "span"], class_="post-br"):
+                br.replace_with(description_soup.new_string("\n"))
+
+            for child in list(sp_body.children):
+                blockquote.append(child)
+
+        # Insert: \n\n + <b>Title:</b>\n + <blockquote> (title outside the quote)
+        title_with_newlines = description_soup.new_string(f"\n\n")
+        target_spoiler.replace_with(title_with_newlines)
+        title_with_newlines.insert_after(b_title)
+        b_title.insert_after(description_soup.new_string("\n"))
+        b_title.next_sibling.insert_after(blockquote)
 
 
-    # 3. Convert quotes (and blockquotes)
-    for quote in description_soup.find_all("div", class_="q-wrap"):
-        q_body = quote.find("div", class_="q")
-        if q_body:
-            # Preserve links and basic formatting inside quotes by keeping inner HTML
-            content = q_body.decode_contents()
+    # Handle code blocks
+    for c_wrap in description_soup.find_all("div", class_="c-wrap"):
+        c_body = c_wrap.find("div", class_="c-body")
+        if c_body:
+            # Use get_text to avoid any stray HTML tags inside
+            content = html.escape(c_body.get_text(separator=' ', strip=True))
         else:
-            content = "Quoted Text"
-        # Wrap in Telegram's blockquote tag
-        quote.replace_with(NavigableString(f"\n<blockquote>{content}</blockquote>\n"))
+            content = ""
+        # Output content without 'Код:' prefix and without <code> tags
+        replacement = NavigableString(f"\n{content}\n") if content else NavigableString("")
+        c_wrap.replace_with(replacement)
+
+    # 3. Convert quotes and format their content exactly like spoilers
+    for quote in description_soup.find_all("div", class_="q-wrap"):
+        q_head = quote.find("div", class_="q-head")
+        q_body = quote.find("div", class_="q")
+        
+        blockquote = description_soup.new_tag("blockquote")
+        
+        title_text = ""
+        if q_head:
+            # Extract title and remove 'писал(а):'
+            title_text = q_head.get_text(strip=True)
+            title_text = re.sub(r'(?i)\s*писал\(а\):?', '', title_text).strip()
+            q_head.decompose()
+            
+        if title_text:
+            b_title = description_soup.new_tag("b")
+            b_title.string = f"{title_text}:"
+            # Title will be inserted before blockquote below
+            
+        if q_body:
+            # Code: c-wrap -> <code>
+            for c_wrap in q_body.find_all("div", class_="c-wrap"):
+                c_head_inner = c_wrap.find("div", class_="c-head")
+                if c_head_inner: c_head_inner.decompose()
+                c_body_inner = c_wrap.find("div", class_="c-body")
+                if c_body_inner:
+                    code_tag = description_soup.new_tag("code")
+                    code_tag.string = c_body_inner.get_text(strip=True)
+                    c_wrap.replace_with(code_tag)
+                else:
+                    c_wrap.decompose()
+
+            # Nested quotes -> unwrap
+            for sq in q_body.find_all("div", class_="q-wrap"):
+                sq_head = sq.find("div", class_="q-head")
+                if sq_head: sq_head.decompose()
+                sq_q = sq.find("div", class_="q")
+                if sq_q: sq_q.unwrap()
+                sq.unwrap()
+
+            # p -> \n
+            for p in q_body.find_all("p"):
+                p.append(description_soup.new_string("\n"))
+                p.unwrap()
+
+            # hr -> \n
+            for hr in q_body.find_all("hr"):
+                hr.replace_with(description_soup.new_string("\n"))
+
+            # br -> \n
+            for br in q_body.find_all(["br", "span"], class_="post-br"):
+                br.replace_with(description_soup.new_string("\n"))
+
+            for child in list(q_body.children):
+                blockquote.append(child)
+
+        if title_text:
+            # Insert: \n\n + <b>Title:</b>\n + <blockquote> (title outside quote)
+            title_newline = description_soup.new_string("\n\n")
+            quote.replace_with(title_newline)
+            title_newline.insert_after(b_title)
+            b_title.insert_after(description_soup.new_string("\n"))
+            b_title.next_sibling.insert_after(blockquote)
+        else:
+            quote.replace_with(blockquote)
+
+    # Replace horizontal rules with structural gaps
+    for hr in description_soup.find_all("hr"):
+        hr.replace_with(NavigableString("###GAP###"))
 
     # Handle preformatted text
     for tag in description_soup.find_all("pre", class_="post-pre"):
@@ -145,34 +256,17 @@ def clean_description_html(description_html_str: str) -> str:
         tag.string = html.escape(pre_content)
         tag.attrs = {}
 
-    # Unwrap spans used purely for styling (color, size, inline styles)
-    # Most will be handled by sanitize_html_for_telegram later, but we can do some specific ones here
-    spans_to_unwrap = description_soup.find_all('span', {'class': lambda x: x and ('post-color' in x or 'post-size' in x)})
-    spans_to_unwrap.extend(description_soup.find_all('span', style=True))
-    for tag in spans_to_unwrap: tag.unwrap()
+    # Handle lists: Convert <li> to bullets using Tag-based insertion to preserve inner HTML
+    for ul in description_soup.find_all(["ul", "ol"]):
+        # User requested dots for all lists
+        for i, li in enumerate(ul.find_all("li", recursive=False), 1):
+            prefix = "\n• "
+            bullet_prefix = NavigableString(prefix)
+            li.insert_before(bullet_prefix)
+            li.unwrap()  # Remove <li> wrapper but keep its children in place
+        ul.unwrap()  # Remove <ul>/<ol> container
 
-    # Format lists (ul, ol)
-    for ul in description_soup.find_all(['ul', 'ol']):
-        list_items = []
-        is_ordered = ul.name == 'ol'
-        i = 1
-        for li in ul.find_all('li', recursive=False):
-            prefix = f"{i}. " if is_ordered else "• "
-            for br in li.find_all('br'): br.replace_with("\n" + " " * len(prefix))
-            li_text = html.escape(li.get_text(separator=' ', strip=True))
-            list_items.append(f"{prefix}{li_text}")
-            if is_ordered: i += 1
-        ul.replace_with(NavigableString("\n" + "\n".join(list_items) + "\n"))
-
-    # Lists and other structural elements are handled after links and quotes
-
-    # --- FIX: Remove horizontal rules processing loop ---
-    # The 'hr' tag is now removed by the initial decompose loop
-    # for hr in description_soup.find_all('hr'):
-    #     hr.replace_with('\n---\n') # Removed this line
-    # --- END FIX ---
-
-    # Replace <br> and specific span breaks with newlines (after list processing)
+    # Replace <br> and specific span breaks with newlines
     for br_like in description_soup.find_all(['br', 'span'], class_="post-br"): br_like.replace_with('\n')
 
     # Get the processed HTML content

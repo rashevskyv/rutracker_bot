@@ -1,6 +1,7 @@
 # --- START OF FILE telegram_utils.py ---
 import aiohttp
 import asyncio
+import re
 from io import BytesIO
 from html.parser import HTMLParser
 from typing import List, Optional, Tuple
@@ -52,74 +53,185 @@ def close_tags(tags: List[str]) -> str:
 
 def split_text(text: str, max_length: int) -> List[str]:
     """
-    Splits text into parts respecting max_length and HTML tag integrity.
-
-    Args:
-        text: The HTML text to split.
-        max_length: The maximum length allowed for each part.
-
-    Returns:
-        A list of text parts, each respecting the max_length and HTML rules.
+    Splits HTML text into parts respecting max_length and tag integrity.
+    Uses tokenization and preserves full start tags (with attributes).
     """
+    if not text: return []
+    
+    # Tokenize: Split into tags, markers, and text segments
+    # Include ###GAP### as a special token
+    token_pattern = re.compile(r'(###GAP###|<[^>]+?>|[^<#]+|#)')
+    tokens = token_pattern.findall(text)
+    
     parts: List[str] = []
-    current_part = ""
-    open_tags_stack: List[str] = [] # Track open tags across lines/parts
+    current_part_tokens: List[str] = []
+    current_length = 0
+    # open_tags stores tuples of (tag_name, full_start_tag)
+    open_tags: List[Tuple[str, str]] = []
+    # open_tags_history stores the STATE of open_tags AFTER each token in current_part_tokens
+    open_tags_history: List[List[Tuple[str, str]]] = []
+    
+    skip_next_whitespace = False
+    for i, token in enumerate(tokens):
+        # Skip any whitespace token immediately following a GAP split or conversion
+        if skip_next_whitespace and token.isspace():
+            continue
+        skip_next_whitespace = False
 
-    lines = text.split('\n')
+        if token == "###GAP###":
+            # If we are already mostly full (e.g. > 50%), split at this gap to keep sections together
+            # BUT: Never split at gap if we are inside a blockquote or pre tag to keep them unified
+            sensitive_tags = ["blockquote", "pre"]
+            is_inside_sensitive = any(t[0] in sensitive_tags for t in open_tags)
 
-    for line_index, line in enumerate(lines):
-        line_with_newline = line + ('\n' if line_index < len(lines) - 1 else '')
-
-        # Calculate prefix tags needed for the current line
-        prefix_tags = "".join([f"<{tag}>" for tag in open_tags_stack])
-
-        # Calculate projected length if this line is added to the current part
-        projected_length = len(current_part) + len(prefix_tags) + len(line_with_newline)
-
-        if projected_length <= max_length:
-            # Line fits, add it (with prefix tags) to the current part
-            current_part += prefix_tags + line_with_newline
-            # Update the open tags stack based on this line's content
-            line_parser = HTMLTagParser()
-            line_parser.tags = open_tags_stack[:] # Start with current stack
-            line_parser.feed(line) # Process only the current line's tags
-            open_tags_stack = line_parser.get_unclosed_tags()
-        else:
-            # Line does not fit
-            if current_part:
-                # Finish the current part
-                part_parser = HTMLTagParser()
-                part_parser.feed(current_part) # Parse the whole finished part
-                final_open_tags = part_parser.get_unclosed_tags()
-                current_part += close_tags(final_open_tags) # Close tags for this part
-                parts.append(current_part)
-                # Start new part with the current line, reusing the open tags
-                open_tags_stack = final_open_tags # Carry over open tags
-                current_part = "".join([f"<{tag}>" for tag in open_tags_stack]) + line_with_newline
-                # Update open tags based on the new line
-                line_parser = HTMLTagParser()
-                line_parser.tags = open_tags_stack[:]
-                line_parser.feed(line)
-                open_tags_stack = line_parser.get_unclosed_tags()
+            if current_length > max_length * 0.5 and not is_inside_sensitive:
+                suffix = "".join([f"</{t[0]}>" for t in reversed(open_tags)])
+                parts.append("".join(current_part_tokens).strip() + suffix)
+                
+                prefix = "".join([t[1] for t in open_tags])
+                current_part_tokens = [prefix]
+                current_length = len(prefix)
+                open_tags_history = [open_tags[:]]
+                skip_next_whitespace = True # Skip whitespace after split
             else:
-                # Current part is empty, but the line itself is too long
-                # Force split the line (basic split, might break mid-tag if line is huge)
-                available_space = max_length - len(prefix_tags)
-                parts.append(prefix_tags + line_with_newline[:available_space])
-                # Reset for next part (assume the forced split broke tags)
-                current_part = ""
-                open_tags_stack = []
+                # If not splitting, convert GAP marker to exactly ONE blank line separation (\n\n)
+                # We strip any already existing trailing newlines to avoid doubling up
+                while current_part_tokens and current_part_tokens[-1].isspace():
+                    last = current_part_tokens.pop()
+                    current_length -= len(last)
+                    if open_tags_history: open_tags_history.pop()
+                
+                gap_text = "\n\n"
+                current_part_tokens.append(gap_text)
+                current_length += len(gap_text)
+                open_tags_history.append(open_tags[:])
+                skip_next_whitespace = True # Skip whitespace after conversion
+            continue # Gap marker itself is processed
+            
+        tag_name = None
+        full_start_tag = None
+        is_start = False
+        is_end = False
+        
+        if token.startswith('<'):
+            if token.startswith('</'):
+                is_end = True
+                m = re.match(r'</([a-zA-Z0-9-]+)', token)
+                if m: tag_name = m.group(1).lower()
+            elif not token.endswith('/>'):
+                # Ignore self-closing tags
+                is_start = True
+                m = re.match(r'<([a-zA-Z0-9-]+)', token)
+                if m:
+                    tag_name = m.group(1).lower()
+                    full_start_tag = token
+                if tag_name in ('br', 'hr', 'img'):
+                    is_start = False
+        
+        # Calculate overhead (closing tags)
+        temp_open_tags = open_tags[:]
+        if is_start and tag_name: temp_open_tags.append((tag_name, full_start_tag))
+        elif is_end and tag_name and temp_open_tags and temp_open_tags[-1][0] == tag_name: temp_open_tags.pop()
+        
+        suffix_len = sum(len(f"</{t[0]}>") for t in reversed(temp_open_tags))
+        
+        # Check fit
+        if current_length + len(token) + suffix_len <= max_length:
+            current_part_tokens.append(token)
+            current_length += len(token)
+            if is_start and tag_name: open_tags.append((tag_name, full_start_tag))
+            elif is_end and tag_name:
+                if open_tags and open_tags[-1][0] == tag_name: open_tags.pop()
+            open_tags_history.append(open_tags[:])
+        else:
+            # Token doesn't fit, finalize current part
+            # BACKTRACKING: If we are inside a blockquote, try to move the WHOLE blockquote to the next part
+            bq_found = False
+            bq_start_idx = -1
+            
+            # Look for the last opened blockquote in current part
+            for j in range(len(open_tags) - 1, -1, -1):
+                if open_tags[j][0] == "blockquote":
+                    bq_found = True
+                    bq_tag = open_tags[j][1]
+                    # Find where this blockquote started in current_part_tokens
+                    for k in range(len(current_part_tokens) - 1, -1, -1):
+                        if current_part_tokens[k] == bq_tag:
+                            bq_start_idx = k
+                            break
+                    break
+            
+            # If we found a blockquote that started in this part, move it to the next part
+            # (only if we have at least SOME content before it, otherwise we have no choice but to split)
+            if bq_found and bq_start_idx > 0:
+                # Part until just BEFORE the blockquote start
+                backtracked_content = current_part_tokens[:bq_start_idx]
+                moved_content = current_part_tokens[bq_start_idx:]
+                
+                # The tags that were open BEFORE the blockquote started are at index bq_start_idx-1 in history
+                new_open_tags = open_tags_history[bq_start_idx-1]
+                
+                suffix = "".join([f"</{t[0]}>" for t in reversed(new_open_tags)])
+                parts.append("".join(backtracked_content).strip() + suffix)
+                
+                # Start new part with the moved content + the current token
+                open_tags = new_open_tags[:]
+                prefix = "".join([t[1] for t in open_tags])
+                
+                # Process each moved token to restore open_tags state
+                current_part_tokens = [prefix]
+                open_tags_history = [open_tags[:]]
+                for mt in moved_content:
+                    # Update tags for each moved token
+                    m_is_start = False; m_is_end = False; m_tag = None
+                    if mt.startswith('<') and not mt.endswith('/>'):
+                        if mt.startswith('</'):
+                            m_is_end = True; m_m = re.match(r'</([a-zA-Z0-9-]+)', mt)
+                            if m_m: m_tag = m_m.group(1).lower()
+                        else:
+                            m_is_start = True; m_m = re.match(r'<([a-zA-Z0-9-]+)', mt)
+                            if m_m: m_tag = m_m.group(1).lower()
+                            if m_tag in ('br', 'hr', 'img'): m_is_start = False
+                    
+                    if m_is_start and m_tag: open_tags.append((m_tag, mt))
+                    elif m_is_end and m_tag and open_tags and open_tags[-1][0] == m_tag: open_tags.pop()
+                    
+                    current_part_tokens.append(mt)
+                    open_tags_history.append(open_tags[:])
+                
+                # Finally add the token that triggered the split
+                if is_start and tag_name: open_tags.append((tag_name, token))
+                elif is_end and tag_name and open_tags and open_tags[-1][0] == tag_name: open_tags.pop()
+                current_part_tokens.append(token)
+                open_tags_history.append(open_tags[:])
+                
+                current_length = sum(len(t) for t in current_part_tokens)
+            else:
+                # Normal split
+                suffix = "".join([f"</{t[0]}>" for t in reversed(open_tags)])
+                parts.append("".join(current_part_tokens).strip() + suffix)
+                
+                # Start new part
+                prefix = "".join([t[1] for t in open_tags])
+                current_part_tokens = [prefix, token]
+                current_length = len(prefix) + len(token)
+                
+                open_tags_history = [open_tags[:]] # Status AFTER prefix
+                if is_start and tag_name: open_tags.append((tag_name, full_start_tag))
+                elif is_end and tag_name and open_tags and open_tags[-1][0] == tag_name: open_tags.pop()
+                open_tags_history.append(open_tags[:]) # Status AFTER token
 
-    # Add the last part if it contains text
-    if current_part.strip():
-        part_parser = HTMLTagParser()
-        part_parser.feed(current_part)
-        final_open_tags = part_parser.get_unclosed_tags()
-        current_part += close_tags(final_open_tags)
-        parts.append(current_part)
+    if current_part_tokens:
+        suffix = "".join([f"</{t[0]}>" for t in reversed(open_tags)])
+        parts.append("".join(current_part_tokens).strip() + suffix)
 
-    # Return non-empty, stripped parts
-    return [p.strip() for p in parts if p.strip()]
+    # Combine parts with a temporary marker, normalize all GAPs, then split back.
+    # This ensures exactly one blank line for GAP whether we split at it or not,
+    # and collapses consecutive gaps into one.
+    full_content = "###SPLIT_MARKER###".join(parts)
+    full_content = re.sub(r'(?:\s*###GAP###\s*)+', '\n\n', full_content)
+    
+    return [p.strip() for p in full_content.split('###SPLIT_MARKER###') if p.strip()]
 
 # --- Image Downloading for Telegram ---
 

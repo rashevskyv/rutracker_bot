@@ -24,7 +24,7 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
         return False # Cannot validate without client
 
     # Clean title for the prompt
-    prompt_searched_title = re.sub(r'\[.*?\]', '', searched_title).strip()
+    prompt_searched_title = re.sub(r'\[.*?\]|\(.*?\)', '', searched_title).strip()
 
     prompt = (
         f"You are a game title validation assistant. Your task is to determine if the 'Found YouTube Video Title' "
