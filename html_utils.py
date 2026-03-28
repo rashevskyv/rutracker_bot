@@ -61,6 +61,10 @@ def sanitize_html_for_telegram(html_str: str) -> str:
 
     # 5. Normalize whitespace
     cleaned_html = cleaned_html.replace('\r', '')
+    
+    # Snap floating colons back to bold tags (e.g., <b>Описание</b>\n: -> <b>Описание</b>: )
+    cleaned_html = re.sub(r'</b>\s*:\s*', '</b>: ', cleaned_html)
+    
     cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
     cleaned_html = re.sub(r'\n{2,}', '\n\n', cleaned_html) # Max 1 empty line
     # Remove gaps between list items
