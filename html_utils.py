@@ -63,7 +63,8 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     cleaned_html = cleaned_html.replace('\r', '')
     
     # Snap floating colons back to bold tags (e.g., <b>Описание</b>\n: -> <b>Описание</b>: )
-    cleaned_html = re.sub(r'</b>\s*:\s*', '</b>: ', cleaned_html)
+    # Handles </b> and </strong>, as well as invisible characters like non-breaking spaces before the colon
+    cleaned_html = re.sub(r'\s*</(b|strong)>[\s\u200b\xa0]*:[\s\u200b\xa0]*', r'</\1>: ', cleaned_html)
     
     cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
     cleaned_html = re.sub(r'\n{2,}', '\n\n', cleaned_html) # Max 1 empty line
