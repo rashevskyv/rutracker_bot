@@ -62,10 +62,23 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # 5. Normalize whitespace
     cleaned_html = cleaned_html.replace('\r', '')
     
-    # Snap floating colons back to bold tags (e.g., <b>Описание</b>\n: -> <b>Описание</b>: )
-    # Handles </b> and </strong>, as well as invisible characters like non-breaking spaces before the colon
+    # Snap floating colons back to bold tags
     cleaned_html = re.sub(r'\s*</(b|strong)>[\s\u200b\xa0]*:[\s\u200b\xa0]*', r'</\1>: ', cleaned_html)
     
+    # Also aggressively snap ANY colon that starts a line back to the previous text
+    cleaned_html = re.sub(r'\n+\s*:\s*', ': ', cleaned_html)
+
+    # Convert horizontal bullet lists to properly separated vertical lists (e.g. "Item 1 • Item 2" -> "Item 1\n• Item 2")
+    # We look for a bullet preceded by spaces that follows some text on the SAME line.
+    cleaned_html = re.sub(r'(?<=\S)[ \t]+•[ \t]*', '\n• ', cleaned_html)
+    
+    # Fix orphaned bullets that have nothing on their line or are followed by newlines
+    # (e.g. "• \n\n<b>Описание</b>" -> "• <b>Описание</b>")
+    cleaned_html = re.sub(r'•[ \t]*\n+', '• ', cleaned_html)
+
+    # Remove trailing bullet if it's completely empty at the end of the text
+    cleaned_html = re.sub(r'\n•\s*$', '', cleaned_html)
+
     cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
     cleaned_html = re.sub(r'\n{2,}', '\n\n', cleaned_html) # Max 1 empty line
     # Remove gaps between list items
