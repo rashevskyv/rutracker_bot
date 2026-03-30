@@ -240,8 +240,8 @@ def split_text(text: str, max_length: int) -> List[str]:
     full_content = re.sub(r'(?m)^[ \t]*•[ \t]*(?=\n|$)', '', full_content)
     full_content = re.sub(r'•[ \t]*(?=\n)', '', full_content)
     
-    # 3. Ensure no empty lines (replace 2+ newlines with a single newline)
-    full_content = re.sub(r'\n{2,}', '\n', full_content)
+    # 3. Ensure no excessive empty lines (replace 3+ newlines with exactly 2 newlines, leaving 1 empty line)
+    full_content = re.sub(r'\n{3,}', '\n\n', full_content)
     
     return [p.strip() for p in full_content.split('###SPLIT_MARKER###') if p.strip()]
 
