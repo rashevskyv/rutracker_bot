@@ -240,6 +240,20 @@ def split_text(text: str, max_length: int) -> List[str]:
     full_content = re.sub(r'(?m)^[ \t]*•[ \t]*(?=\n|$)', '', full_content)
     full_content = re.sub(r'•[ \t]*(?=\n)', '', full_content)
     
+    # 2.5 Dynamic header spacing: If a line has <= 4 words, contains b/strong/i/em/u, and ends with a colon, ensure an empty line before it.
+    lines = full_content.split('\n')
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if re.search(r':(?:\s*</[a-zA-Z0-9]+>)*\s*$', stripped):
+            text_content = re.sub(r'<[^>]+>', '', stripped).strip()
+            words = [w for w in text_content.replace(':', '').replace('###SPLIT_MARKER###', '').split() if w]
+            if len(words) <= 4 and re.search(r'<(?:b|strong|i|em|u)[^>]*>', stripped, re.IGNORECASE):
+                if new_lines and new_lines[-1].strip() != '' and new_lines[-1].strip() != '###SPLIT_MARKER###':
+                    new_lines.append('')
+        new_lines.append(line)
+    full_content = '\n'.join(new_lines)
+    
     # 3. Ensure no excessive empty lines (replace 3+ newlines with exactly 2 newlines, leaving 1 empty line)
     full_content = re.sub(r'\n{3,}', '\n\n', full_content)
     
