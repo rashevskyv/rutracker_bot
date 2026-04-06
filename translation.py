@@ -71,7 +71,7 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         f"Translate the following text from Russian to Ukrainian, making it highly readable and visually appealing for a Telegram post.\n\n"
         f"**Translation Rules:**\n"
         f"1.  **Language Naming:** If the text mentions 'Russian language' (русский язык), translate it ONLY as 'мова росії', 'москальська', or 'російська'. NEVER use 'руська'.\n"
-        f"2.  **Structural Spacing (STRICT):** You will see '###GAP###' markers in the text. You MUST preserve these markers exactly as they are on their own lines. Do NOT add any OTHER blank lines anywhere else in the document.\n"
+        f"2.  **Structural Spacing & Readability:** You will see '###GAP###' markers in the text. You MUST preserve these markers exactly as they are on their own lines. To make the description text look beautiful and highly readable, you are ENCOURAGED to space it out by adding empty lines between logical paragraphs or sections.\n"
         f"3.  **Compact Density:** Keep technical parameters (Year, Genre, etc.) on consecutive lines with NO blank lines between them. However, for the 'Description' text and especially inside <blockquote> blocks, you MUST preserve the original structural line breaks and tags for readability.\n"
         f"4.  **No HTML Lists:** NEVER use HTML tags like <ul> or <li>. Use plain text bullet characters (•) for lists.\n"
         f"5.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
