@@ -51,8 +51,10 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
         if match: last_page_offset = int(match.group(1))
         if last_page_offset == -1:
              page_links = soup_first_page.select('a.pg:not([rel="prev"]):not([rel="next"])'); highest_offset = 0
-             for link in page_links: match = re.search(r'start=(\d+)', link.get('href', ''));
-             if match: highest_offset = max(highest_offset, int(match.group(1)))
+             for link in page_links:
+                 match = re.search(r'start=(\d+)', link.get('href', ''))
+                 if match:
+                     highest_offset = max(highest_offset, int(match.group(1)))
              if highest_offset > 0: last_page_offset = highest_offset
     if last_page_offset == -1: last_page_offset = max(0, (max_pages_to_check - 1) * posts_per_page)
     checked_urls = set()
@@ -67,8 +69,14 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
         for post in reversed(user_posts):
             post_body_div = post.find("div", class_="post_body")
             if not post_body_div: continue
-            for br in post_body_div.find_all("br"): br.replace_with("\n")
-            post_text_content = post_body_div.get_text(separator=" ", strip=True) # Check text content first
+
+            # Remove quote blocks before checking for phrase
+            post_body_copy = post_body_div.__copy__()
+            for quote in post_body_copy.find_all("div", class_="q-wrap"):
+                quote.decompose()
+
+            for br in post_body_copy.find_all("br"): br.replace_with("\n")
+            post_text_content = post_body_copy.get_text(separator=" ", strip=True) # Check text content without quotes
             if phrase in post_text_content:
                 logger.info(f"Found update phrase '{phrase}' in post on {page_url}")
                 relevant_html_content = ""; found_phrase = False; stop_collecting = False

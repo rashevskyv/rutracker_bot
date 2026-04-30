@@ -5,6 +5,7 @@
 /__pycache__
 geckodriver.log
 bot.log
+bot.log.*
 cron.log
 log_tg_send.txt
 log_yt.txt
@@ -16,3 +17,37 @@ tmp_screenshots/
 tmp_videos/
 *.bak
 *.tmp
+*.session
+*.session-journal
+extraction.log
+daily_digest_data.json
+last_digest_run.json
+last_entry.txt
+
+# Test and debug files
+test_*.py
+test_*.txt
+check_*.py
+check_*.txt
+*_debug.txt
+*_output.txt
+quote_check.txt
+fetch_log.txt
+specific_posts.txt
+updated_post_example.txt
+hades_*.txt
+citation_debug.txt
+topic_*.txt
+test_settings.json.backup
+
+# Temporary digest scripts
+backfill_digest.py
+optimized_backfill.py
+quick_backfill.py
+preview_digest.py
+preview_full_digest.py
+list_updated_posts.py
+show_updated_post.py
+show_updates.py
+extract_from_telegram.py
+telethon_extract.py

@@ -13,6 +13,7 @@ import os
 from telethon import TelegramClient
 from telethon.tl.types import Message
 from daily_digest import digest_manager
+from tracker_parser import get_last_post_with_phrase
 
 logger = logging.getLogger(__name__)
 
@@ -109,13 +110,16 @@ def extract_game_info_from_message(message: Message) -> dict:
             language = lang_text[:30]
             break
 
-    # Extract update description
+    # Extract update description from current message
     update_description = None
     if is_updated:
-        update_match = re.search(r'Обновлено:\s*(.+?)(?:\n\n|$)', text, re.DOTALL | re.IGNORECASE)
+        # Look for **Обновлено:** with markdown formatting and optional link
+        # Take everything after "Обновлено:" until the end of message
+        update_match = re.search(r'\*\*Обновлено:\*\*\s*(?:\[Details\]\([^\)]+\)\s*)?(.+)', text, re.DOTALL | re.IGNORECASE)
         if update_match:
             update_text = update_match.group(1).strip()
-            update_text = re.sub(r'<[^>]+>', '', update_text)
+            # Remove markdown formatting
+            update_text = re.sub(r'\*\*', '', update_text)
             update_text = re.sub(r'\s+', ' ', update_text)
             update_description = update_text[:200]
 
@@ -162,9 +166,11 @@ async def extract_from_telegram(api_id: int, api_hash: str, chat_id: int, topic_
         logger.info("Fetching messages...")
 
         # Iterate through messages (get all recent messages, filter by date)
+        # If topic_id is specified, use it as reply_to parameter to get messages from that topic
         async for message in client.iter_messages(
             channel,
-            limit=None
+            limit=None,
+            reply_to=topic_id if topic_id else None
         ):
             if not message.date:
                 continue
@@ -179,12 +185,6 @@ async def extract_from_telegram(api_id: int, api_hash: str, chat_id: int, topic_
             # Skip if message is after to_date
             if msg_date >= to_date:
                 continue
-
-            # Filter by topic if specified
-            if topic_id and hasattr(message, 'reply_to') and message.reply_to:
-                if hasattr(message.reply_to, 'reply_to_top_id'):
-                    if message.reply_to.reply_to_top_id != topic_id:
-                        continue
 
             messages.append(message)
 
@@ -206,23 +206,43 @@ async def extract_from_telegram(api_id: int, api_hash: str, chat_id: int, topic_
                 # If this is an updated game but no update_description in the main post,
                 # check the next message for "Обновлено:" section
                 if game_info['is_updated'] and not game_info['update_description']:
+                    # First, try next message in topic
                     if i + 1 < len(messages):
                         next_message = messages[i + 1]
-                        if next_message.text and 'Обновлено:' in next_message.text:
-                            update_match = re.search(r'Обновлено:\s*(.+?)(?:\n\n|$)', next_message.text, re.DOTALL | re.IGNORECASE)
+                        # In topic, messages go sequentially - no need to check ID
+                        # Try to get text from message or caption
+                        next_text = next_message.text or next_message.message or (next_message.caption if hasattr(next_message, 'caption') else None)
+
+                        if next_text:
+                            # Look for "Обновлено:" (with or without markdown)
+                            # Take everything after "Обновлено:" until the end of message
+                            update_match = re.search(r'\*?\*?Обновлено:\*?\*?\s*(?:\[Details\]\([^\)]+\)\s*)?(.+)', next_text, re.DOTALL | re.IGNORECASE)
                             if update_match:
                                 update_text = update_match.group(1).strip()
-                                update_text = re.sub(r'<[^>]+>', '', update_text)
+                                # Remove markdown formatting
+                                update_text = re.sub(r'\*\*', '', update_text)
                                 update_text = re.sub(r'\s+', ' ', update_text)
                                 game_info['update_description'] = update_text[:200]
+                                logger.debug(f"Found update description in next message for: {game_info['title'][:50]}")
 
-                    # If still no update_description, skip this updated game
+                    # If still no description, try RuTracker
                     if not game_info['update_description']:
-                        logger.info(f"Skipping updated game without update description: {game_info['title']}")
-                        skipped_count += 1
-                        continue
+                        logger.info(f"Searching RuTracker for update description: {game_info['title'][:50]}")
+                        try:
+                            rutracker_result = await get_last_post_with_phrase("Раздача обновлена", game_info['url'])
+                            if rutracker_result:
+                                # Extract text from HTML result (remove <b>Обновлено:</b> and <a> tags)
+                                rutracker_text = re.sub(r'<b>Обновлено:</b>\s*', '', rutracker_result)
+                                rutracker_text = re.sub(r'<a[^>]*>Details</a>', '', rutracker_text)
+                                rutracker_text = re.sub(r'<[^>]+>', '', rutracker_text)
+                                rutracker_text = rutracker_text.strip()
+                                rutracker_text = re.sub(r'\s+', ' ', rutracker_text)
+                                game_info['update_description'] = rutracker_text[:200]
+                                logger.info(f"Found update description on RuTracker for: {game_info['title'][:50]}")
+                        except Exception as rt_err:
+                            logger.warning(f"RuTracker search failed for {game_info['title'][:50]}: {rt_err}")
 
-                # Add to digest
+                # Add to digest (even if no update_description for updated games)
                 digest_manager.add_entry(
                     title=game_info['title'],
                     entry_url=game_info['url'],
