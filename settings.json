@@ -32,6 +32,6 @@
 		"language": "RU",
 		"enabled": true
 	},
-	"test": true,
+	"test": false,
 	"test_last_entry_link": "https://rutracker.org/forum/viewtopic.php?t=6292415"
 }

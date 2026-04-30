@@ -156,25 +156,28 @@ class DailyDigest:
                 title_escaped = html.escape(entry['title'])
                 # Use update_description if available, otherwise generic text
                 update_text = entry.get('update_description', 'добавлен апдейт')
-                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203; [{update_text}]"
+                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203; — {update_text}"
                 message_parts.append(line)
 
         return "\n".join(message_parts)
 
-    async def send_daily_digest(self, target_chat_id: int, target_topic_id: Optional[int] = None):
+    async def send_daily_digest(self, target_chat_id: int, target_topic_id: Optional[int] = None, since_time: Optional[datetime] = None, translate_to_ua: bool = False):
         """
         Send daily digest to specified Telegram channel
 
         Args:
             target_chat_id: Telegram chat ID
             target_topic_id: Optional topic ID for supergroups
+            since_time: Optional start time for digest (defaults to last 24 hours)
+            translate_to_ua: Whether to translate Russian text to Ukrainian
         """
         from settings_loader import bot
         from telegram_sender import send_message_to_admin
 
-        # Calculate time range (last 24 hours from 9:00 to 9:00)
+        # Calculate time range (last 24 hours from 9:00 to 9:00, or custom range)
         now = datetime.now()
-        since_time = now - timedelta(hours=24)
+        if since_time is None:
+            since_time = now - timedelta(hours=24)
 
         logger.info(f"Generating daily digest for period: {since_time} to {now}")
 
@@ -182,8 +185,17 @@ class DailyDigest:
 
         if not message:
             logger.info("No entries for daily digest")
-            await send_message_to_admin("Daily digest: No new entries in the last 24 hours")
+            await send_message_to_admin("Daily digest: No new entries in the specified period")
             return
+
+        # Translate if needed
+        if translate_to_ua:
+            logger.info(f"Translating digest to Ukrainian for chat {target_chat_id}")
+            try:
+                from translation import translate_ru_to_ua
+                message = await translate_ru_to_ua(message)
+            except Exception as e:
+                logger.error(f"Error translating digest: {e}. Sending in Russian.")
 
         try:
             await bot.send_message(
@@ -195,8 +207,9 @@ class DailyDigest:
             )
             logger.info(f"Daily digest sent to {target_chat_id}")
 
-            # Clear old entries (keep last 48 hours for safety)
-            cleanup_time = now - timedelta(hours=48)
+            # Clear old entries (keep last 7 days for safety)
+            # This prevents data loss during testing and allows re-sending digests if needed
+            cleanup_time = now - timedelta(days=7)
             self.clear_old_entries(cleanup_time)
 
         except Exception as e:
