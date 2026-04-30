@@ -113,7 +113,7 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
 
 
 # parse_tracker_entry remains the same (uses functions from html_utils)
-async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str]]:
+async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str]]:
     soup = await fetch_page_content(entry_url)
     if not soup: return None
 
@@ -128,7 +128,58 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
         if header_tag: page_display_title = header_tag.get_text().strip()
     page_display_title = page_display_title.replace("[Nintendo Switch]", "").replace("[Обновлено]", "").replace("[Updated]", "").strip()
 
-    post_body = soup.find("div", class_="post_body")
+    # Extract torrent size and language
+    torrent_size = "N/A"
+    torrent_language = "N/A"
+
+    try:
+        # Find size in the download info section
+        dl_list = soup.find("div", id="tor-size-humn")
+        if dl_list:
+            torrent_size = dl_list.get_text(strip=True)
+
+        # Try alternative location for size
+        if torrent_size == "N/A":
+            size_span = soup.find("span", id="tor-size-humn")
+            if size_span:
+                torrent_size = size_span.get_text(strip=True)
+    except Exception as e:
+        logger.warning(f"Could not extract torrent size: {e}")
+
+    try:
+        # Extract language from post body
+        post_body = soup.find("div", class_="post_body")
+        if post_body:
+            # Look for language patterns
+            lang_patterns = [
+                (r'Язык\s*(?:интерфейса)?[:\s]+([A-Za-zА-Яа-я,\s]+)', 'ru'),
+                (r'Language[:\s]+([A-Za-z,\s]+)', 'en'),
+                (r'Мова[:\s]+([A-Za-zА-Яа-я,\s]+)', 'ua')
+            ]
+
+            post_text = post_body.get_text()
+            for pattern, _ in lang_patterns:
+                match = re.search(pattern, post_text, re.IGNORECASE)
+                if match:
+                    lang_text = match.group(1).strip()
+                    # Normalize common language codes
+                    lang_map = {
+                        'английский': 'ENG', 'english': 'ENG', 'eng': 'ENG',
+                        'русский': 'RUS', 'russian': 'RUS', 'rus': 'RUS',
+                        'японский': 'JAP', 'japanese': 'JAP', 'jap': 'JAP',
+                        'мультиязычный': 'MULTI', 'multi': 'MULTI', 'multilanguage': 'MULTI'
+                    }
+                    lang_lower = lang_text.lower()
+                    for key, value in lang_map.items():
+                        if key in lang_lower:
+                            torrent_language = value
+                            break
+                    if torrent_language == "N/A":
+                        torrent_language = lang_text.upper()[:10]
+                    break
+    except Exception as e:
+        logger.warning(f"Could not extract language: {e}")
+
     if not post_body: logger.error(f"Could not find main post body in {entry_url}."); return None
 
     title_elements_html = []; description_elements_html = []; collecting_title = True
@@ -214,6 +265,6 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
-    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description
+    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language
 
 # --- END OF FILE tracker_parser.py ---

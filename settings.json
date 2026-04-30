@@ -25,6 +25,13 @@
 				"language": "RU"
 			}
 	],
+	"DIGEST_CHANNEL": {
+		"group_name": "Nin3DSBrewNews",
+		"chat_id": "-1001188608656",
+		"topic_id": "",
+		"language": "RU",
+		"enabled": true
+	},
 	"test": true,
 	"test_last_entry_link": "https://rutracker.org/forum/viewtopic.php?t=6292415"
 }
