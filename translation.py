@@ -66,12 +66,19 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
 
     logger.info(f"Translating text RU -> UA using GPT model: {model}...")
 
+    # Check if text contains GAP markers
+    has_gap_markers = "###GAP###" in text
+    gap_instruction = ""
+    if has_gap_markers:
+        gap_instruction = "2.  **Structural Spacing & Readability:** You will see '###GAP###' markers in the text. You MUST preserve these markers exactly as they are on their own lines. To make the description text look beautiful and highly readable, you are ENCOURAGED to space it out by adding empty lines between logical paragraphs or sections.\n"
+
     # --- Updated Prompt ---
     prompt = (
         f"Translate the following text from Russian to Ukrainian, making it highly readable and visually appealing for a Telegram post.\n\n"
         f"**Translation Rules:**\n"
         f"1.  **Language Naming:** If the text mentions 'Russian language' (русский язык), translate it ONLY as 'мова росії', 'москальська', or 'російська'. NEVER use 'руська'.\n"
-        f"2.  **Structural Spacing & Readability:** You will see '###GAP###' markers in the text. You MUST preserve these markers exactly as they are on their own lines. To make the description text look beautiful and highly readable, you are ENCOURAGED to space it out by adding empty lines between logical paragraphs or sections.\n"
+        f"{gap_instruction}"
+        f"{gap_instruction}"
         f"3.  **Compact Density:** Keep technical parameters (Year, Genre, etc.) on consecutive lines with NO blank lines between them. However, for the 'Description' text and especially inside <blockquote> blocks, you MUST preserve the original structural line breaks and tags for readability.\n"
         f"4.  **No HTML Lists:** NEVER use HTML tags like <ul> or <li>. Use plain text bullet characters (•) for lists.\n"
         f"5.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
@@ -79,7 +86,7 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         f"7.  **Telegram HTML Tags:** Strictly use ONLY these HTML tags: <b>, <i>, <u>, <s>, <tg-spoiler>, <a>, <code>, <pre>, <blockquote>. Ensure all tags are correctly closed.\n"
         f"8.  **Untranslated items:** Keep English words, brand names, and words starting with # (hashtags) untranslated.\n"
         f"9.  **No Markdown:** Do NOT use markdown like **bold** (use <b>bold</b> instead).\n"
-        f"10. **Line Stability & Link Unity (STRICT):** Do NOT merge paragraphs separated by ###GAP###. Preserve the line unity of the input. If a line contains a link (<a> tag), the entire line INCLUDING the text before and after the link MUST remain on a single line in the output. NEVER add newlines inside or around <a> tags.\n"
+        f"10. **Line Stability & Link Unity (STRICT):** Do NOT merge paragraphs separated by ###GAP### (if present). Preserve the line unity of the input. If a line contains a link (<a> tag), the entire line INCLUDING the text before and after the link MUST remain on a single line in the output. NEVER add newlines inside or around <a> tags.\n"
         f"11. **Quote Unity:** Do NOT break a single <blockquote> block into multiple ones. All content between the input <blockquote> tags MUST remain inside a single pair of tags in the output.\n"
         f"12. **Preserve Markers:** DO NOT remove or replace list markers (like •, -, *). Keep them exactly as they are in the input.\n"
         f"13. **Token Preservation (CRITICAL):** The tokens XBQSX and XBQEX are structural markers for blockquotes. Preserve them EXACTLY as-is in the output. NEVER add more XBQSX/XBQEX tokens, NEVER remove them, and NEVER split content between them. Also, NEVER use the <blockquote> tag yourself; ONLY use XBQSX for start and XBQEX for end.\n"
@@ -180,6 +187,50 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
     except Exception as e:
         logger.error(f"Error during GPT translation: {e}")
         return text # Fallback to original text
+
+async def translate_short_description(text: str, model: str = "gpt-4o-mini") -> str:
+    """
+    Translates short descriptions (1-2 sentences) from Russian to Ukrainian.
+    Designed for homebrew app descriptions - keeps them concise without adding extra content.
+
+    :param text: Short text to translate (typically 1-2 sentences).
+    :param model: GPT model to use. Defaults to "gpt-4o-mini".
+    :return: Translated text or original text on error.
+    """
+    if not openai_client:
+        logger.error("Error: OpenAI client not available for GPT translation.")
+        return text
+
+    logger.info(f"Translating short description RU -> UA using GPT model: {model}...")
+
+    prompt = (
+        f"Translate the following short text from Russian to Ukrainian.\n\n"
+        f"**Rules:**\n"
+        f"1. Keep it SHORT - translate exactly what's given, don't add extra information\n"
+        f"2. Preserve HTML tags like <b>, <i> exactly as they are\n"
+        f"3. Keep the same structure and length as the original\n"
+        f"4. Use natural, readable Ukrainian\n"
+        f"5. Translate 'русский язык' as 'російська' or 'москальська', NEVER 'руська'\n"
+        f"6. Keep English words, brand names, and technical terms untranslated\n\n"
+        f"**Text to translate:**\n{text}\n\n**Ukrainian translation:**"
+    )
+
+    try:
+        response = await openai_client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        translated_text = response.choices[0].message.content.strip()
+
+        # Clean any markdown artifacts
+        translated_text = re.sub(r"^(```html|```)", "", translated_text).strip()
+        translated_text = re.sub(r"```$", "", translated_text).strip()
+
+        return translated_text
+
+    except Exception as e:
+        logger.error(f"Error during GPT translation: {e}")
+        return text
 
 # Function translate_ru_to_ua_deepl remains the same (using aiohttp)
 async def translate_ru_to_ua_deepl(text: str) -> str:
