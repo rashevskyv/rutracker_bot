@@ -1,6 +1,5 @@
 import logging
 import os
-from logging.handlers import RotatingFileHandler
 
 def setup_logging(log_level=logging.INFO, log_file="bot.log", log_to_console=True):
     """
@@ -25,9 +24,9 @@ def setup_logging(log_level=logging.INFO, log_file="bot.log", log_to_console=Tru
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
 
-    # File handler with rotation (5MB per file, keep 3 backup files)
-    file_handler = RotatingFileHandler(
-        log_file, maxBytes=5*1024*1024, backupCount=3, encoding="utf-8"
+    # File handler - overwrite mode (not append)
+    file_handler = logging.FileHandler(
+        log_file, mode='w', encoding="utf-8"
     )
     file_handler.setFormatter(log_format)
     root_logger.addHandler(file_handler)

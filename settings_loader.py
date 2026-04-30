@@ -102,7 +102,8 @@ setup_logging(log_level=log_level)
 logging.info(f"Final Mode - IS_TEST_MODE: {IS_TEST_MODE}")
 
 TOKEN = get_env_or_setting(settings, 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN')
-OPENAI_API_KEY = get_env_or_setting(settings, 'OPENAI_API', 'OPENAI_API_KEY')
+OPENAI_BASE_URL = settings.get('OPENAI_BASE_URL')  # Optional: for localhost/custom OpenAI-compatible APIs
+OPENAI_API_KEY = get_env_or_setting(settings, 'OPENAI_API', 'OPENAI_API_KEY') if not OPENAI_BASE_URL else None
 FEED_URL = settings.get('FEED_URL', 'https://feed.rutracker.cc/atom/f/1605.atom')
 YOUTUBE_API_KEY = get_env_or_setting(settings, 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEY')
 DEEPL_API_KEY = get_env_or_setting(settings, 'DEEPL_API_KEY', 'DEEPL_API_KEY')
@@ -114,7 +115,7 @@ TEST_LAST_ENTRY_LINK = settings.get('test_last_entry_link') if IS_TEST_MODE else
 
 # --- Validate Critical Settings ---
 if not TOKEN: logging.critical("TELEGRAM_BOT_TOKEN is not configured."); sys.exit("Error: TELEGRAM_BOT_TOKEN is not configured.")
-if not OPENAI_API_KEY: logging.warning("OPENAI_API_KEY not configured. GPT translation disabled.")
+if not OPENAI_API_KEY and not OPENAI_BASE_URL: logging.warning("OPENAI_API_KEY and OPENAI_BASE_URL not configured. GPT translation disabled.")
 
 # Set Google credentials path
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
@@ -128,10 +129,18 @@ try:
 except Exception as e: logging.error(f"Error initializing Telegram Bot: {e}"); sys.exit(f"Error initializing Telegram Bot: {e}")
 
 openai_client: Optional[AsyncOpenAI] = None
-if OPENAI_API_KEY:
-    try: openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY); logging.info("OpenAI Async client initialized.")
+if OPENAI_API_KEY or OPENAI_BASE_URL:
+    try:
+        # Initialize with base_url if provided (for localhost/custom OpenAI-compatible APIs)
+        if OPENAI_BASE_URL:
+            # For localhost, use empty string as API key (SDK will skip Authorization header)
+            openai_client = AsyncOpenAI(api_key="", base_url=OPENAI_BASE_URL, default_headers={})
+            logging.info(f"OpenAI Async client initialized with custom base_url: {OPENAI_BASE_URL}")
+        else:
+            openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+            logging.info("OpenAI Async client initialized.")
     except Exception as e: logging.warning(f"Error initializing OpenAI client: {e}. GPT functions disabled.")
-else: logging.info("OpenAI client not initialized (no API key).")
+else: logging.info("OpenAI client not initialized (no API key or base_url).")
 
 # --- Shared aiohttp Session ---
 app_session: Optional[aiohttp.ClientSession] = None

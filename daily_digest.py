@@ -134,7 +134,7 @@ class DailyDigest:
             logger.info("No entries for digest")
             return None
 
-        message_parts = ["#раздачи_на_рутрекере:"]
+        message_parts = ["#rutracker_digest:"]
 
         # Format new entries
         if new_entries:
