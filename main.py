@@ -21,6 +21,7 @@ from youtube_search import search_trailer_on_youtube
 from ai_validator import validate_yt_title_with_gpt
 from titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
 from telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin, send_document_to_admin
+from daily_digest import digest_manager
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ async def main_loop():
             parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
 
             if parsed_data:
-                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description = parsed_data
+                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language = parsed_data
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
@@ -161,6 +162,44 @@ async def main_loop():
                           cycle_log_file=cycle_log_file
                      )
                      processed_count += 1
+
+                     # Add to daily digest after successful send
+                     try:
+                         # Extract update description if available
+                         update_description = None
+                         if is_updated and "Обновлено:" in cleaned_description:
+                             import re
+                             match = re.search(r'<b>Обновлено:</b>\s*(.+?)(?:\n\n|$)', cleaned_description, re.DOTALL)
+                             if match:
+                                 update_text = match.group(1).strip()
+                                 # Remove HTML tags EXCEPT <a> tags (keep links)
+                                 update_text = re.sub(r'<(?!/?a\b)[^>]+>', '', update_text)
+
+                                 # Escape HTML entities but preserve <a> tags
+                                 import html as html_module
+                                 parts = re.split(r'(<a\s+[^>]*>.*?</a>)', update_text)
+                                 escaped_parts = []
+                                 for part in parts:
+                                     if part.startswith('<a '):
+                                         escaped_parts.append(part)  # Keep <a> tags as-is
+                                     else:
+                                         escaped_parts.append(html_module.escape(part))  # Escape text
+                                 update_text = ''.join(escaped_parts)
+
+                                 update_description = update_text[:200]  # Limit length
+
+                         digest_manager.add_entry(
+                             title=page_display_title,
+                             entry_url=entry_link,
+                             size=torrent_size,
+                             language=torrent_language,
+                             is_updated=is_updated,
+                             update_description=update_description
+                         )
+                         logger.info(f"Added to daily digest: {page_display_title}")
+                     except Exception as digest_err:
+                         logger.warning(f"Failed to add entry to digest: {digest_err}")
+
                      if not IS_TEST_MODE:
                           await asyncio.to_thread(write_last_entry_link, last_entry_file_path, entry_link)
                 except TypeError as te:
