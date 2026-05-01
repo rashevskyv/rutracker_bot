@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_REGIONS_TO_CHECK: List[Tuple[str, str]] = [
     ("GB", "en"), ("US", "en"), ("JP", "ja"),
 ]
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # project root
 DEFAULT_TMP_SCREENSHOT_DIR = os.path.join(_SCRIPT_DIR, "tmp_screenshots")
 
 class TitleDBManager:
