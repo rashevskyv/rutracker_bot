@@ -52,10 +52,11 @@ def get_env_or_setting(settings_dict: Dict[str, Any], key: str, env_var: str) ->
 # --- Configuration Loading ---
 # Project root is one level up from core/
 current_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-default_settings_path = os.path.join(current_directory, 'settings.json')
-test_settings_path = os.path.join(current_directory, 'test_settings.json')
-local_settings_path = os.path.join(current_directory, 'local_settings.json')
-credentials_path = os.path.join(current_directory, 'credentials.json')
+config_directory = os.path.join(current_directory, 'config')
+default_settings_path = os.path.join(config_directory, 'settings.json')
+test_settings_path = os.path.join(config_directory, 'test_settings.json')
+local_settings_path = os.path.join(config_directory, 'local_settings.json')
+credentials_path = os.path.join(config_directory, 'credentials.json')
 last_entry_file_path = os.path.join(current_directory, "data", "last_entry.txt")
 
 # --- NEW Settings Loading Logic ---

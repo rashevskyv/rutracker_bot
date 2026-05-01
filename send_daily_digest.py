@@ -68,7 +68,7 @@ async def send_digest():
             sys.exit(1)
     else:
         # PRODUCTION MODE: Send full digest to ALL groups (GROUPS + DIGEST_CHANNEL) + short stats to test channel
-        settings_path = os.path.join(current_dir, 'settings.json')
+        settings_path = os.path.join(current_dir, 'config', 'settings.json')
         config = load_config(settings_path)
 
         if not config:

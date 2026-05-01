@@ -21,8 +21,13 @@ rutracker_bot/
 ├── send_daily_digest.py           # Cron script — send daily digest
 ├── send_homebrew_digest.py        # Cron script — send homebrew digest
 ├── collect_homebrew_updates.py    # Cron script — collect GitHub/GitLab updates
-├── settings.json                  # Configuration (API keys via env vars)
 ├── requirements.txt               # Pinned dependencies
+│
+├── config/                        # Configuration (gitignored secrets)
+│   ├── settings.json              # Main config (API keys via env vars)
+│   ├── local_settings.json        # Local overrides
+│   ├── test_settings.json         # Test mode config
+│   └── credentials.json           # Google API credentials
 │
 ├── core/                          # Core: config, logging
 │   ├── settings_loader.py         # Config loading, API client init, shared session
@@ -43,10 +48,15 @@ rutracker_bot/
 │   ├── youtube_search.py          # YouTube trailer search (cached client)
 │   └── titledb_manager.py         # Nintendo TitleDB metadata lookup
 │
-└── digest/                        # Digest system
-    ├── base.py                    # BaseDigest — shared storage, sending, cleanup
-    ├── daily.py                   # DailyDigest — RuTracker game entries
-    └── homebrew.py                # HomebrewDigest — homebrew app updates
+├── digest/                        # Digest system
+│   ├── base.py                    # BaseDigest — shared storage, sending, cleanup
+│   ├── daily.py                   # DailyDigest — RuTracker game entries
+│   └── homebrew.py                # HomebrewDigest — homebrew app updates
+│
+└── data/                          # Runtime data (gitignored)
+    ├── daily_digest_data.json
+    ├── homebrew_digest_data.json
+    └── last_entry.txt
 ```
 
 ## Building and Running
