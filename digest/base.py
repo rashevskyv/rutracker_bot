@@ -128,13 +128,28 @@ class BaseDigest:
         message = re.sub(r'###\s*-?\s*', '', message)  # Remove stray ### markers
 
         try:
-            await bot.send_message(
-                chat_id=target_chat_id,
-                message_thread_id=target_topic_id,
-                text=message,
-                parse_mode='HTML',
-                disable_web_page_preview=True
-            )
+            # Telegram max message length is 4096 chars
+            if len(message) <= 4096:
+                await bot.send_message(
+                    chat_id=target_chat_id,
+                    message_thread_id=target_topic_id,
+                    text=message,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
+            else:
+                # Split long digests into multiple messages
+                from utils.telegram_utils import split_text
+                parts = split_text(message, 4096)
+                logger.info(f"{self.digest_name}: message too long ({len(message)} chars), splitting into {len(parts)} parts")
+                for i, part in enumerate(parts):
+                    await bot.send_message(
+                        chat_id=target_chat_id,
+                        message_thread_id=target_topic_id,
+                        text=part,
+                        parse_mode='HTML',
+                        disable_web_page_preview=True
+                    )
             logger.info(f"{self.digest_name.capitalize()} sent to {target_chat_id}")
 
         except Exception as e:
