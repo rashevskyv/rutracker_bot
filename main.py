@@ -27,6 +27,33 @@ from digest.daily import digest_manager
 
 logger = logging.getLogger(__name__)
 
+# --- Posted links deduplication ---
+POSTED_LINKS_FILE = os.path.join("data", "posted_links.json")
+
+def load_posted_links() -> dict:
+    """Load set of already posted URLs with timestamps"""
+    if not os.path.exists(POSTED_LINKS_FILE):
+        return {}
+    try:
+        with open(POSTED_LINKS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_posted_link(url: str):
+    """Add URL to posted links tracker"""
+    links = load_posted_links()
+    links[url] = datetime.now().isoformat()
+    # Clean entries older than 30 days
+    cutoff = datetime.now().timestamp() - 30 * 86400
+    links = {u: t for u, t in links.items()
+             if datetime.fromisoformat(t).timestamp() > cutoff}
+    try:
+        with open(POSTED_LINKS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(links, f, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving posted links: {e}")
+
 # Initialize TitleDB Manager
 titledb_json_dir_relative = "titledb"
 titledb_json_dir_absolute = os.path.join(current_directory, titledb_json_dir_relative)
@@ -88,6 +115,12 @@ async def main_loop():
 
             logger.info(f"\n--- Processing Entry ---")
             logger.info(f"Link: {entry_link}")
+
+            # Deduplication: skip if already posted
+            posted_links = load_posted_links()
+            if entry_link in posted_links and not IS_TEST_MODE:
+                logger.info(f"SKIP: Already posted {entry_link} on {posted_links[entry_link]}")
+                continue
 
             # Pass entry_link to the parser
             parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
@@ -205,6 +238,7 @@ async def main_loop():
 
                      if not IS_TEST_MODE:
                          await asyncio.to_thread(write_last_entry_link, last_entry_file_path, entry_link)
+                         save_posted_link(entry_link)
                 except TypeError as te:
                      logger.error(f"TypeError calling send_to_telegram: {te}. Check function signature.")
                      logger.error(traceback.format_exc())
