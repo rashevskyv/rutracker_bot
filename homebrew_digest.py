@@ -180,6 +180,9 @@ class HomebrewDigest:
 
             message_parts.append("")  # Empty line after each platform section
 
+        # Add link to digest channel at the end
+        message_parts.append("📢 <a href=\"https://t.me/Nin3DSBrewNews\">Nin3DSBrewNews</a>")
+
         return "\n".join(message_parts).rstrip()
 
     async def send_homebrew_digest(self, target_chat_id: int, target_topic_id: Optional[int] = None,
