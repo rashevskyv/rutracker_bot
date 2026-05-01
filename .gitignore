@@ -26,7 +26,6 @@ homebrew_digest_data.json
 last_homebrew_digest_run.json
 list_hb.json
 last_entry.txt
-run_checker.sh
 
 # Test and debug files
 test_*.py
