@@ -301,9 +301,14 @@ def convert_markdown_to_html(text: str) -> str:
     Simpler converter that handles common Markdown bold/italic patterns
     that might be returned by AI or exist in text, and converts them to HTML.
     Does NOT handle complex nesting well, but is safe for simple bold/italic/code.
+    Also cleans up ###GAP### markers used internally for spacing.
     """
     if not text:
         return ""
+
+    # 0. Clean up ###GAP### markers (convert to double newlines)
+    text = re.sub(r'(?:\s*###GAP###\s*)+', '\n\n', text)
+    text = re.sub(r'###\s*-?\s*', '', text)  # Remove stray ### markers
 
     # 1. Bold: **text** -> <b>text</b>
     text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)

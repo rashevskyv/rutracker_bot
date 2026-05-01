@@ -232,8 +232,10 @@ def split_text(text: str, max_length: int) -> List[str]:
     full_content = re.sub(r'(?:\s*###GAP###\s*)+', '\n\n', full_content)
     
     # --- Final strict formatting rules enforcement ---
-    # 1. Snap leading colons to the preceding word, eating any whitespace/newlines
-    full_content = re.sub(r'\s+:', ':', full_content)
+    # 1. Snap leading colons to the preceding word/tag, eating any whitespace/newlines
+    # Special handling: if colon follows a closing tag (like </b>), keep it attached
+    full_content = re.sub(r'(</[a-zA-Z0-9]+>)\s*:\s*', r'\1: ', full_content)  # Tag + colon
+    full_content = re.sub(r'(?<!>)\s+:', ':', full_content)  # Regular word + colon (but not after >)
     
     # 2. Delete orphaned bullets (bullets with no text after them on the same line)
     # Using (?m) for multiple lines so `^•` matches cleanly.
