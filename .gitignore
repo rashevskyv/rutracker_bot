@@ -20,12 +20,12 @@ tmp_videos/
 *.session
 *.session-journal
 extraction.log
-daily_digest_data.json
-last_digest_run.json
-homebrew_digest_data.json
-last_homebrew_digest_run.json
-list_hb.json
-last_entry.txt
+data/daily_digest_data.json
+data/last_digest_run.json
+data/homebrew_digest_data.json
+data/last_homebrew_digest_run.json
+data/list_hb.json
+data/last_entry.txt
 run_checker.sh
 
 # Test and debug files

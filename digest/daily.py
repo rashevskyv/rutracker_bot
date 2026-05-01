@@ -3,6 +3,7 @@ Daily Digest Module for RuTracker Bot
 Collects and formats daily summaries of new and updated torrents
 """
 import html
+import os
 import logging
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -11,7 +12,7 @@ from digest.base import BaseDigest
 
 logger = logging.getLogger(__name__)
 
-DIGEST_DATA_FILE = "daily_digest_data.json"
+DIGEST_DATA_FILE = os.path.join("data", "daily_digest_data.json")
 
 
 class DailyDigest(BaseDigest):
