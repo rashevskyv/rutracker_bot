@@ -2,7 +2,7 @@
 /test_settings.json
 /local_settings.json
 /credentials.json
-/__pycache__
+**/__pycache__/
 geckodriver.log
 bot.log
 bot.log.*

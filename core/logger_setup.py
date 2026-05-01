@@ -26,7 +26,7 @@ def setup_logging(log_level=logging.INFO, log_file="bot.log", log_to_console=Tru
 
     # File handler - overwrite mode (not append)
     file_handler = logging.FileHandler(
-        log_file, mode='w', encoding="utf-8"
+        log_file, mode='a', encoding="utf-8"
     )
     file_handler.setFormatter(log_format)
     root_logger.addHandler(file_handler)

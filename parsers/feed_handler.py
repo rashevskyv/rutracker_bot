@@ -4,7 +4,7 @@ import time
 import aiohttp
 import asyncio
 import logging
-from settings_loader import get_session
+from core.settings_loader import get_session
 from typing import Optional, List
 
 logger = logging.getLogger(__name__)

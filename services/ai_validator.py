@@ -1,5 +1,5 @@
 # --- START OF FILE ai_validator.py ---
-from settings_loader import openai_client # Import OpenAI client
+from core.settings_loader import openai_client # Import OpenAI client
 from typing import Optional
 import re # Import re for cleaning title in prompt
 import logging
@@ -102,7 +102,7 @@ async def summarize_description_with_ai(description: str, target_length: int = 6
             max_tokens=2048,  # Allow for a substantial summary
             temperature=0.5
         )
-        from html_utils import sanitize_html_for_telegram
+        from utils.html_utils import sanitize_html_for_telegram
         summary = response.choices[0].message.content.strip()
         # Final sanitization to remove any unsupported tags GPT might have included
         summary = sanitize_html_for_telegram(summary)

@@ -33,31 +33,27 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     
     # Generic unwrap for other spans or style-only tags
     for tag in soup.find_all('span'): tag.unwrap()
-    
-    # 3. Get the HTML content (this will escape text content properly)
-    cleaned_html = soup.decode_contents()
 
-    # 3.5. Replace any <br> tags that BeautifulSoup may have re-generated during decode
-    cleaned_html = re.sub(r'<(br|BR)\s*/?>', '\n', cleaned_html)
-
-    # 4. Final regex pass to ensure ONLY allowed tags remain
+    # 3. Filter to Telegram-allowed tags only and clean attributes (single pass)
     # Telegram allowed tags: b, strong, i, em, u, ins, s, strike, del, a, code, pre, blockquote, tg-spoiler
-    allowed_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'a', 'code', 'pre', 'blockquote', 'tg-spoiler']
+    allowed_tags = {'b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'a', 'code', 'pre', 'blockquote', 'tg-spoiler'}
     
-    # We use BeautifulSoup again to clean attributes and ensure tags are strictly what Telegram wants
-    final_soup = BeautifulSoup(cleaned_html, 'html.parser')
-    for tag in final_soup.find_all(True):
+    for tag in soup.find_all(True):
         if tag.name not in allowed_tags:
             tag.unwrap()
         else:
             # Clean all attributes except 'href' for 'a' tags
-            attrs = dict(tag.attrs)
-            tag.attrs = {}
-            if tag.name == 'a' and 'href' in attrs:
-                tag.attrs['href'] = attrs['href']
-            # For other tags, we keep them clean of attributes
+            if tag.name == 'a':
+                href = tag.attrs.get('href')
+                tag.attrs = {'href': href} if href else {}
+            else:
+                tag.attrs = {}
 
-    cleaned_html = final_soup.decode_contents()
+    # 4. Serialize to string
+    cleaned_html = soup.decode_contents()
+    
+    # Replace any <br> tags that BeautifulSoup may have re-generated during decode
+    cleaned_html = re.sub(r'<(br|BR)\s*/?>', '\n', cleaned_html)
 
     # 5. Normalize whitespace
     cleaned_html = cleaned_html.replace('\r', '')

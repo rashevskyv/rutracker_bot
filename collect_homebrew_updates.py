@@ -9,8 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
 import aiohttp
-from homebrew_digest import homebrew_digest_manager
-from translation import translate_ru_to_ua
+from digest.homebrew import homebrew_digest_manager
+from services.translation import translate_ru_to_ua
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -308,7 +308,7 @@ class HomebrewUpdatesCollector:
         await asyncio.gather(*tasks)
 
         # Remove 'new' flag from processed entries (only in production mode)
-        from settings_loader import IS_TEST_MODE
+        from core.settings_loader import IS_TEST_MODE
         if new_entries_processed and not IS_TEST_MODE:
             logger.info(f"Removing 'new' flag from {len(new_entries_processed)} processed entries...")
 
@@ -346,7 +346,7 @@ class HomebrewUpdatesCollector:
                 logger.warning(f"  - {error}")
 
         # Save collection timestamp (for digest to use)
-        from settings_loader import IS_TEST_MODE
+        from core.settings_loader import IS_TEST_MODE
         if not IS_TEST_MODE:
             self._save_collection_timestamp()
 
@@ -390,7 +390,7 @@ async def main():
 
     if not github_token or not gitlab_token:
         try:
-            from settings_loader import settings
+            from core.settings_loader import settings
             if not github_token:
                 github_token = settings.get('GITHUB_TOKEN')
             if not gitlab_token:

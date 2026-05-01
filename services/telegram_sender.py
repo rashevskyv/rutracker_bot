@@ -1,9 +1,9 @@
 # --- START OF FILE telegram_sender.py ---
 from io import BytesIO
-import requests
-from translation import translate_ru_to_ua
-from ai_validator import summarize_description_with_ai
-from settings_loader import GROUPS, ERROR_TG, bot, TOKEN
+
+from services.translation import translate_ru_to_ua
+from services.ai_validator import summarize_description_with_ai
+from core.settings_loader import GROUPS, ERROR_TG, bot, TOKEN
 import re
 import html
 import asyncio
@@ -16,11 +16,11 @@ from typing import List, Optional, Tuple, IO # Import IO for type hinting file h
 import shutil
 
 # --- Import functions moved to telegram_utils ---
-from telegram_utils import (
+from utils.telegram_utils import (
     split_text, download_cover_image_tg, download_trailer_thumbnail_tg,
     MAX_CAPTION_LENGTH, MAX_MESSAGE_LENGTH,
 )
-from html_utils import convert_markdown_to_html
+from utils.html_utils import convert_markdown_to_html
 # ---------------------------------------------
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ async def _send_strategy_separate(
         trailer_thumbnail_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
         caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else None
-        remaining_text = "\n".join(caption_parts[1:])
+        remaining_text = "\n\n".join(caption_parts[1:])
         # Merge fragmented blockquotes tightly — no gaps between them
         remaining_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', remaining_text, flags=re.IGNORECASE)
 
@@ -301,6 +301,49 @@ async def send_to_telegram(title_for_caption: str,
 
     is_max_res_thumbnail = (thumbnail_resolution == "maxres")
 
+    # --- Assemble message text ONCE before the group loop ---
+    description_part = description.strip()
+    
+    # Add a gap before the main description header (if found)
+    description_headers = ["Описание", "Описание игры", "Description", "Опис", "Опис гри"]
+    for header in description_headers:
+        header_pattern = rf"<b>{header}</b>"
+        if header_pattern in description_part:
+            description_part = description_part.replace(header_pattern, f"###GAP###{header_pattern}")
+            break  # Only add one gap
+
+    # Condense technical parameters block globally
+    split_point_desc = -1
+    for header in description_headers:
+        idx = description_part.find(f"###GAP###<b>{header}</b>")
+        if idx == -1:
+            idx = description_part.find(f"<b>{header}</b>")
+        if idx != -1 and (split_point_desc == -1 or idx < split_point_desc):
+            split_point_desc = idx
+    
+    quote_idx_desc = description_part.find("<blockquote>")
+    if quote_idx_desc != -1 and (split_point_desc == -1 or quote_idx_desc < split_point_desc):
+        split_point_desc = quote_idx_desc
+        
+    if split_point_desc != -1:
+        desc_params = description_part[:split_point_desc]
+        desc_rest = description_part[split_point_desc:]
+        desc_params = re.sub(r"\n\n\s*<b>", "\n<b>", desc_params)
+        description_part = desc_params + desc_rest
+    else:
+        description_part = re.sub(r"\n\n\s*<b>", "\n<b>", description_part)
+
+    base_message_text = (
+        f"{title_for_caption}"
+        f"###GAP###"
+        f"<b>Скачать:</b> <code>{magnet_link}</code>"
+        f"###GAP###"
+        f"{description_part}"
+    )
+
+    # Translation cache — translate once, reuse for all UA groups
+    translated_message_text = None
+
     # Track sent groups to avoid double posting
     sent_group_keys = set()
     
@@ -309,13 +352,6 @@ async def send_to_telegram(title_for_caption: str,
         chat_id = group.get('chat_id')
         topic_id = None
         group_name = group.get('group_name', 'Unknown Group')
-
-        # Create a unique key for this group/topic
-        group_key = (str(chat_id), str(topic_id) if topic_id else "")
-        if group_key in sent_group_keys:
-            logger.info(f"Skipping duplicate group entry: {group_name} ({chat_id}, Topic: {topic_id})")
-            continue
-        sent_group_keys.add(group_key)
 
         # Validate chat_id
         try:
@@ -332,101 +368,67 @@ async def send_to_telegram(title_for_caption: str,
         if topic_id_str and str(topic_id_str).isdigit():
             topic_id = int(topic_id_str)
 
+        # Create a unique key for this group/topic AFTER parsing both IDs
+        group_key = (str(chat_id), str(topic_id) if topic_id else "")
+        if group_key in sent_group_keys:
+            logger.info(f"Skipping duplicate group entry: {group_name} ({chat_id}, Topic: {topic_id})")
+            continue
+        sent_group_keys.add(group_key)
+
         group_lang = group.get('language', 'RU').upper()
 
         logger.info(f"Processing message for group: {group_name} (Lang: {group_lang}, ChatID: {chat_id}, TopicID: {topic_id})")
 
-        description_part = description.strip()
-        
-        # Add a gap before the main description header (if found)
-        # We look for common description headers in Russian/English as they come from the parser
-        description_headers = ["Описание", "Описание игры", "Description", "Опис", "Опис гри"]
-        for header in description_headers:
-            header_pattern = rf"<b>{header}</b>"
-            if header_pattern in description_part:
-                description_part = description_part.replace(header_pattern, f"###GAP###{header_pattern}")
-                break # Only add one gap
-
-        # Condense technical parameters block globally (for RU/EN without translation)
-        split_point_desc = -1
-        for header in description_headers:
-            idx = description_part.find(f"###GAP###<b>{header}</b>")
-            if idx == -1:
-                idx = description_part.find(f"<b>{header}</b>")
-            if idx != -1 and (split_point_desc == -1 or idx < split_point_desc):
-                split_point_desc = idx
-        
-        quote_idx_desc = description_part.find("<blockquote>")
-        if quote_idx_desc != -1 and (split_point_desc == -1 or quote_idx_desc < split_point_desc):
-            split_point_desc = quote_idx_desc
-            
-        if split_point_desc != -1:
-            desc_params = description_part[:split_point_desc]
-            desc_rest = description_part[split_point_desc:]
-            desc_params = re.sub(r"\n\n\s*<b>", "\n<b>", desc_params)
-            description_part = desc_params + desc_rest
-        else:
-            description_part = re.sub(r"\n\n\s*<b>", "\n<b>", description_part)
-
-        # Assemble the base message text with isolated download link
-        base_message_text = (
-            f"{title_for_caption}"
-            f"###GAP###"
-            f"<b>Скачать:</b> <code>{magnet_link}</code>"
-            f"###GAP###"
-            f"{description_part}"
-        )
-
-        message_text = base_message_text
-        # Translate if necessary
+        # Use cached translated or original message
         if group_lang == "UA":
-            logger.info("Translating message to UA...")
-            try: 
-                # Identify where parameters end to isolate consolidation
-                # Parameters are at the beginning of the description part
-                # We search for the first <blockquote> or a description header
-                split_point = -1
-                for header in description_headers:
-                    idx = base_message_text.find(f"<b>{header}</b>")
-                    if idx != -1 and (split_point == -1 or idx < split_point):
-                        split_point = idx
-                
-                quote_idx = base_message_text.find("<blockquote>")
-                if quote_idx != -1 and (split_point == -1 or quote_idx < split_point):
-                    split_point = quote_idx
-                
-                if split_point != -1:
-                    # Insert a marker to separate params from the rest
-                    prepared_text = base_message_text[:split_point] + "###PARAMS_END###\n" + base_message_text[split_point:]
-                else:
-                    prepared_text = base_message_text
+            if translated_message_text is None:
+                # Translate once and cache
+                logger.info("Translating message to UA (first UA group)...")
+                try: 
+                    description_headers = ["Описание", "Описание игры", "Description", "Опис", "Опис гри"]
+                    # Identify where parameters end to isolate consolidation
+                    split_point = -1
+                    for header in description_headers:
+                        idx = base_message_text.find(f"<b>{header}</b>")
+                        if idx != -1 and (split_point == -1 or idx < split_point):
+                            split_point = idx
+                    
+                    quote_idx = base_message_text.find("<blockquote>")
+                    if quote_idx != -1 and (split_point == -1 or quote_idx < split_point):
+                        split_point = quote_idx
+                    
+                    if split_point != -1:
+                        prepared_text = base_message_text[:split_point] + "###PARAMS_END###\n" + base_message_text[split_point:]
+                    else:
+                        prepared_text = base_message_text
 
-                # Replace <blockquote> tags with opaque tokens before GPT translation.
-                # This PREVENTS GPT from splitting or duplicating blockquote blocks.
-                prepared_text = prepared_text.replace("<blockquote>", "XBQSX")
-                prepared_text = prepared_text.replace("</blockquote>", "XBQEX")
+                    # Replace <blockquote> tags with opaque tokens before GPT translation.
+                    prepared_text = prepared_text.replace("<blockquote>", "XBQSX")
+                    prepared_text = prepared_text.replace("</blockquote>", "XBQEX")
 
-                message_text = await translate_ru_to_ua(prepared_text)
-                
-                # Final safety: merge any consecutive blockquotes tightly
-                message_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', message_text, flags=re.IGNORECASE)
+                    translated_message_text = await translate_ru_to_ua(prepared_text)
+                    
+                    # Final safety: merge any consecutive blockquotes tightly
+                    translated_message_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', translated_message_text, flags=re.IGNORECASE)
 
-
-                # Force consolidation of technical parameters ONLY
-                if "###PARAMS_END###" in message_text:
-                    params_part, rest_part = message_text.split("###PARAMS_END###", 1)
-                    params_part = re.sub(r"\n\n\s*<b>", "\n<b>", params_part)
-                    message_text = params_part + rest_part
-                else:
-                    message_text = re.sub(r"\n\n\s*<b>", "\n<b>", message_text)
-                
-                # We KEEP ###GAP### here because split_text will use it for splitting
-                # and internal newline conversion.
-                message_text = message_text.replace("###PARAMS_END###", "") # Cleanup marker
-                
-                logger.debug(f"Final processed message text (len {len(message_text)}):\n{message_text}")
-            except Exception as e: 
-                logger.error(f"Error translating message for {group_name}: {e}. Sending in original language.")
+                    # Force consolidation of technical parameters ONLY
+                    if "###PARAMS_END###" in translated_message_text:
+                        params_part, rest_part = translated_message_text.split("###PARAMS_END###", 1)
+                        params_part = re.sub(r"\n\n\s*<b>", "\n<b>", params_part)
+                        translated_message_text = params_part + rest_part
+                    else:
+                        translated_message_text = re.sub(r"\n\n\s*<b>", "\n<b>", translated_message_text)
+                    
+                    translated_message_text = translated_message_text.replace("###PARAMS_END###", "")
+                    
+                    logger.debug(f"Cached translated message (len {len(translated_message_text)})")
+                except Exception as e: 
+                    logger.error(f"Error translating message: {e}. UA groups will receive original language.")
+                    translated_message_text = base_message_text  # Fallback
+            
+            message_text = translated_message_text
+        else:
+            message_text = base_message_text
 
         # --- Execute Sending Strategy ---
         opened_files_for_group: List[IO] = [] # Track files opened for this specific group send
@@ -476,8 +478,6 @@ async def send_message_to_admin(message: str):
     if not ERROR_TG:
         return
 
-    parse_mode = 'HTML' if '<' in message and '>' in message else None
-
     for error_group in ERROR_TG:
         chat_id = error_group.get('chat_id')
         topic_id = None
@@ -487,11 +487,11 @@ async def send_message_to_admin(message: str):
             topic_id_str = error_group.get('topic_id');
             if topic_id_str and str(topic_id_str).isdigit(): topic_id = int(topic_id_str)
 
-            formatted_message = convert_markdown_to_html(message) if parse_mode == 'HTML' else message
+            formatted_message = convert_markdown_to_html(message)
             if not formatted_message.strip():
                 logger.warning("Attempted to send empty admin message, skipped.")
                 continue
-            await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_message, parse_mode=parse_mode, disable_web_page_preview=True)
+            await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_message, parse_mode='HTML', disable_web_page_preview=True)
             await asyncio.sleep(0.5)
         except Exception as e: logger.error(f"!!! CRITICAL: Failed to send admin message to {error_group.get('chat_id')} (Topic: {topic_id}): {type(e).__name__} - {e}")
 

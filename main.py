@@ -4,24 +4,26 @@ import time
 import traceback
 import html
 import re
+import json
+from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, List
 import os
 import logging
 
-from settings_loader import (
+from core.settings_loader import (
     LOG, IS_TEST_MODE, FEED_URL, TEST_LAST_ENTRY_LINK, YOUTUBE_API_KEY,
     last_entry_file_path, current_directory, close_clients
 )
-from feed_handler import (
+from parsers.feed_handler import (
     read_last_entry_link, write_last_entry_link, get_new_feed_entries
 )
-from tracker_parser import parse_tracker_entry
-from youtube_search import search_trailer_on_youtube
-from ai_validator import validate_yt_title_with_gpt
-from titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
-from telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin, send_document_to_admin
-from daily_digest import digest_manager
+from parsers.tracker_parser import parse_tracker_entry
+from services.youtube_search import search_trailer_on_youtube
+from services.ai_validator import validate_yt_title_with_gpt
+from services.titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
+from services.telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin, send_document_to_admin
+from digest.daily import digest_manager
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +77,6 @@ async def main_loop():
         # Create a single per-cycle log file for all entries
         cycle_log_file = "log_tg_send.txt"
         with open(cycle_log_file, "w", encoding="utf-8") as f:
-            from datetime import datetime
             f.write(f"=== BOT RUN CYCLE {datetime.now().isoformat()} ===\n")
             f.write(f"Entries to process: {len(entries_to_process)}\n\n")
 
@@ -168,7 +169,6 @@ async def main_loop():
                          # Extract update description if available
                          update_description = None
                          if is_updated and "Обновлено:" in cleaned_description:
-                             import re
                              match = re.search(r'<b>Обновлено:</b>\s*(.+?)(?:\n\n|$)', cleaned_description, re.DOTALL)
                              if match:
                                  update_text = match.group(1).strip()
@@ -176,14 +176,13 @@ async def main_loop():
                                  update_text = re.sub(r'<(?!/?a\b)[^>]+>', '', update_text)
 
                                  # Escape HTML entities but preserve <a> tags
-                                 import html as html_module
                                  parts = re.split(r'(<a\s+[^>]*>.*?</a>)', update_text)
                                  escaped_parts = []
                                  for part in parts:
                                      if part.startswith('<a '):
                                          escaped_parts.append(part)  # Keep <a> tags as-is
                                      else:
-                                         escaped_parts.append(html_module.escape(part))  # Escape text
+                                         escaped_parts.append(html.escape(part))  # Escape text
                                  update_text = ''.join(escaped_parts)
 
                                  update_description = update_text[:200]  # Limit length
@@ -241,7 +240,6 @@ async def main_loop():
         # Save collection timestamp for daily digest (only in production mode)
         if not IS_TEST_MODE and processed_count > 0:
             try:
-                import json
                 from datetime import datetime
                 LAST_RUN_FILE = "last_digest_run.json"
                 current_time = datetime.now()

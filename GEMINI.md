@@ -1,62 +1,82 @@
 # Project Overview
 
-This project appears to be a Python-based Telegram bot designed to monitor the torrent tracker Rutracker. It seems to fetch updates from an RSS feed, parse tracker data, and send notifications via Telegram. The bot may also utilize various APIs for additional functionalities, including AI-powered validation, YouTube search, and translation services.
+A Python-based Telegram bot that monitors RuTracker for new Nintendo Switch game torrents. It fetches updates from an RSS feed, parses tracker data, downloads metadata (cover images, YouTube trailers), translates descriptions to Ukrainian via GPT, and sends formatted notifications to multiple Telegram groups. Also collects homebrew application updates from GitHub/GitLab.
 
 ## Core Technologies
 
-*   **Language:** Python
+*   **Language:** Python 3.x (async/await)
 *   **Key Libraries:**
-    *   `requests`: For making HTTP requests to fetch web pages and data.
-    *   `beautifulsoup4`: For parsing HTML content, likely from Rutracker pages.
-    *   `feedparser`: For parsing RSS/Atom feeds to get the latest updates.
-    *   `pyTelegramBotAPI`: For interacting with the Telegram Bot API to send messages.
-    *   `openai`: Suggests integration with OpenAI's API, possibly for content validation or generation.
-    *   `google-api-python-client`, `google-cloud-translate`: Indicates use of Google APIs for services like translation.
-    *   `yt-dlp`: A YouTube downloader, likely used for fetching videos or metadata.
+    *   `aiohttp`: Shared async HTTP session for all network operations
+    *   `beautifulsoup4`: HTML parsing of RuTracker pages
+    *   `feedparser`: RSS/Atom feed parsing
+    *   `pyTelegramBotAPI`: Telegram Bot API (async)
+    *   `openai`: GPT translation (RU→UA), content validation, description summarization
+    *   `google-api-python-client`: YouTube Data API v3 for trailer search
 
 ## Project Structure
 
-The project is structured into several Python modules, each with a specific responsibility:
-
-*   `main.py`: The main entry point of the application.
-*   `feed_handler.py`: Handles fetching and parsing of the RSS feed.
-*   `tracker_parser.py`: Parses the HTML content of torrent pages.
-*   `telegram_sender.py`: Manages sending messages to Telegram.
-*   `settings_loader.py`: Loads and manages application settings from `settings.json`.
-*   `ai_validator.py`, `youtube_search.py`, `translation.py`: Modules for integrating with external services.
-*   `titledb_manager.py`: Manages a local database of titles.
+```
+rutracker_bot/
+├── main.py                        # Entry point — RSS polling loop
+├── send_daily_digest.py           # Cron script — send daily digest
+├── send_homebrew_digest.py        # Cron script — send homebrew digest
+├── collect_homebrew_updates.py    # Cron script — collect GitHub/GitLab updates
+├── settings.json                  # Configuration (API keys via env vars)
+├── requirements.txt               # Pinned dependencies
+│
+├── core/                          # Core: config, logging
+│   ├── settings_loader.py         # Config loading, API client init, shared session
+│   └── logger_setup.py            # Logging configuration
+│
+├── utils/                         # Utilities
+│   ├── html_utils.py              # HTML sanitization for Telegram, tag normalization
+│   └── telegram_utils.py          # Text splitting, media downloading
+│
+├── parsers/                       # Data parsing
+│   ├── feed_handler.py            # RSS feed fetching and entry extraction
+│   └── tracker_parser.py          # RuTracker page HTML parsing
+│
+├── services/                      # External service integrations
+│   ├── telegram_sender.py         # Message composition and multi-group dispatch
+│   ├── translation.py             # GPT-based RU→UA translation
+│   ├── ai_validator.py            # GPT validation (YouTube titles, summarization)
+│   ├── youtube_search.py          # YouTube trailer search (cached client)
+│   └── titledb_manager.py         # Nintendo TitleDB metadata lookup
+│
+└── digest/                        # Digest system
+    ├── base.py                    # BaseDigest — shared storage, sending, cleanup
+    ├── daily.py                   # DailyDigest — RuTracker game entries
+    └── homebrew.py                # HomebrewDigest — homebrew app updates
+```
 
 ## Building and Running
 
 **Prerequisites:**
-
 *   Python 3.x
-*   `pip` for installing dependencies.
+*   `pip` for installing dependencies
 
 **Installation:**
-
-1.  Install the required Python packages:
-
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+pip install -r requirements.txt
+```
 
 **Configuration:**
+1.  Create `settings.json` with API keys (use `os.environ['KEY']` placeholder for env vars)
+2.  Set environment variables: `TELEGRAM_BOT_TOKEN`, `OPENAI_API_KEY`, `YOUTUBE_API_KEY`
 
-1.  Create a `settings.json` file based on the required settings in the source code. This file will likely need to contain API keys for Telegram, OpenAI, and Google services, as well as other configuration options.
+**Running:**
+```bash
+python main.py                        # Main bot loop
+python send_daily_digest.py           # Send daily digest (cron)
+python send_homebrew_digest.py        # Send homebrew digest (cron)
+python collect_homebrew_updates.py    # Collect homebrew updates (cron)
+```
 
-**Running the bot:**
+## Key Design Patterns
 
-*   The `run.bat` file seems to be outdated and contains an incorrect path and entry point. To run the bot, you should execute the `main.py` script:
-
-    ```bash
-    python main.py
-    ```
-
-    *TODO: The exact execution command might need adjustments based on the contents of `main.py` and the required environment variables.*
-
-## Development Conventions
-
-*   The code seems to be organized into modules with clear responsibilities.
-*   There are some test files (e.g., `test_telegram_sender.py`), which suggests that testing is part of the development process.
-*   The use of a `settings.json` file for configuration allows for easy customization without modifying the source code.
+*   **Shared aiohttp session** — single `ClientSession` via `get_session()` prevents TCP connection leaks
+*   **Config-driven translation** — `language: "UA"` in settings.json triggers GPT translation
+*   **Translation caching** — translated once per entry, reused for all UA groups
+*   **BaseDigest inheritance** — DailyDigest and HomebrewDigest share storage/sending logic
+*   **Deduplication** — `(chat_id, topic_id)` group key prevents double-posting
+*   **Blockquote protection** — `XBQSX`/`XBQEX` tokens prevent GPT from mangling HTML tags

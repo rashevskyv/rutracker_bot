@@ -6,6 +6,7 @@ from io import BytesIO
 from html.parser import HTMLParser
 from typing import List, Optional, Tuple
 import logging
+from core.settings_loader import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -269,24 +270,23 @@ async def _try_download_image_tg(image_url: str, timeout: int = 15) -> Optional[
         logger.debug(f"TG: Invalid image URL: {image_url}")
         return None
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0 (TelegramSender)'}
-        async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(image_url, timeout=timeout) as response:
-                response.raise_for_status()
-                content = await response.read()
-                
-                content_type = response.headers.get('Content-Type', '').lower()
-                if not content_type.startswith('image/'):
-                     logger.warning(f"TG: URL is not an image (Content-Type: {content_type}): {image_url}")
-                     return None
+        session = get_session()
+        async with session.get(image_url, timeout=timeout) as response:
+            response.raise_for_status()
+            content = await response.read()
+            
+            content_type = response.headers.get('Content-Type', '').lower()
+            if not content_type.startswith('image/'):
+                 logger.warning(f"TG: URL is not an image (Content-Type: {content_type}): {image_url}")
+                 return None
 
-                img_data = BytesIO(content)
-                if img_data.getbuffer().nbytes == 0:
-                    logger.warning(f"TG: Download resulted in empty file: {image_url}")
-                    return None
+            img_data = BytesIO(content)
+            if img_data.getbuffer().nbytes == 0:
+                logger.warning(f"TG: Download resulted in empty file: {image_url}")
+                return None
 
-                img_data.seek(0)
-                return img_data
+            img_data.seek(0)
+            return img_data
     except Exception as e:
         logger.error(f"TG: Download failed (Error: {e}): {image_url}")
         return None
