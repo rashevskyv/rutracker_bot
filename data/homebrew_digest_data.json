@@ -1,0 +1,562 @@
+{
+  "entries": [
+    {
+      "app_name": "3dslibris",
+      "version": "v2.6.0",
+      "release_url": "https://github.com/RigleGit/3dslibris/releases/tag/v2.6.0",
+      "description": "Читалка для книг.",
+      "platform": "3DS",
+      "timestamp": "2026-04-28T08:36:06+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "aurorachat",
+      "version": "v0.6.01",
+      "release_url": "https://github.com/Unitendo/aurorachat/releases/tag/v0.6.01",
+      "description": "Онлайн чат.",
+      "platform": "3DS",
+      "timestamp": "2026-04-30T02:00:04+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Topos",
+      "version": "0.12.2",
+      "release_url": "https://github.com/mockmodular/topos_3ds-video-player/releases/tag/0.12.2",
+      "description": "Відеоплеєр.",
+      "platform": "3DS",
+      "timestamp": "2026-04-29T16:39:34+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "DBIPatcher",
+      "version": "894",
+      "release_url": "https://github.com/rashevskyv/DBIPatcher/releases/tag/894",
+      "description": "Неофіційний переклад DBI на 22 мови.",
+      "platform": "Switch",
+      "timestamp": "2026-04-30T00:00:00+00:00",
+      "is_new": true
+    },
+    {
+      "app_name": "DBI",
+      "version": "894ru",
+      "release_url": "https://github.com/rashevskyv/dbi/releases/tag/894ru",
+      "description": "Встановлювач ігор, файловий менеджер, менеджер збережень тощо.",
+      "platform": "Switch",
+      "timestamp": "2026-04-28T16:04:42+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "nxdumptool",
+      "version": "rewrite-prerelease",
+      "release_url": "https://github.com/DarkMatterCore/nxdumptool/releases/tag/rewrite-prerelease",
+      "description": "Додаток для дампа ігор.",
+      "platform": "Switch",
+      "timestamp": "2026-04-29T14:03:44+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Kefir",
+      "version": "818",
+      "release_url": "https://github.com/rashevskyv/kefir/releases/tag/818",
+      "description": "Кефір.",
+      "platform": "Switch",
+      "timestamp": "2026-04-29T11:51:34+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Shipwright-Switch",
+      "version": "9.2.3-nx2",
+      "release_url": "https://github.com/timschneeb/Shipwright-Switch/releases/tag/9.2.3-nx2",
+      "description": "Порт LoZ: Ocarina of Time.",
+      "platform": "Switch",
+      "timestamp": "2026-04-26T12:13:23+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "tico",
+      "version": "0.7.1",
+      "release_url": "https://github.com/ticohq/tico/releases/tag/0.7.1",
+      "description": "Фронтенд для емуляторів.",
+      "platform": "Switch",
+      "timestamp": "2026-04-25T17:21:50+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "pkTeraRaid",
+      "version": "1.3.1",
+      "release_url": "https://github.com/Insektaure/pkTeraRaid/releases/tag/1.3.1",
+      "description": "Утиліта для перегляду деталей терра рейдів в Pokemon Scarlet & Violet.",
+      "platform": "Switch",
+      "timestamp": "2026-04-25T11:11:16+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "pkHouse",
+      "version": "1.10.2",
+      "release_url": "https://github.com/Insektaure/pkHouse/releases/tag/1.10.2",
+      "description": "Локальний покебанк.",
+      "platform": "Switch",
+      "timestamp": "2026-04-30T12:27:03+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "ironfoil",
+      "version": "v0.4.4",
+      "release_url": "https://github.com/sermuns/ironfoil/releases/tag/v0.4.4",
+      "description": "CLI альтернатива для NS-USBloader.",
+      "platform": "Switch",
+      "timestamp": "2026-04-24T14:01:32+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "ScratchEverywhere",
+      "version": "0.40",
+      "release_url": "https://github.com/ScratchEverywhere/ScratchEverywhere/releases/tag/0.40",
+      "description": "Користувацьке середовище виконання для Scratch 3 проектів.",
+      "platform": "Switch",
+      "timestamp": "2026-04-26T21:01:25+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "OpenHome",
+      "version": "v1.11.0-rc.1",
+      "release_url": "https://github.com/andrewbenington/OpenHome/releases/tag/v1.11.0-rc.1",
+      "description": "Додаток для імпорту та перенесення покемонів між файлами збережень.",
+      "platform": "3DS/DS(i)/Switch",
+      "timestamp": "2026-04-29T00:22:48+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "wiiMac",
+      "version": "v1.0.3",
+      "release_url": "https://github.com/bryankeller/wiiMac/releases/tag/v1.0.3",
+      "description": "Завантажувач для PowerPC сумісних версій OSX.",
+      "platform": "Wii",
+      "timestamp": "2026-04-29T11:20:13+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "ioquake3-wii",
+      "version": "0.4.0",
+      "release_url": "https://github.com/Mayo1970/ioquake3-wii/releases/tag/0.4.0",
+      "description": "Порт ioQuake3.",
+      "platform": "Wii",
+      "timestamp": "2026-04-27T20:06:16+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Bloopair",
+      "version": "v1.0.4",
+      "release_url": "https://github.com/GaryOderNichts/Bloopair/releases/tag/v1.0.4",
+      "description": "Додаток, що дозволяє підключати bluetooth геймпади від Switch, PS та Xbox.",
+      "platform": "WiiU",
+      "timestamp": "2026-04-26T18:16:44+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Vanilla",
+      "version": "continuous",
+      "release_url": "https://github.com/vanilla-wiiu/vanilla/releases/tag/continuous",
+      "description": "Програмний клон геймпада Wii U.",
+      "platform": "WiiU",
+      "timestamp": "2026-04-30T06:24:54+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "DS994a",
+      "version": "2.9",
+      "release_url": "https://github.com/wavemotion-dave/DS994a/releases/tag/2.9",
+      "description": "Емулятор TI99/4a.",
+      "platform": "DS(i)",
+      "timestamp": "2026-02-16T14:30:29+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "NDSFactory",
+      "version": "v1.3.3",
+      "release_url": "https://github.com/Luca1991/NDSFactory/releases/tag/v1.3.3",
+      "description": "Додаток для пакування/розпакування .nds ромів.",
+      "platform": "DS(i)",
+      "timestamp": "2025-11-28T07:45:02+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Pico Loader",
+      "version": "v1.6.0",
+      "release_url": "https://github.com/LNH-team/pico-loader/releases/tag/v1.6.0",
+      "description": "Додаток, що дозволяє запускати DS(i) ігри. Альтернатива nds-bootstrap?",
+      "platform": "DS(i)",
+      "timestamp": "2026-03-29T15:05:46+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "CustomLuma3DS",
+      "version": "v1.2.3",
+      "release_url": "https://github.com/Alexyo21/Polari3DS/releases/tag/v1.2.3",
+      "description": "Модифікація Luma3DS з підтримкою стрімінгу на ПК.",
+      "platform": "3DS",
+      "timestamp": "2025-07-27T22:53:37+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "devilutionX",
+      "version": "1.5.5",
+      "release_url": "https://github.com/diasurgical/DevilutionX/releases/tag/1.5.5",
+      "description": "Порт гри Diablo.",
+      "platform": "3DS",
+      "timestamp": "2026-02-06T03:28:32+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Anemone3DS",
+      "version": "v3.0.1",
+      "release_url": "https://github.com/astronautlevel2/Anemone3DS/releases/tag/v3.0.1",
+      "description": "Менеджер тем, сплешів та бейджів.",
+      "platform": "3DS",
+      "timestamp": "2024-06-18T00:22:28+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "ftpd",
+      "version": "v3.2.1",
+      "release_url": "https://github.com/mtheall/ftpd/releases/tag/v3.2.1",
+      "description": "FTP сервер.",
+      "platform": "3DS",
+      "timestamp": "2025-11-19T01:28:02+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "JKSM",
+      "version": "05.08.2020",
+      "release_url": "https://github.com/J-D-K/JKSM/releases/tag/05.08.2020",
+      "description": "Менеджер збережень.",
+      "platform": "3DS",
+      "timestamp": "2020-05-09T04:04:06+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "3DS Random Game Launcher",
+      "version": "v18",
+      "release_url": "https://github.com/selloa/3DS-Random-Game-Launcher/releases/tag/v18",
+      "description": "Лаунчер, що запускає випадкову гру.",
+      "platform": "3DS",
+      "timestamp": "2025-09-24T19:21:17+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "3dslibris",
+      "version": "v2.6.0",
+      "release_url": "https://github.com/RigleGit/3dslibris/releases/tag/v2.6.0",
+      "description": "Читалка для книг.",
+      "platform": "3DS",
+      "timestamp": "2026-04-28T08:36:06+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "aurorachat",
+      "version": "v0.6.01",
+      "release_url": "https://github.com/Unitendo/aurorachat/releases/tag/v0.6.01",
+      "description": "Онлайн чат.",
+      "platform": "3DS",
+      "timestamp": "2026-04-30T02:00:04+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Topos",
+      "version": "0.12.2",
+      "release_url": "https://github.com/mockmodular/topos_3ds-video-player/releases/tag/0.12.2",
+      "description": "Відеоплеєр.",
+      "platform": "3DS",
+      "timestamp": "2026-04-29T16:39:34+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "DBIPatcher",
+      "version": "894",
+      "release_url": "https://github.com/rashevskyv/DBIPatcher/releases/tag/894",
+      "description": "Неофіційний переклад DBI на 22 мови.",
+      "platform": "Switch",
+      "timestamp": "2026-04-30T00:00:00+00:00",
+      "is_new": true
+    },
+    {
+      "app_name": "DBI",
+      "version": "894ru",
+      "release_url": "https://github.com/rashevskyv/dbi/releases/tag/894ru",
+      "description": "Встановлювач ігор, файловий менеджер, менеджер збережень тощо.",
+      "platform": "Switch",
+      "timestamp": "2026-04-28T16:04:42+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Ultrahand-Overlay",
+      "version": "v2.4.1",
+      "release_url": "https://github.com/ppkantorski/Ultrahand-Overlay/releases/tag/v2.4.1",
+      "description": "Заміна меню Tesla. Універсальний інструмент, що дозволяє керувати налаштуваннями, файлами та каталогами на свічі.",
+      "platform": "Switch",
+      "timestamp": "2026-04-20T14:45:22+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "pemu",
+      "version": "v7.1",
+      "release_url": "https://github.com/Cpasjuste/pemu/releases/tag/v7.1",
+      "description": "Емулятори NES, SNES, Genesis, Neo-Geo.",
+      "platform": "Switch",
+      "timestamp": "2025-12-31T08:36:55+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Hekate",
+      "version": "v6.5.2",
+      "release_url": "https://github.com/CTCaer/hekate/releases/tag/v6.5.2",
+      "description": "GUI завантажувач.",
+      "platform": "Switch",
+      "timestamp": "2026-03-20T11:43:18+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "nxdumptool",
+      "version": "rewrite-prerelease",
+      "release_url": "https://github.com/DarkMatterCore/nxdumptool/releases/tag/rewrite-prerelease",
+      "description": "Додаток для дампа ігор.",
+      "platform": "Switch",
+      "timestamp": "2026-04-29T14:03:44+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Moonlight-Switch",
+      "version": "v1.4.0",
+      "release_url": "https://github.com/XITRIX/Moonlight-Switch/releases/tag/v1.4.0",
+      "description": "Стрімінг на свіч з використанням протоколу Nvidia GameStream.",
+      "platform": "Switch",
+      "timestamp": "2026-03-28T13:19:26+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "NooDS",
+      "version": "release",
+      "release_url": "https://github.com/Hydr8gon/NooDS/releases/tag/release",
+      "description": "Емулятор Nintendo DS.",
+      "platform": "Switch",
+      "timestamp": "2025-12-31T15:22:56+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Kefir",
+      "version": "818",
+      "release_url": "https://github.com/rashevskyv/kefir/releases/tag/818",
+      "description": "Кефір.",
+      "platform": "Switch",
+      "timestamp": "2026-04-29T11:51:34+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "CTR/NXWallet",
+      "version": "1.0.3",
+      "release_url": "https://github.com/TehFridge/CTR-NXWallet/releases/tag/1.0.3",
+      "description": "Додаток для показу штрих-кодів/qr-кодів (наприклад, квитки на конвенціях або дисконтні картки).",
+      "platform": "Switch",
+      "timestamp": "2024-12-01T13:21:13+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "GvasViewer",
+      "version": "0.28",
+      "release_url": "https://github.com/turtle-insect/GvasViewer/releases/tag/0.28",
+      "description": "Переглядач Unreal Engine Gvas файлів.",
+      "platform": "Switch",
+      "timestamp": "2026-04-30T22:04:31+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "vita2hos ",
+      "version": "alpha-0.4",
+      "release_url": "https://github.com/xerpi/vita2hos/releases/tag/alpha-0.4",
+      "description": "Прокладка трансляції команд PSVita для Horizon OS (не емулятор).",
+      "platform": "Switch",
+      "timestamp": "2025-03-22T01:38:01+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "mgba",
+      "version": "0.10.5",
+      "release_url": "https://github.com/mgba-emu/mgba/releases/tag/0.10.5",
+      "description": "Емулятор Gameboy Advance.",
+      "platform": "Switch",
+      "timestamp": "2025-11-18T12:29:22+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "MegaZeux",
+      "version": "v2.93d",
+      "release_url": "https://github.com/AliceLR/megazeux/releases/tag/v2.93d",
+      "description": "Порт MegaZeux - системи створення ігор (GCS), створеної в 1994 році.",
+      "platform": "Switch",
+      "timestamp": "2025-06-15T00:26:07+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "OpenTyrian2000",
+      "version": "3.0.0-SDL3",
+      "release_url": "https://github.com/andyvand/opentyrian2000/releases/tag/3.0.0-SDL3",
+      "description": "Порт гри Tyrian.",
+      "platform": "Switch",
+      "timestamp": "2025-08-20T07:57:21+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Shipwright-Switch",
+      "version": "9.2.3-nx2",
+      "release_url": "https://github.com/timschneeb/Shipwright-Switch/releases/tag/9.2.3-nx2",
+      "description": "Порт LoZ: Ocarina of Time.",
+      "platform": "Switch",
+      "timestamp": "2026-04-26T12:13:23+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "tico",
+      "version": "0.7.1",
+      "release_url": "https://github.com/ticohq/tico/releases/tag/0.7.1",
+      "description": "Фронтенд для емуляторів.",
+      "platform": "Switch",
+      "timestamp": "2026-04-25T17:21:50+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "pkTeraRaid",
+      "version": "1.3.1",
+      "release_url": "https://github.com/Insektaure/pkTeraRaid/releases/tag/1.3.1",
+      "description": "Утиліта для перегляду деталей терра рейдів в Pokemon Scarlet & Violet.",
+      "platform": "Switch",
+      "timestamp": "2026-04-25T11:11:16+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "pkHouse",
+      "version": "1.10.2",
+      "release_url": "https://github.com/Insektaure/pkHouse/releases/tag/1.10.2",
+      "description": "Локальний покебанк.",
+      "platform": "Switch",
+      "timestamp": "2026-04-30T12:27:03+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "ironfoil",
+      "version": "v0.4.4",
+      "release_url": "https://github.com/sermuns/ironfoil/releases/tag/v0.4.4",
+      "description": "CLI альтернатива для NS-USBloader.",
+      "platform": "Switch",
+      "timestamp": "2026-04-24T14:01:32+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "ScratchEverywhere",
+      "version": "0.40",
+      "release_url": "https://github.com/ScratchEverywhere/ScratchEverywhere/releases/tag/0.40",
+      "description": "Користувацьке середовище виконання для Scratch 3 проектів.",
+      "platform": "Switch",
+      "timestamp": "2026-04-26T21:01:25+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "UltraGB Overlay",
+      "version": "v1.0.1",
+      "release_url": "https://github.com/ppkantorski/UltraGB-Overlay/releases/tag/v1.0.1",
+      "description": "Оверлей-емулятор GB/GBC.",
+      "platform": "Switch",
+      "timestamp": "2026-04-20T17:41:41+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Emulanders",
+      "version": "0.9.1",
+      "release_url": "https://github.com/joaohypo/emulanders/releases/tag/0.9.1",
+      "description": "Оверлей-емулятор Skylanders NFC (Mifare).",
+      "platform": "Switch",
+      "timestamp": "2026-04-15T02:07:05+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "OpenHome",
+      "version": "v1.11.0-rc.1",
+      "release_url": "https://github.com/andrewbenington/OpenHome/releases/tag/v1.11.0-rc.1",
+      "description": "Додаток для імпорту та перенесення покемонів між файлами збережень.",
+      "platform": "3DS/DS(i)/Switch",
+      "timestamp": "2026-04-29T00:22:48+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "wiiMac",
+      "version": "v1.0.3",
+      "release_url": "https://github.com/bryankeller/wiiMac/releases/tag/v1.0.3",
+      "description": "Завантажувач для PowerPC сумісних версій OSX.",
+      "platform": "Wii",
+      "timestamp": "2026-04-29T11:20:13+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "ioquake3-wii",
+      "version": "0.4.0",
+      "release_url": "https://github.com/Mayo1970/ioQuake3-wii/releases/tag/0.4.0",
+      "description": "Порт ioQuake3.",
+      "platform": "Wii",
+      "timestamp": "2026-04-27T20:06:16+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "NUSspli",
+      "version": "v1.156",
+      "release_url": "https://github.com/V10lator/NUSspli/releases/tag/v1.156",
+      "description": "Додаток для завантаження та встановлення ромів безпосередньо з серверів Н.",
+      "platform": "WiiU",
+      "timestamp": "2025-03-05T16:44:03+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "WFS Tools",
+      "version": "v1.2.3",
+      "release_url": "https://github.com/koolkdev/wfs-tools/releases/tag/v1.2.3",
+      "description": "Утиліта для розшифрування WFS USBs/MLC для перенесення між консолями.",
+      "platform": "WiiU",
+      "timestamp": "2024-11-09T22:00:45+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Bloopair",
+      "version": "v1.0.4",
+      "release_url": "https://github.com/GaryOderNichts/Bloopair/releases/tag/v1.0.4",
+      "description": "Додаток, що дозволяє підключати bluetooth геймпади від Switch, PS та Xbox.",
+      "platform": "WiiU",
+      "timestamp": "2026-04-26T18:16:44+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "SaveMii WUT Port",
+      "version": "1.6.5i",
+      "release_url": "https://github.com/Xpl0itU/savemii/releases/tag/1.6.5i",
+      "description": "Менеджер збережень для WiiU/vWii.",
+      "platform": "WiiU",
+      "timestamp": "2025-01-19T16:20:15+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "Vanilla",
+      "version": "continuous",
+      "release_url": "https://github.com/vanilla-wiiu/vanilla/releases/tag/continuous",
+      "description": "Програмний клон геймпада Wii U.",
+      "platform": "WiiU",
+      "timestamp": "2026-04-30T06:24:54+00:00",
+      "is_new": false
+    },
+    {
+      "app_name": "GBAATM-Rebirth",
+      "version": "pre-1.0.0-alpha3",
+      "release_url": "https://github.com/Mte90/GBAATM-Rebirth/releases/tag/pre-1.0.0-alpha3",
+      "description": "Додаток для вбудовування меню з читами в gba роми.",
+      "platform": "GBA",
+      "timestamp": "2023-03-03T16:28:46+00:00",
+      "is_new": false
+    }
+  ]
+}

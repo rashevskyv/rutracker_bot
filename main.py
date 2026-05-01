@@ -240,7 +240,6 @@ async def main_loop():
         # Save collection timestamp for daily digest (only in production mode)
         if not IS_TEST_MODE and processed_count > 0:
             try:
-                from datetime import datetime
                 LAST_RUN_FILE = os.path.join("data", "last_digest_run.json")
                 current_time = datetime.now()
                 with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
