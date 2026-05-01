@@ -5,7 +5,7 @@ import os
 import re
 import time
 import traceback
-import requests
+
 from urllib.parse import urlparse
 import shutil
 import aiohttp
@@ -120,15 +120,15 @@ class TitleDBManager:
     async def _try_download_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
         if not image_url or not image_url.startswith(('http://', 'https://')): return None
         try:
-            headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0', 'Accept': 'image/*'}
-            async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.get(image_url, timeout=timeout) as response:
-                    response.raise_for_status()
-                    content = await response.read()
-                    if not content:
-                        logger.warning(f"Download resulted in empty file: {image_url}")
-                        return None
-                    return BytesIO(content)
+            from core.settings_loader import get_session
+            session = get_session()
+            async with session.get(image_url, timeout=timeout) as response:
+                response.raise_for_status()
+                content = await response.read()
+                if not content:
+                    logger.warning(f"Download resulted in empty file: {image_url}")
+                    return None
+                return BytesIO(content)
         except Exception as e:
             logger.error(f"Download failed (Error: {e}): {image_url}")
             return None

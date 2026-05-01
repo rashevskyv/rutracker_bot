@@ -8,8 +8,8 @@ import html # Import html for escaping
 import logging
 from typing import Optional, Tuple, List # Import Optional, Tuple, List
 # --- Import functions moved to html_utils ---
-from html_utils import clean_description_html, make_tag, sanitize_html_for_telegram
-from settings_loader import get_session
+from utils.html_utils import clean_description_html, make_tag, sanitize_html_for_telegram
+from core.settings_loader import get_session
 # --------------------------------------------
 
 logger = logging.getLogger(__name__)
@@ -154,41 +154,42 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     except Exception as e:
         logger.warning(f"Could not extract torrent size: {e}")
 
+    # Find post body BEFORE trying to use it for language extraction
+    post_body = soup.find("div", class_="post_body")
+    if not post_body:
+        logger.error(f"Could not find main post body in {entry_url}.")
+        return None
+
     try:
         # Extract language from post body
-        post_body = soup.find("div", class_="post_body")
-        if post_body:
-            # Look for language patterns
-            lang_patterns = [
-                (r'Язык\s*(?:интерфейса)?[:\s]+([A-Za-zА-Яа-я,\s]+)', 'ru'),
-                (r'Language[:\s]+([A-Za-z,\s]+)', 'en'),
-                (r'Мова[:\s]+([A-Za-zА-Яа-я,\s]+)', 'ua')
-            ]
+        lang_patterns = [
+            (r'Язык\s*(?:интерфейса)?[:\s]+([A-Za-zА-Яа-я,\s]+)', 'ru'),
+            (r'Language[:\s]+([A-Za-z,\s]+)', 'en'),
+            (r'Мова[:\s]+([A-Za-zА-Яа-я,\s]+)', 'ua')
+        ]
 
-            post_text = post_body.get_text()
-            for pattern, _ in lang_patterns:
-                match = re.search(pattern, post_text, re.IGNORECASE)
-                if match:
-                    lang_text = match.group(1).strip()
-                    # Normalize common language codes
-                    lang_map = {
-                        'английский': 'ENG', 'english': 'ENG', 'eng': 'ENG',
-                        'русский': 'RUS', 'russian': 'RUS', 'rus': 'RUS',
-                        'японский': 'JAP', 'japanese': 'JAP', 'jap': 'JAP',
-                        'мультиязычный': 'MULTI', 'multi': 'MULTI', 'multilanguage': 'MULTI'
-                    }
-                    lang_lower = lang_text.lower()
-                    for key, value in lang_map.items():
-                        if key in lang_lower:
-                            torrent_language = value
-                            break
-                    if torrent_language == "N/A":
-                        torrent_language = lang_text.upper()[:10]
-                    break
+        post_text = post_body.get_text()
+        for pattern, _ in lang_patterns:
+            match = re.search(pattern, post_text, re.IGNORECASE)
+            if match:
+                lang_text = match.group(1).strip()
+                # Normalize common language codes
+                lang_map = {
+                    'английский': 'ENG', 'english': 'ENG', 'eng': 'ENG',
+                    'русский': 'RUS', 'russian': 'RUS', 'rus': 'RUS',
+                    'японский': 'JAP', 'japanese': 'JAP', 'jap': 'JAP',
+                    'мультиязычный': 'MULTI', 'multi': 'MULTI', 'multilanguage': 'MULTI'
+                }
+                lang_lower = lang_text.lower()
+                for key, value in lang_map.items():
+                    if key in lang_lower:
+                        torrent_language = value
+                        break
+                if torrent_language == "N/A":
+                    torrent_language = lang_text.upper()[:10]
+                break
     except Exception as e:
         logger.warning(f"Could not extract language: {e}")
-
-    if not post_body: logger.error(f"Could not find main post body in {entry_url}."); return None
 
     title_elements_html = []; description_elements_html = []; collecting_title = True
     description_start_keywords = ["Год выпуска", "Release year", "Жанр", "Genre", "Разработчик", "Developer", "Описание", "Description"]

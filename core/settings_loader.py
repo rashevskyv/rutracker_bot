@@ -6,7 +6,7 @@ from typing import Dict, Optional, Any, List
 from telebot.async_telebot import AsyncTeleBot
 from openai import AsyncOpenAI
 import aiohttp
-from logger_setup import setup_logging
+from core.logger_setup import setup_logging
 
 # Function load_config remains the same
 def load_config(file_path: str) -> Optional[Dict[str, Any]]:
@@ -50,7 +50,8 @@ def get_env_or_setting(settings_dict: Dict[str, Any], key: str, env_var: str) ->
     return value
 
 # --- Configuration Loading ---
-current_directory = os.path.dirname(os.path.abspath(__file__))
+# Project root is one level up from core/
+current_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 default_settings_path = os.path.join(current_directory, 'settings.json')
 test_settings_path = os.path.join(current_directory, 'test_settings.json')
 local_settings_path = os.path.join(current_directory, 'local_settings.json')

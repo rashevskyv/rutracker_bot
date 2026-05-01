@@ -1,11 +1,8 @@
 # --- START OF FILE translation.py ---
-import aiohttp
 import asyncio
-from google.cloud import translate_v2 as translate
-from settings_loader import openai_client, DEEPL_API_KEY, get_session
-from html_utils import sanitize_html_for_telegram
+from core.settings_loader import openai_client, get_session
+from utils.html_utils import sanitize_html_for_telegram
 import re
-import os
 import logging
 from typing import Optional
 
@@ -23,33 +20,6 @@ async def translate_ru_to_ua(text: str) -> str:
     else:
         logger.warning("OpenAI client not available for translation. Returning original text.")
         return text # Fallback if GPT client failed initialization
-
-# Function translate_ru_to_ua_google remains the same (made async-friendly)
-async def translate_ru_to_ua_google(text: str) -> str:
-    """Translates text from Russian to Ukrainian using Google Translate API."""
-    logger.info("Translating text RU -> UA using Google Translate...")
-    try:
-        google_creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-        if not google_creds_path or not os.path.exists(google_creds_path):
-             logger.warning("Google credentials not configured correctly. Skipping Google Translate.")
-             return text
-        translate_client = translate.Client()
-        paragraphs = text.split('\n'); translated_paragraphs = []
-        for paragraph in paragraphs:
-            if paragraph.strip(): 
-                # Run sync Google call in thread
-                result = await asyncio.to_thread(translate_client.translate, paragraph, target_language='uk', source_language='ru')
-                translated_paragraphs.append(result['translatedText'])
-            else: translated_paragraphs.append(paragraph)
-        translated_text = '\n'.join(translated_paragraphs)
-        translated_text = translated_text.replace(' <a', '<a').replace('</a> ', '</a>')
-        translated_text = re.sub(r'([a-zA-Zа-яА-ЯёЁіІїЇєЄ])<a', r'\1 <a', translated_text)
-        translated_text = translated_text.replace(" :", ":"); translated_text = re.sub(r'\s{2,}', ' ', translated_text).strip()
-        translated_text = translated_text.replace("[оновлено]", "[Оновлено]").replace("Рік виконання", "Рік виходу")
-        return sanitize_html_for_telegram(translated_text)
-    except Exception as e:
-        logger.error(f"Error during Google translation: {e}")
-        return text
 
 async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
     """
@@ -78,7 +48,6 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         f"**Translation Rules:**\n"
         f"1.  **Language Naming:** If the text mentions 'Russian language' (русский язык), translate it ONLY as 'мова росії', 'москальська', or 'російська'. NEVER use 'руська'.\n"
         f"{gap_instruction}"
-        f"{gap_instruction}"
         f"3.  **Compact Density:** Keep technical parameters (Year, Genre, etc.) on consecutive lines with NO blank lines between them. However, for the 'Description' text and especially inside <blockquote> blocks, you MUST preserve the original structural line breaks and tags for readability.\n"
         f"4.  **No HTML Lists:** NEVER use HTML tags like <ul> or <li>. Use plain text bullet characters (•) for lists.\n"
         f"5.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
@@ -100,6 +69,8 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         response = await openai_client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=4096,
+            timeout=60,
         )
         translated_text = response.choices[0].message.content
 
@@ -111,59 +82,15 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         # FINAL SANITIZATION: Clean any unsupported tags from GPT response
         logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
         
-        # DEBUG: Write step-by-step to file
-        with open("debug_bq_pipeline.txt", "w", encoding="utf-8") as dbg:
-            dbg.write("=== STEP 1: RAW GPT OUTPUT (cleaned) ===\n")
-            dbg.write(cleaned_text)
-            dbg.write("\n\n")
-            
-            # Count tokens/tags
-            bqsx_count = cleaned_text.upper().count("XBQSX")
-            bqex_count = cleaned_text.upper().count("XBQEX")
-            bq_open = cleaned_text.lower().count("<blockquote>")
-            bq_close = cleaned_text.lower().count("</blockquote>")
-            dbg.write(f"Tokens: XBQSX={bqsx_count}, XBQEX={bqex_count}\n")
-            dbg.write(f"Literal tags: <blockquote>={bq_open}, </blockquote>={bq_close}\n\n")
-        
         final_text = sanitize_html_for_telegram(cleaned_text)
-        
-        with open("debug_bq_pipeline.txt", "a", encoding="utf-8") as dbg:
-            dbg.write("=== STEP 2: AFTER sanitize_html_for_telegram ===\n")
-            dbg.write(final_text)
-            dbg.write("\n\n")
-            bqsx_count = final_text.upper().count("XBQSX")
-            bqex_count = final_text.upper().count("XBQEX")
-            bq_open = final_text.lower().count("<blockquote>")
-            bq_close = final_text.lower().count("</blockquote>")
-            dbg.write(f"Tokens: XBQSX={bqsx_count}, XBQEX={bqex_count}\n")
-            dbg.write(f"Literal tags: <blockquote>={bq_open}, </blockquote>={bq_close}\n\n")
         
         # AGGRESSIVE MERGE OF ALL POSSIBLE BLOCKQUOTE MARKERS
         # First, normalize any literal tags GPT might have used back to tokens
         final_text = final_text.replace("<blockquote>", "XBQSX").replace("</blockquote>", "XBQEX")
         
-        with open("debug_bq_pipeline.txt", "a", encoding="utf-8") as dbg:
-            dbg.write("=== STEP 3: AFTER normalize tags->tokens ===\n")
-            bqsx_count = final_text.upper().count("XBQSX")
-            bqex_count = final_text.upper().count("XBQEX")
-            dbg.write(f"Tokens: XBQSX={bqsx_count}, XBQEX={bqex_count}\n")
-            # Find all XBQEX...XBQSX gaps
-            import re as re2
-            gaps = list(re2.finditer(r'XBQEX(.*?)XBQSX', final_text, flags=re.DOTALL|re.IGNORECASE))
-            dbg.write(f"Gaps between XBQEX and XBQSX: {len(gaps)}\n")
-            for gi, gap in enumerate(gaps):
-                dbg.write(f"  Gap {gi}: [{repr(gap.group(1))}]\n")
-            dbg.write("\n")
-        
         # Merge any XBQEX ... XBQSX pairs
         # Allow ANY content between them (not just whitespace) since GPT might insert empty tags like <b></b>
         final_text = re.sub(r'XBQEX[\s\S]*?XBQSX', 'XBQEXXBQSX', final_text, flags=re.IGNORECASE)
-        
-        with open("debug_bq_pipeline.txt", "a", encoding="utf-8") as dbg:
-            dbg.write("=== STEP 4: AFTER merge XBQEX...XBQSX ===\n")
-            bqsx_count = final_text.upper().count("XBQSX")
-            bqex_count = final_text.upper().count("XBQEX")
-            dbg.write(f"Tokens: XBQSX={bqsx_count}, XBQEX={bqex_count}\n\n")
         
         # RESTORE blockquote tokens
         final_text = final_text.replace("XBQSX", "<blockquote>")
@@ -174,11 +101,6 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         
         # Remove triple+ newlines and leading/trailing whitespace
         final_text = re.sub(r'\n{3,}', '\n\n', final_text).strip()
-        
-        with open("debug_bq_pipeline.txt", "a", encoding="utf-8") as dbg:
-            dbg.write("=== STEP 5: FINAL OUTPUT ===\n")
-            dbg.write(final_text)
-            dbg.write("\n")
         
         logger.debug(f"GPT Response (final bytes {len(final_text)}): {final_text[:300]}...")
         
