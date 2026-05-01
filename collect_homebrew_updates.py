@@ -4,6 +4,7 @@ Checks GitHub/GitLab for homebrew app updates and adds them to digest
 """
 import asyncio
 import json
+import os
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -355,7 +356,7 @@ class HomebrewUpdatesCollector:
         import json
         from datetime import datetime
 
-        LAST_RUN_FILE = "last_homebrew_digest_run.json"
+        LAST_RUN_FILE = os.path.join("data", "last_homebrew_digest_run.json")
         current_time = datetime.now()
 
         try:
@@ -371,7 +372,7 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Collect homebrew updates')
-    parser.add_argument('--list', default='list_hb.json',
+    parser.add_argument('--list', default=os.path.join('data', 'list_hb.json'),
                         help='Path to list_hb.json')
     parser.add_argument('--translate', action='store_true',
                         help='Translate descriptions to Ukrainian (default: no translation)')

@@ -241,7 +241,7 @@ async def main_loop():
         if not IS_TEST_MODE and processed_count > 0:
             try:
                 from datetime import datetime
-                LAST_RUN_FILE = "last_digest_run.json"
+                LAST_RUN_FILE = os.path.join("data", "last_digest_run.json")
                 current_time = datetime.now()
                 with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
                     json.dump({'last_digest_time': current_time.isoformat()}, f, indent=2)

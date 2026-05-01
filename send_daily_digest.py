@@ -16,7 +16,7 @@ from services.telegram_sender import send_message_to_admin
 
 logger = logging.getLogger(__name__)
 
-LAST_RUN_FILE = "last_digest_run.json"
+LAST_RUN_FILE = os.path.join("data", "last_digest_run.json")
 
 
 def get_last_run_time() -> datetime:

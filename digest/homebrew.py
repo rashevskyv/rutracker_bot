@@ -3,6 +3,7 @@ Homebrew Digest Module
 Collects and formats daily summaries of homebrew application updates
 """
 import html
+import os
 import logging
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -11,7 +12,7 @@ from digest.base import BaseDigest
 
 logger = logging.getLogger(__name__)
 
-HOMEBREW_DIGEST_FILE = "homebrew_digest_data.json"
+HOMEBREW_DIGEST_FILE = os.path.join("data", "homebrew_digest_data.json")
 
 
 class HomebrewDigest(BaseDigest):
