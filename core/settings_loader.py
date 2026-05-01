@@ -159,7 +159,7 @@ def get_session() -> aiohttp.ClientSession:
 # --- Cleanup ---
 async def close_clients():
     """Closes all initialized API clients."""
-    if 'bot' in globals() and bot:
+    if 'bot' in globals() and bot and hasattr(bot, '_session') and bot._session:
         try:
             await bot.close_session()
             logging.info("Telegram AsyncBot session closed.")
