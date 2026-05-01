@@ -20,7 +20,7 @@ LAST_RUN_FILE = os.path.join("data", "last_digest_run.json")
 
 
 def get_last_run_time() -> datetime:
-    """Get the last digest run time from file (set by main.py)"""
+    """Get the last digest send time from file"""
     if not os.path.exists(LAST_RUN_FILE):
         # Default to 24 hours ago if file doesn't exist
         return datetime.now() - timedelta(hours=24)
@@ -32,6 +32,17 @@ def get_last_run_time() -> datetime:
     except Exception as e:
         logger.error(f"Error reading last run time: {e}")
         return datetime.now() - timedelta(hours=24)
+
+
+def save_last_run_time():
+    """Save the current time as last digest send time"""
+    current_time = datetime.now()
+    try:
+        with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'last_digest_time': current_time.isoformat()}, f, indent=2)
+        logger.info(f"Saved digest send timestamp: {current_time}")
+    except Exception as e:
+        logger.error(f"Error saving digest send timestamp: {e}")
 
 
 async def send_digest():
@@ -150,6 +161,8 @@ async def send_digest():
 
             # Clear old entries AFTER all groups have been sent
             if sent_count > 0:
+                # Save timestamp AFTER successful send
+                save_last_run_time()
                 cleanup_time = datetime.now() - timedelta(days=7)
                 digest_manager.clear_old_entries(cleanup_time)
                 logger.info(f"Cleared digest entries older than {cleanup_time}")
