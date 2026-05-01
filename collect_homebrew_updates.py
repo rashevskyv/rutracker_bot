@@ -16,6 +16,10 @@ from services.translation import translate_ru_to_ua
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Module-level constants (avoid Python 3.14 scoping issues with os inside functions)
+DEFAULT_LIST_PATH = os.path.join('data', 'list_hb.json')
+HOMEBREW_LAST_RUN_PATH = os.path.join('data', 'last_homebrew_digest_run.json')
+
 
 class HomebrewUpdatesCollector:
     """Collects homebrew updates from GitHub/GitLab"""
@@ -342,7 +346,7 @@ class HomebrewUpdatesCollector:
         import json
         from datetime import datetime
 
-        LAST_RUN_FILE = os.path.join("data", "last_homebrew_digest_run.json")
+        LAST_RUN_FILE = HOMEBREW_LAST_RUN_PATH
         current_time = datetime.now()
 
         try:
@@ -358,7 +362,7 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Collect homebrew updates')
-    parser.add_argument('--list', default=os.path.join('data', 'list_hb.json'),
+    parser.add_argument('--list', default=DEFAULT_LIST_PATH,
                         help='Path to list_hb.json')
     parser.add_argument('--translate', action='store_true',
                         help='Translate descriptions to Ukrainian (default: no translation)')
@@ -398,6 +402,10 @@ async def main():
         translate=args.translate,
         max_entries=args.test
     )
+
+    # Clean up shared session
+    from core.settings_loader import close_clients
+    await close_clients()
 
 
 if __name__ == "__main__":
