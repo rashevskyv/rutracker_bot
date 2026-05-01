@@ -159,6 +159,10 @@ class DailyDigest:
                 line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203; — {update_text}"
                 message_parts.append(line)
 
+        # Add link to digest channel at the end
+        message_parts.append("")  # Empty line before link
+        message_parts.append("📢 <a href=\"https://t.me/Nin3DSBrewNews\">Nin3DSBrewNews</a>")
+
         return "\n".join(message_parts)
 
     async def send_daily_digest(self, target_chat_id: int, target_topic_id: Optional[int] = None, since_time: Optional[datetime] = None, translate_to_ua: bool = False):
