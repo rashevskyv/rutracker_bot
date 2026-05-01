@@ -24,7 +24,6 @@ class HomebrewUpdatesCollector:
         self.list_path = Path(list_path)
         self.github_token = github_token
         self.gitlab_token = gitlab_token
-        self.session: Optional[aiohttp.ClientSession] = None
 
         # Rate limit tracking
         self.github_requests = 0
@@ -32,16 +31,11 @@ class HomebrewUpdatesCollector:
         self.updates_found = 0
         self.errors = []
 
-    async def __aenter__(self):
-        """Initialize aiohttp session"""
-        headers = {'User-Agent': 'HomebrewBot/1.0'}
-        self.session = aiohttp.ClientSession(headers=headers)
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Close aiohttp session"""
-        if self.session:
-            await self.session.close()
+    @property
+    def session(self) -> aiohttp.ClientSession:
+        """Use the shared aiohttp session from settings_loader."""
+        from core.settings_loader import get_session
+        return get_session()
 
     def load_homebrew_list(self) -> List[Dict]:
         """Load homebrew list from JSON file"""
@@ -62,10 +56,6 @@ class HomebrewUpdatesCollector:
 
     async def github_request(self, url: str) -> Optional[Dict]:
         """Make GitHub API request with rate limit handling"""
-        if not self.session:
-            logger.error("Session not initialized")
-            return None
-
         headers = {}
         if self.github_token:
             headers['Authorization'] = f'token {self.github_token}'
@@ -100,10 +90,6 @@ class HomebrewUpdatesCollector:
 
     async def gitlab_request(self, url: str) -> Optional[Dict]:
         """Make GitLab API request with rate limit handling"""
-        if not self.session:
-            logger.error("Session not initialized")
-            return None
-
         headers = {}
         if self.gitlab_token:
             headers['Private-Token'] = self.gitlab_token
@@ -403,15 +389,15 @@ async def main():
     logger.info(f"GitHub token: {'present' if github_token else 'missing'}")
     logger.info(f"GitLab token: {'present' if gitlab_token else 'missing'}")
 
-    async with HomebrewUpdatesCollector(
+    collector = HomebrewUpdatesCollector(
         list_path=args.list,
         github_token=github_token,
         gitlab_token=gitlab_token
-    ) as collector:
-        await collector.collect_updates(
-            translate=args.translate,
-            max_entries=args.test
-        )
+    )
+    await collector.collect_updates(
+        translate=args.translate,
+        max_entries=args.test
+    )
 
 
 if __name__ == "__main__":

@@ -1,32 +1,35 @@
-/1605.atom
-/test_settings.json
-/local_settings.json
-/credentials.json
+# Config files (sensitive)
+config/test_settings.json
+config/local_settings.json
+config/credentials.json
+config/run_checker.sh
+
+# Python cache
 **/__pycache__/
-geckodriver.log
-bot.log
-bot.log.*
-cron.log
-log_tg_send.txt
-log_yt.txt
-log_tail.txt
-dl.html
-failing_part.html
-debug_bq_pipeline.txt
-tmp_screenshots/
-tmp_videos/
+
+# Logs
+*.log
+*.log.*
+log_*.txt
+
+# Temp files
 *.bak
 *.tmp
 *.session
 *.session-journal
+tmp_screenshots/
+tmp_videos/
+tmp_sender_test/
+
+# Runtime data (generated at runtime)
+data/
+
+# Debug artifacts
+dl.html
+failing_part.html
+debug_bq_pipeline.txt
 extraction.log
-data/daily_digest_data.json
-data/last_digest_run.json
-data/homebrew_digest_data.json
-data/last_homebrew_digest_run.json
-data/list_hb.json
-data/last_entry.txt
-run_checker.sh
+/1605.atom
 
 # Test and debug files
 test_*.py
@@ -36,7 +39,6 @@ check_*.txt
 *_debug.txt
 *_output.txt
 quote_check.txt
-fetch_log.txt
 specific_posts.txt
 updated_post_example.txt
 hades_*.txt
@@ -44,7 +46,7 @@ citation_debug.txt
 topic_*.txt
 test_settings.json.backup
 
-# Temporary digest scripts
+# Temporary scripts
 backfill_digest.py
 optimized_backfill.py
 quick_backfill.py
@@ -55,3 +57,6 @@ show_updated_post.py
 show_updates.py
 extract_from_telegram.py
 telethon_extract.py
+
+# Legacy files
+titledb/
