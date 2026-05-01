@@ -12,10 +12,28 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-# GitHub token should be set in environment or loaded from local config
-# Example: export GITHUB_TOKEN="your_token_here"
+# Export GitHub token for homebrew checker
+# Load from local_settings.json or set directly
+if [ -f "local_settings.json" ]; then
+    # Try to extract GITHUB_TOKEN from local_settings.json
+    GITHUB_TOKEN_FROM_FILE=$(grep -o '"GITHUB_TOKEN"[[:space:]]*:[[:space:]]*"[^"]*"' local_settings.json | sed 's/.*"GITHUB_TOKEN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+    if [ -n "$GITHUB_TOKEN_FROM_FILE" ]; then
+        export GITHUB_TOKEN="$GITHUB_TOKEN_FROM_FILE"
+        echo "DEBUG: Loaded GITHUB_TOKEN from local_settings.json (${#GITHUB_TOKEN} chars)"
+    fi
+fi
+
+# Fallback: set token directly if not found in local_settings.json
 if [ -z "$GITHUB_TOKEN" ]; then
-    echo "Warning: GITHUB_TOKEN not set. Homebrew checker may hit rate limits."
+    export GITHUB_TOKEN="your_github_token_here"
+    echo "WARNING: Using placeholder GITHUB_TOKEN. Please set your token in local_settings.json or this script."
+fi
+
+# Verify token is set
+if [ -n "$GITHUB_TOKEN" ]; then
+    echo "DEBUG: GITHUB_TOKEN is exported: ${GITHUB_TOKEN:0:10}...${GITHUB_TOKEN: -5}"
+else
+    echo "ERROR: GITHUB_TOKEN is not set!"
 fi
 
 # Activate virtual environment if exists

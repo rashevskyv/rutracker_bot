@@ -362,9 +362,11 @@ async def main():
 
     args = parser.parse_args()
 
-    # Load tokens from settings if not provided via command line
-    github_token = args.github_token
-    gitlab_token = args.gitlab_token
+    # Load tokens from environment, command line, or settings (in that order)
+    import os
+
+    github_token = args.github_token or os.environ.get('GITHUB_TOKEN')
+    gitlab_token = args.gitlab_token or os.environ.get('GITLAB_TOKEN')
 
     if not github_token or not gitlab_token:
         try:
@@ -375,6 +377,10 @@ async def main():
                 gitlab_token = settings.get('GITLAB_TOKEN')
         except Exception as e:
             logger.warning(f"Could not load tokens from settings: {e}")
+
+    # Debug: log token status (without revealing the token)
+    logger.info(f"GitHub token: {'present' if github_token else 'missing'}")
+    logger.info(f"GitLab token: {'present' if gitlab_token else 'missing'}")
 
     async with HomebrewUpdatesCollector(
         list_path=args.list,
