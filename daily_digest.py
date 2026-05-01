@@ -197,6 +197,11 @@ class DailyDigest:
             except Exception as e:
                 logger.error(f"Error translating digest: {e}. Sending in Russian.")
 
+        # Clean up ###GAP### markers (convert to double newlines)
+        import re
+        message = re.sub(r'(?:\s*###GAP###\s*)+', '\n\n', message)
+        message = re.sub(r'###\s*-\s*', '', message)  # Remove stray ### markers
+
         try:
             await bot.send_message(
                 chat_id=target_chat_id,
