@@ -188,17 +188,21 @@ async def main_loop():
 
                                  update_description = update_text[:200]  # Limit length
 
-                         digest_manager.add_entry(
-                             title=page_display_title,
-                             entry_url=entry_link,
-                             size=torrent_size,
-                             language=torrent_language,
-                             is_updated=is_updated,
-                             update_description=update_description
-                         )
-                         logger.info(f"Added to daily digest: {page_display_title}")
-                     except Exception as digest_err:
-                         logger.warning(f"Failed to add entry to digest: {digest_err}")
+                        # Add to daily digest (skip in test mode to avoid duplicates)
+                        if not IS_TEST_MODE:
+                            digest_manager.add_entry(
+                                title=page_display_title,
+                                entry_url=entry_link,
+                                size=torrent_size,
+                                language=torrent_language,
+                                is_updated=is_updated,
+                                update_description=update_description
+                            )
+                            logger.info(f"Added to daily digest: {page_display_title}")
+                        else:
+                            logger.debug(f"TEST MODE: Skipped adding to digest: {page_display_title}")
+                    except Exception as digest_err:
+                        logger.warning(f"Failed to add entry to digest: {digest_err}")
 
                      if not IS_TEST_MODE:
                           await asyncio.to_thread(write_last_entry_link, last_entry_file_path, entry_link)
