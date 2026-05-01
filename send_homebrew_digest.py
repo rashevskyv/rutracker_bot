@@ -20,7 +20,7 @@ LAST_RUN_FILE = "last_homebrew_digest_run.json"
 
 
 def get_last_run_time() -> datetime:
-    """Get the last digest run time from file"""
+    """Get the last digest run time from file (set by collect_homebrew_updates.py)"""
     if not os.path.exists(LAST_RUN_FILE):
         # Default to 7 days ago if file doesn't exist (first run)
         return datetime.now() - timedelta(days=7)
@@ -32,16 +32,6 @@ def get_last_run_time() -> datetime:
     except Exception as e:
         logger.error(f"Error reading last run time: {e}")
         return datetime.now() - timedelta(days=7)
-
-
-def save_last_run_time(run_time: datetime):
-    """Save the current run time to file"""
-    try:
-        with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-            json.dump({'last_digest_time': run_time.isoformat()}, f, indent=2)
-        logger.info(f"Saved last run time: {run_time}")
-    except Exception as e:
-        logger.error(f"Error saving last run time: {e}")
 
 
 async def send_digest():
@@ -71,7 +61,7 @@ async def send_digest():
                 since_time=last_run_time
             )
             logger.info("Test homebrew digest sent successfully")
-            save_last_run_time(current_time)
+            # Note: Timestamp is saved by collect_homebrew_updates.py, not here
         except Exception as e:
             logger.error(f"Failed to send test homebrew digest: {e}")
             import traceback
@@ -176,8 +166,7 @@ async def send_digest():
             )
             logger.info("Homebrew stats sent to test channel")
 
-            # Save current time as last run time
-            save_last_run_time(current_time)
+            # Note: Timestamp is saved by collect_homebrew_updates.py, not here
 
         except Exception as e:
             logger.error(f"Failed to send homebrew digest: {e}")
