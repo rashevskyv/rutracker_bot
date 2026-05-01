@@ -336,25 +336,8 @@ class HomebrewUpdatesCollector:
             for error in self.errors[:10]:  # Show first 10 errors
                 logger.warning(f"  - {error}")
 
-        # Save collection timestamp (for digest to use)
-        from core.settings_loader import IS_TEST_MODE
-        if not IS_TEST_MODE:
-            self._save_collection_timestamp()
 
-    def _save_collection_timestamp(self):
-        """Save the current collection time as last digest run time"""
-        import json
-        from datetime import datetime
 
-        LAST_RUN_FILE = HOMEBREW_LAST_RUN_PATH
-        current_time = datetime.now()
-
-        try:
-            with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-                json.dump({'last_digest_time': current_time.isoformat()}, f, indent=2)
-            logger.info(f"Saved collection timestamp for digest: {current_time}")
-        except Exception as e:
-            logger.error(f"Error saving collection timestamp: {e}")
 
 
 async def main():
