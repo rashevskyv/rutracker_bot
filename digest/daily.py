@@ -124,7 +124,7 @@ class DailyDigest(BaseDigest):
             for entry in updated_entries:
                 title_escaped = html.escape(entry['title'])
                 # Use update_description if available, otherwise generic text
-                update_text = entry.get('update_description', 'добавлен апдейт')
+                update_text = entry.get('update_description') or 'добавлен апдейт'
                 line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203; — {update_text}"
                 message_parts.append(line)
 
