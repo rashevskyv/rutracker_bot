@@ -136,10 +136,10 @@ if OPENAI_API_KEY or OPENAI_BASE_URL:
         # Initialize with base_url if provided (for localhost/custom OpenAI-compatible APIs)
         if OPENAI_BASE_URL:
             # For localhost, use empty string as API key (SDK will skip Authorization header)
-            openai_client = AsyncOpenAI(api_key="", base_url=OPENAI_BASE_URL, default_headers={})
+            openai_client = AsyncOpenAI(api_key="", base_url=OPENAI_BASE_URL, default_headers={}, timeout=120.0)
             logging.info(f"OpenAI Async client initialized with custom base_url: {OPENAI_BASE_URL}")
         else:
-            openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+            openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=120.0)
             logging.info("OpenAI Async client initialized.")
     except Exception as e: logging.warning(f"Error initializing OpenAI client: {e}. GPT functions disabled.")
 else: logging.info("OpenAI client not initialized (no API key or base_url).")
