@@ -117,6 +117,57 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
     return None 
 
 
+async def get_update_from_author_post(soup: BeautifulSoup, base_url: str) -> Optional[str]:
+    """
+    Fallback: search for 'Обновлено до' pattern in author's posts.
+    Used when the standard 'Раздача обновлена' phrase is not found.
+    Takes the last (most recent) update entry.
+    """
+    logger.debug("Fallback: searching for 'Обновлено до' pattern in posts...")
+
+    # Get the first post's author
+    first_post = soup.find("tbody", class_=re.compile(r"row[12]"))
+    if not first_post:
+        return None
+    author_el = first_post.find("p", class_=re.compile(r"nick"))
+    if not author_el:
+        return None
+    author_name = author_el.get_text(strip=True)
+
+    # Search all posts by this author for "Обновлено до" pattern
+    all_posts = soup.find_all("tbody", class_=re.compile(r"row[12]"))
+    last_update_text = None
+    last_post_url = None
+
+    for post in all_posts:
+        post_author = post.find("p", class_=re.compile(r"nick"))
+        if not post_author or post_author.get_text(strip=True) != author_name:
+            continue
+
+        post_body_div = post.find("div", class_="post_body")
+        if not post_body_div:
+            continue
+
+        post_text = post_body_div.get_text()
+        # Find all "Обновлено до" entries
+        updates = re.findall(r'Обновлено\s+до\s+[^\n]+', post_text)
+        if updates:
+            last_update_text = updates[-1].strip()
+            # Get post URL
+            post_link = post.find("a", class_="p-link small", href=re.compile(r'viewtopic\.php\?p='))
+            if post_link:
+                last_post_url = "https://rutracker.org/forum/" + post_link["href"]
+
+    if last_update_text and last_post_url:
+        logger.info(f"Found fallback update text: {last_update_text}")
+        return f'<b>Обновлено:</b> <a href="{last_post_url}">Details</a>\n{html.escape(last_update_text)}'
+    elif last_update_text:
+        logger.info(f"Found fallback update text (no post link): {last_update_text}")
+        return f'<b>Обновлено:</b> {html.escape(last_update_text)}'
+
+    return None
+
+
 # --- clean_description_html and make_tag moved to html_utils.py ---
 
 
@@ -232,6 +283,10 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
         for phrase in update_phrases:
             last_post_text = await get_last_post_with_phrase(phrase, base_url)
             if last_post_text: break
+
+        # Fallback: look for "Обновлено до" pattern in author's posts
+        if not last_post_text:
+            last_post_text = await get_update_from_author_post(soup, base_url)
 
     image_url: Optional[str] = None
     try:
