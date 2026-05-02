@@ -127,7 +127,9 @@ class DailyDigest(BaseDigest):
                 title_escaped = html.escape(entry['title'])
                 # Use update_description if available, otherwise generic text
                 update_text = entry.get('update_description') or 'добавлен апдейт'
-                # Truncate at ', внесённые изменения:' — changelog details are too verbose
+                # Truncate at 'внесённые изменения:' — changelog details are too verbose
+                # Handle both plain text and <a>-wrapped variants
+                update_text = re.sub(r',?\s*<a[^>]*>внесённые изменения</a>\s*:.*', '', update_text, flags=re.DOTALL)
                 update_text = re.split(r',?\s*внесённые изменения\s*:', update_text)[0]
                 # Sanitize: remove broken/unclosed <a> tags
                 update_text = re.sub(r'<a\s+[^>]*$', '', update_text)  # incomplete tag at end
