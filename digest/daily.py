@@ -3,6 +3,7 @@ Daily Digest Module for RuTracker Bot
 Collects and formats daily summaries of new and updated torrents
 """
 import html
+import re
 import os
 import logging
 from datetime import datetime
@@ -125,6 +126,13 @@ class DailyDigest(BaseDigest):
                 title_escaped = html.escape(entry['title'])
                 # Use update_description if available, otherwise generic text
                 update_text = entry.get('update_description') or 'добавлен апдейт'
+                # Sanitize: remove broken/unclosed <a> tags
+                update_text = re.sub(r'<a\s+[^>]*$', '', update_text)  # incomplete tag at end
+                open_a = len(re.findall(r'<a\s', update_text))
+                close_a = len(re.findall(r'</a>', update_text))
+                if open_a > close_a:
+                    update_text = re.sub(r'<a\s+[^>]*>[^<]*$', '', update_text)
+                update_text = update_text.strip() or 'добавлен апдейт'
                 line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203; — {update_text}"
                 message_parts.append(line)
 
