@@ -24,6 +24,7 @@ class DailyDigest(BaseDigest):
 
     def add_entry(self, title: str, entry_url: str, size: str, language: str,
                   is_updated: bool = False, update_description: Optional[str] = None,
+                  genres: Optional[List[str]] = None, trailer_url: Optional[str] = None,
                   timestamp: Optional[datetime] = None):
         """
         Add a new entry to the daily digest
@@ -35,6 +36,8 @@ class DailyDigest(BaseDigest):
             language: Language code (e.g., "ENG", "RUS")
             is_updated: True if this is an update, False if new
             update_description: Description of what was updated (for updated entries)
+            genres: List of genre strings
+            trailer_url: YouTube trailer URL
             timestamp: Entry timestamp (defaults to now if not provided)
         """
         data = self._load_data()
@@ -46,6 +49,8 @@ class DailyDigest(BaseDigest):
             "language": language,
             "is_updated": is_updated,
             "update_description": update_description,
+            "genres": genres or [],
+            "trailer_url": trailer_url,
             "timestamp": (timestamp or datetime.now()).isoformat()
         }
 
@@ -106,6 +111,18 @@ class DailyDigest(BaseDigest):
 
         message_parts = ["#rutracker_digest:"]
 
+        def format_entry_extra(entry: Dict) -> str:
+            extra = ""
+            # Trailer
+            if entry.get('trailer_url'):
+                extra += f' | <a href="{entry["trailer_url"]}">Trailer</a>'
+            # Genres (max 2)
+            genres = entry.get('genres', [])
+            if genres:
+                tags = " ".join([f"#{g}" for g in genres[:2]])
+                extra += f" {tags}"
+            return extra
+
         # Format new entries
         if new_entries:
             message_parts.append("")  # Empty line before section
@@ -115,7 +132,8 @@ class DailyDigest(BaseDigest):
                 title_escaped = html.escape(entry['title'])
                 # Use invisible link format to avoid URL display
                 size_text = f" [{entry['size']}]" if entry.get('size') and entry['size'] != 'N/A' else ""
-                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203;{size_text}"
+                extra_info = format_entry_extra(entry)
+                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203;{size_text}{extra_info}"
                 message_parts.append(line)
 
         # Format updated entries
@@ -159,7 +177,8 @@ class DailyDigest(BaseDigest):
                 # Collapse any remaining newlines into single line
                 update_text = re.sub(r'\s*\n\s*', ' ', update_text).strip()
                 
-                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203; — {update_text}"
+                extra_info = format_entry_extra(entry)
+                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203;{extra_info} — {update_text}"
                 message_parts.append(line)
 
         # Add link to digest channel at the end
