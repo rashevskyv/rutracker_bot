@@ -87,6 +87,47 @@ class BaseDigest:
         """Format digest message. Must be implemented by subclasses."""
         raise NotImplementedError("Subclasses must implement format_digest_message()")
 
+    def _split_digest_message(self, message: str, max_length: int = 4096) -> list:
+        """
+        Split digest message at entry boundaries (• markers).
+        Each entry (• line + continuation lines) stays together.
+        """
+        lines = message.split('\n')
+        
+        # Group lines into entries: each entry starts with • or === or #
+        entries = []
+        current_entry = []
+        for line in lines:
+            stripped = line.strip()
+            # New entry starts with • or section header or hashtag
+            if stripped.startswith('•') or stripped.startswith('===') or stripped.startswith('#'):
+                if current_entry:
+                    entries.append('\n'.join(current_entry))
+                current_entry = [line]
+            else:
+                current_entry.append(line)
+        if current_entry:
+            entries.append('\n'.join(current_entry))
+        
+        # Pack entries into parts respecting max_length
+        parts = []
+        current_part = []
+        current_length = 0
+        
+        for entry in entries:
+            entry_length = len(entry) + 1  # +1 for \n separator
+            if current_length + entry_length > max_length and current_part:
+                parts.append('\n'.join(current_part).strip())
+                current_part = []
+                current_length = 0
+            current_part.append(entry)
+            current_length += entry_length
+        
+        if current_part:
+            parts.append('\n'.join(current_part).strip())
+        
+        return [p for p in parts if p]
+
     async def send_digest(self, target_chat_id: int, target_topic_id: Optional[int] = None,
                           since_time: Optional[datetime] = None, translate_to_ua: bool = False):
         """
@@ -138,9 +179,9 @@ class BaseDigest:
                     disable_web_page_preview=True
                 )
             else:
-                # Split long digests into multiple messages
-                from utils.telegram_utils import split_text
-                parts = split_text(message, 4096)
+                # Split long digests at entry boundaries (• markers)
+                # Each entry = line starting with • plus any continuation lines
+                parts = self._split_digest_message(message, 4096)
                 logger.info(f"{self.digest_name}: message too long ({len(message)} chars), splitting into {len(parts)} parts")
                 for i, part in enumerate(parts):
                     await bot.send_message(
