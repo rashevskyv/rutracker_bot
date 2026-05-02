@@ -359,12 +359,30 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
         logger.error(f"Error extracting magnet link: {e}")
         return None
 
+    # Extract genres for digest
+    genres = []
+    try:
+        # Look for "Жанр" or "Genre" in post body
+        genre_match = re.search(r'(?:Жанр|Genre)[:\s]+([^\n]+)', post_text, re.IGNORECASE)
+        if genre_match:
+            genre_line = genre_match.group(1).strip()
+            # Split by comma or slash and take first 2
+            raw_genres = re.split(r'[,\/]', genre_line)
+            for g in raw_genres:
+                clean_g = re.sub(r'\W+', '', g.strip())
+                if clean_g:
+                    genres.append(clean_g)
+                if len(genres) >= 2:
+                    break
+    except Exception as e:
+        logger.warning(f"Error extracting genres: {e}")
+
     final_description = make_tag(cleaned_description, "Жанр")
     final_description = make_tag(final_description, "Genre")
     final_description = make_tag(final_description, "Год выпуска")
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
-    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language
+    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres
 
 # --- END OF FILE tracker_parser.py ---

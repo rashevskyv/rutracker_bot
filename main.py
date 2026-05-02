@@ -122,11 +122,9 @@ async def main_loop():
                 logger.info(f"SKIP: Already posted {entry_link} on {posted_links[entry_link]}")
                 continue
 
-            # Pass entry_link to the parser
-            parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
-
-            if parsed_data:
-                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language = parsed_data
+                parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
+                if parsed_data:
+                    page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres = parsed_data
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
@@ -146,8 +144,10 @@ async def main_loop():
                 # Search for Trailer & Prepare Thumbnail
                 trailer_thumbnail_url = None # Initialize
                 video_id_for_thumbnail = None # Initialize video ID
+                current_trailer_url = None # For digest
                 try:
                     trailer_url, found_yt_title = await search_trailer_on_youtube(title_text_for_youtube, YOUTUBE_API_KEY)
+                    current_trailer_url = trailer_url
                     if trailer_url and found_yt_title:
                         is_title_relevant = await validate_yt_title_with_gpt(title_text_for_youtube, found_yt_title)
                         if is_title_relevant:
@@ -238,7 +238,9 @@ async def main_loop():
                                  size=torrent_size,
                                  language=torrent_language,
                                  is_updated=is_updated,
-                                 update_description=update_description
+                                 update_description=update_description,
+                                 genres=genres,
+                                 trailer_url=current_trailer_url
                              )
                              logger.info(f"Added to daily digest: {page_display_title}")
                          else:
