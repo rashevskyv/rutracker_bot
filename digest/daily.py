@@ -48,9 +48,21 @@ class DailyDigest(BaseDigest):
             "timestamp": (timestamp or datetime.now()).isoformat()
         }
 
-        data["entries"].append(entry)
+        # Dedup: replace existing entry with same URL and same type
+        # But keep both if type changed (e.g. new game → later got an update)
+        replaced = False
+        for i, existing in enumerate(data["entries"]):
+            if existing.get("url") == entry_url and existing.get("is_updated") == is_updated:
+                data["entries"][i] = entry
+                replaced = True
+                logger.info(f"Replaced existing {'updated' if is_updated else 'new'} digest entry: {title}")
+                break
+
+        if not replaced:
+            data["entries"].append(entry)
+            logger.info(f"Added {'updated' if is_updated else 'new'} entry to digest: {title}")
+
         self._save_data(data)
-        logger.info(f"Added {'updated' if is_updated else 'new'} entry to digest: {title}")
 
     def get_entries_since(self, since_time: datetime) -> Dict[str, List[Dict]]:
         """
