@@ -153,6 +153,9 @@ class DailyDigest(BaseDigest):
                     else:
                         update_text = f'<a href="{details_url}">»</a>'
                 
+                # Strip trailing gratitude/credits (keep only update substance)
+                update_text = re.sub(r',?\s*спасибо\s+\S+\.?\s*$', '.', update_text, flags=re.IGNORECASE)
+                
                 # Collapse any remaining newlines into single line
                 update_text = re.sub(r'\s*\n\s*', ' ', update_text).strip()
                 
