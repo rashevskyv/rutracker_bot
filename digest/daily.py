@@ -134,6 +134,24 @@ class DailyDigest(BaseDigest):
                 if open_a > close_a:
                     update_text = re.sub(r'<a\s+[^>]*>[^<]*$', '', update_text)
                 update_text = update_text.strip() or 'добавлен апдейт'
+
+                # Reformat: move Details link to end as » 
+                # Format A: "<a href="...">Details</a>\ntext" → "text <a>»</a>"
+                details_match = re.match(
+                    r'<a\s+href="([^"]+)"[^>]*>Details</a>\s*\n?(.*)',
+                    update_text, re.DOTALL
+                )
+                if details_match:
+                    details_url = details_match.group(1)
+                    desc_text = details_match.group(2).strip()
+                    if desc_text:
+                        update_text = f'{desc_text} <a href="{details_url}">»</a>'
+                    else:
+                        update_text = f'<a href="{details_url}">»</a>'
+                
+                # Collapse any remaining newlines into single line
+                update_text = re.sub(r'\s*\n\s*', ' ', update_text).strip()
+                
                 line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203; — {update_text}"
                 message_parts.append(line)
 
