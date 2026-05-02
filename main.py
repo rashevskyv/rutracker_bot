@@ -122,9 +122,9 @@ async def main_loop():
                 logger.info(f"SKIP: Already posted {entry_link} on {posted_links[entry_link]}")
                 continue
 
-                parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
-                if parsed_data:
-                    page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres = parsed_data
+            parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
+            if parsed_data:
+                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres = parsed_data
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
