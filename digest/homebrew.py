@@ -48,9 +48,20 @@ class HomebrewDigest(BaseDigest):
             "is_new": is_new
         }
 
-        data["entries"].append(entry)
+        # Dedup: replace existing entry with same release URL
+        replaced = False
+        for i, existing in enumerate(data["entries"]):
+            if existing.get("release_url") == release_url:
+                data["entries"][i] = entry
+                replaced = True
+                logger.info(f"Replaced existing homebrew digest entry: {app_name} {version}")
+                break
+
+        if not replaced:
+            data["entries"].append(entry)
+            logger.info(f"Added homebrew entry to digest: {app_name} {version}{'(NEW)' if is_new else ''}")
+
         self._save_data(data)
-        logger.info(f"Added homebrew entry to digest: {app_name} {version}{'(NEW)' if is_new else ''}")
 
     def format_digest_message(self, since_time: datetime) -> Optional[str]:
         """
