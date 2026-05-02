@@ -1,0 +1,22 @@
+[
+  {
+    "type": "game",
+    "title": "Example Game Title [NSP][ENG]",
+    "url": "https://example.com/release",
+    "description": "Added update v1.2.0 with new content",
+    "size": "4.5 GB",
+    "genres": ["Action", "RPG"],
+    "is_updated": false,
+    "added_date": "2026-05-02T12:00:00"
+  },
+  {
+    "type": "homebrew",
+    "platform": "Switch",
+    "app_name": "Example Homebrew App",
+    "version": "v1.0.0",
+    "release_url": "https://github.com/example/app/releases/tag/v1.0.0",
+    "description": "A useful homebrew tool",
+    "is_new": true,
+    "added_date": "2026-05-02T12:00:00"
+  }
+]
