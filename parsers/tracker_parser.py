@@ -168,7 +168,27 @@ async def get_update_from_author_post(soup: BeautifulSoup, base_url: str) -> Opt
     return None
 
 
-# --- clean_description_html and make_tag moved to html_utils.py ---
+# --- Update Extraction Strategies ---
+# Each strategy has signature: async (soup, base_url) -> Optional[str]
+# Returns formatted HTML string with update description, or None.
+# Strategies are tried in order in parse_tracker_entry().
+
+async def _strategy_phrase_search(soup: BeautifulSoup, base_url: str) -> Optional[str]:
+    """Strategy 1: Search for 'Раздача обновлена' / 'Distribution updated' phrase in posts."""
+    update_phrases = ["Раздача обновлена", "Distribution updated"]
+    for phrase in update_phrases:
+        result = await get_last_post_with_phrase(phrase, base_url)
+        if result:
+            return result
+    return None
+
+
+async def _strategy_author_update_post(soup: BeautifulSoup, base_url: str) -> Optional[str]:
+    """Strategy 2: Search for 'Обновлено до' pattern in author's posts."""
+    return await get_update_from_author_post(soup, base_url)
+
+
+
 
 
 # parse_tracker_entry remains the same (uses functions from html_utils)
@@ -278,15 +298,18 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     is_updated = "[Обновлено]" in entry_title_from_feed or "[Updated]" in entry_title_from_feed
     last_post_text = None
     if is_updated:
-        update_phrases = ["Раздача обновлена", "Distribution updated"]
         base_url = entry_url.split('&start=')[0]
-        for phrase in update_phrases:
-            last_post_text = await get_last_post_with_phrase(phrase, base_url)
-            if last_post_text: break
-
-        # Fallback: look for "Обновлено до" pattern in author's posts
-        if not last_post_text:
-            last_post_text = await get_update_from_author_post(soup, base_url)
+        # Update extraction strategy chain (tried in order, first match wins)
+        # To add a new strategy: create an async function with signature
+        # (soup, base_url) -> Optional[str] and add it to this list.
+        update_strategies = [
+            lambda s, u: _strategy_phrase_search(s, u),
+            lambda s, u: _strategy_author_update_post(s, u),
+        ]
+        for strategy in update_strategies:
+            last_post_text = await strategy(soup, base_url)
+            if last_post_text:
+                break
 
     image_url: Optional[str] = None
     try:
