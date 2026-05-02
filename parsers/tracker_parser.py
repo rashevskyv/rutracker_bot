@@ -212,16 +212,26 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     torrent_language = "N/A"
 
     try:
-        # Find size in the download info section
-        dl_list = soup.find("div", id="tor-size-humn")
-        if dl_list:
-            torrent_size = dl_list.get_text(strip=True)
+        # Method 1: Authorized view — span/div with id tor-size-humn
+        size_el = soup.find("span", id="tor-size-humn") or soup.find("div", id="tor-size-humn")
+        if size_el:
+            torrent_size = size_el.get_text(strip=True)
 
-        # Try alternative location for size
+        # Method 2: Guest view — size in attach_link div
         if torrent_size == "N/A":
-            size_span = soup.find("span", id="tor-size-humn")
-            if size_span:
-                torrent_size = size_span.get_text(strip=True)
+            attach_div = soup.find("div", class_="attach_link")
+            if attach_div:
+                for li in attach_div.find_all("li"):
+                    li_text = li.get_text(strip=True)
+                    if re.search(r'\d+\.?\d*\s*[GMTК]?B', li_text, re.IGNORECASE):
+                        torrent_size = li_text
+                        break
+
+        # Method 3: Extract from feed title — e.g. [34.72 GB]
+        if torrent_size == "N/A" and entry_title_from_feed:
+            size_match = re.search(r'\[(\d+\.?\d*\s*(?:GB|MB|ГБ|МБ|TB|КБ))\]', entry_title_from_feed, re.IGNORECASE)
+            if size_match:
+                torrent_size = size_match.group(1)
     except Exception as e:
         logger.warning(f"Could not extract torrent size: {e}")
 
