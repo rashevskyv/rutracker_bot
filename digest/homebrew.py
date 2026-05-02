@@ -90,7 +90,7 @@ class HomebrewDigest(BaseDigest):
         # Format entries grouped by platform
         for platform, platform_entries in platforms.items():
             message_parts.append(f"=== {platform} ===")
-            for entry in platform_entries:
+            for entry in sorted(platform_entries, key=lambda e: e['app_name'].lower()):
                 app_name = html.escape(entry['app_name'])
                 version = html.escape(entry['version'])
                 description = entry['description']  # Already contains Telegram HTML, don't escape

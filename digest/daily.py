@@ -111,7 +111,7 @@ class DailyDigest(BaseDigest):
             message_parts.append("")  # Empty line before section
             message_parts.append("=== Добавлены ===")
             message_parts.append("")  # Empty line after section
-            for entry in new_entries:
+            for entry in sorted(new_entries, key=lambda e: e['title'].lower()):
                 title_escaped = html.escape(entry['title'])
                 # Use invisible link format to avoid URL display
                 size_text = f" [{entry['size']}]" if entry.get('size') and entry['size'] != 'N/A' else ""
@@ -123,7 +123,7 @@ class DailyDigest(BaseDigest):
             message_parts.append("")  # Empty line before section
             message_parts.append("=== Обновлены ===")
             message_parts.append("")  # Empty line after section
-            for entry in updated_entries:
+            for entry in sorted(updated_entries, key=lambda e: e['title'].lower()):
                 title_escaped = html.escape(entry['title'])
                 # Use update_description if available, otherwise generic text
                 update_text = entry.get('update_description') or 'добавлен апдейт'
