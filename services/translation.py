@@ -69,8 +69,7 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         response = await openai_client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=4096,
-            timeout=60,
+            max_tokens=8192,
         )
         translated_text = response.choices[0].message.content
 
