@@ -114,7 +114,8 @@ class DailyDigest(BaseDigest):
             for entry in new_entries:
                 title_escaped = html.escape(entry['title'])
                 # Use invisible link format to avoid URL display
-                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203; [{entry['size']}]"
+                size_text = f" [{entry['size']}]" if entry.get('size') and entry['size'] != 'N/A' else ""
+                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203;{size_text}"
                 message_parts.append(line)
 
         # Format updated entries
