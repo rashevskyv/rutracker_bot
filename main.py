@@ -21,6 +21,7 @@ from parsers.feed_handler import (
 from parsers.tracker_parser import parse_tracker_entry
 from services.youtube_search import search_trailer_on_youtube
 from services.ai_validator import validate_yt_title_with_gpt
+from services.manual_releases import process_manual_releases
 from services.titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
 from services.telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin, send_document_to_admin
 from digest.daily import digest_manager
@@ -82,6 +83,15 @@ async def main_loop():
     logger.info(f"Mode: {'Test' if IS_TEST_MODE else 'Production'}")
     logger.info(f"Log enabled: {LOG}")
     logger.info("-------------------------------------")
+
+    # Process any manual releases before checking the feed
+    try:
+        manual_count = process_manual_releases()
+        if manual_count > 0:
+            logger.info(f"Processed {manual_count} manual releases")
+            await send_message_to_admin(f"✅ Processed {manual_count} manual releases")
+    except Exception as e:
+        logger.error(f"Error processing manual releases: {e}")
 
     entry_link_in_progress = "N/A"; processed_count = 0
 
