@@ -250,7 +250,8 @@ async def send_to_telegram(title_for_caption: str,
                      entry_url: str,
                      video_id_for_thumbnail: Optional[str] = None,
                      local_screenshot_paths: Optional[List[str]] = None,
-                     cycle_log_file: Optional[str] = None):
+                     cycle_log_file: Optional[str] = None,
+                     torrent_size: Optional[str] = None):
     """
     Sends the parsed tracker data to configured Telegram groups.
     Handles translation, media grouping, and message splitting.
@@ -333,10 +334,11 @@ async def send_to_telegram(title_for_caption: str,
     else:
         description_part = re.sub(r"\n\n\s*<b>", "\n<b>", description_part)
 
+    size_str = f" [{torrent_size}]" if torrent_size and torrent_size != "N/A" else ""
     base_message_text = (
         f"{title_for_caption}"
         f"###GAP###"
-        f"<b>Скачать:</b> <code>{magnet_link}</code>"
+        f"<b>Скачать:</b> <code>{magnet_link}</code>{size_str}"
         f"###GAP###"
         f"{description_part}"
     )
