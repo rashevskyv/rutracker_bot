@@ -338,8 +338,8 @@ async def send_to_telegram(title_for_caption: str,
     base_message_text = (
         f"{title_for_caption}"
         f"###GAP###"
-        f"<b>Скачать:</b> <code>{magnet_link}</code>"
-        f"{size_str}"
+        f"<b>Скачать:</b>{size_str}\n"
+        f"<code>{magnet_link}</code>"
         f"###GAP###"
         f"{description_part}"
     )
