@@ -203,7 +203,8 @@ async def main_loop():
                           entry_link,
                           video_id_for_thumbnail,
                           local_screenshot_paths,
-                          cycle_log_file=cycle_log_file
+                          cycle_log_file=cycle_log_file,
+                          torrent_size=torrent_size
                      )
                      processed_count += 1
 

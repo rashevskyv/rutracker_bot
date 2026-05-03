@@ -178,7 +178,8 @@ class DailyDigest(BaseDigest):
                 update_text = re.sub(r'\s*\n\s*', ' ', update_text).strip()
                 
                 extra_info = format_entry_extra(entry)
-                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203;{extra_info} — {update_text}"
+                size_text = f" [{entry['size']}]" if entry.get('size') and entry['size'] != 'N/A' else ""
+                line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203;{size_text}{extra_info} — {update_text}"
                 message_parts.append(line)
 
         # Add link to digest channel at the end
