@@ -2792,7 +2792,7 @@
   },
   {
     "category": "Wii",
-    "app_name": "Wii System Menu Extractor \u0026 Normalizer",
+    "app_name": "Wii System Menu Extractor & Normalizer",
     "api_url": "https://api.github.com/repos/Tikilou/Wii-System-Menu-Extractor-Normalizer",
     "html_url": "https://github.com/Aeplet/tikdumper/releases/tag/v1.1.0",
     "comm_date": "2025-11-08T08:48:09Z",
@@ -3179,5 +3179,71 @@
     "tag_name": "1.0",
     "description": "Прошивка для малинки RP2040, на основі якої збирається пристрій для виведення покемонів 3-го покоління онлайн на оригінальному залізі.",
     "prefix": ""
+  },
+  {
+    "category": "Switch",
+    "app_name": "RipJKAnimeNX",
+    "api_url": "https://api.github.com/repos/darkxex/RipJKAnimeNX",
+    "html_url": "https://github.com/darkxex/RipJKAnimeNX/releases/tag/3.0.1",
+    "comm_date": "2026-04-19T17:11:01Z",
+    "tag_name": "3.0.1",
+    "description": "Додаток для перегляду та завантаження аніме з платформи JKAnime безпосередньо на консолі.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "Switch",
+    "app_name": "Akira",
+    "api_url": "https://api.github.com/repos/xlanor/akira",
+    "html_url": "https://github.com/xlanor/akira/releases/tag/v0.5.0",
+    "comm_date": "2026-04-16T20:00:31Z",
+    "tag_name": "v0.5.0",
+    "description": "Графічна оболонка для chiaki-ng, що дозволяє стрімити ігри з PlayStation (Remote Play) на Switch.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "Switch",
+    "app_name": "SwitchRPC",
+    "api_url": "https://api.github.com/repos/llsc12/SwitchRPC",
+    "html_url": "https://github.com/llsc12/SwitchRPC/releases/tag/v0.1.2",
+    "comm_date": "2026-05-01T09:53:09Z",
+    "tag_name": "v0.1.2",
+    "description": "Інструмент для відображення активності Switch у Discord (Rich Presence).",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "Switch",
+    "app_name": "melonDS-Switch-BUENO",
+    "api_url": "https://api.github.com/repos/AakashNB/melonDS-Switch-BUENO",
+    "html_url": "https://github.com/AakashNB/melonDS-Switch-BUENO/releases/tag/vAMS-21.1",
+    "comm_date": "2026-05-03T07:41:19Z",
+    "tag_name": "vAMS-21.1",
+    "description": "Форк melonDS з виправленою функцією апскейлінгу (до 4x). Значно покращує чіткість у 2D-іграх.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "Switch",
+    "app_name": "sys-ftpd-ovl",
+    "api_url": "https://api.github.com/repos/Alpacinator/sys-ftpd-ovl",
+    "html_url": "https://github.com/Alpacinator/sys-ftpd-ovl/releases/tag/v2.0.0",
+    "comm_date": "2026-04-26T14:28:29Z",
+    "tag_name": "v2.0.0",
+    "description": "Оверлей для Tesla Menu, що дозволяє керувати фоновим FTP-сервером (sys-ftpd) прямо під час гри.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "Switch",
+    "app_name": "NXVideoMaker",
+    "api_url": "https://api.github.com/repos/TheExpertNoob/NXVideoMaker",
+    "html_url": "https://github.com/TheExpertNoob/NXVideoMaker/releases/tag/1.0.0",
+    "comm_date": "2026-03-29T23:38:48Z",
+    "tag_name": "1.0.0",
+    "description": "Утиліта для створення NSP з відео для відтворення на Nintendo Switch.",
+    "prefix": "",
+    "new": true
   }
 ]
