@@ -334,11 +334,12 @@ async def send_to_telegram(title_for_caption: str,
     else:
         description_part = re.sub(r"\n\n\s*<b>", "\n<b>", description_part)
 
-    size_str = f" [{torrent_size}]" if torrent_size and torrent_size != "N/A" else ""
+    size_str = f"\n<b>Размер:</b> {torrent_size}" if torrent_size and torrent_size != "N/A" else ""
     base_message_text = (
         f"{title_for_caption}"
         f"###GAP###"
-        f"<b>Скачать:</b> <code>{magnet_link}</code>{size_str}"
+        f"<b>Скачать:</b> <code>{magnet_link}</code>"
+        f"{size_str}"
         f"###GAP###"
         f"{description_part}"
     )
