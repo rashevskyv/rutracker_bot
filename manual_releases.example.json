@@ -1,13 +1,22 @@
 [
   {
     "type": "game",
-    "title": "Example Game Title [NSP][ENG]",
-    "url": "https://example.com/release",
-    "description": "Added update v1.2.0 with new content",
-    "size": "4.5 GB",
-    "genres": ["Action", "RPG"],
-    "is_updated": false,
-    "added_date": "2026-05-02T12:00:00"
+    "platform": "NDS",
+    "app_name": "Example Game (Ukrainian Localization)",
+    "description": "Short game description for digest.",
+    "release_url": "https://t.me/example/123",
+    "download_url": "https://example.com/download",
+    "date": "2026-05-01T12:00:00Z"
+  },
+  {
+    "type": "game",
+    "platform": "GBA",
+    "app_name": "Example Game Update",
+    "description": "Translation update to v1.3",
+    "release_url": "https://t.me/example/456",
+    "download_url": "https://example.com/download2",
+    "date": "2026-05-01T12:00:00Z",
+    "is_updated": true
   },
   {
     "type": "homebrew",
@@ -17,6 +26,6 @@
     "release_url": "https://github.com/example/app/releases/tag/v1.0.0",
     "description": "A useful homebrew tool",
     "is_new": true,
-    "added_date": "2026-05-02T12:00:00"
+    "date": "2026-05-01T12:00:00Z"
   }
 ]
