@@ -47,9 +47,24 @@ def clear_manual_releases():
         logger.error(f"Error clearing manual_releases.json: {e}")
 
 
+def _parse_timestamp(entry: Dict) -> datetime:
+    """Parse timestamp from entry, trying multiple field names and formats."""
+    raw = entry.get('added_date') or entry.get('date')
+    if raw:
+        try:
+            return datetime.fromisoformat(raw.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid date format: {raw}, using current time")
+    return datetime.now()
+
+
 def process_manual_releases() -> int:
     """
     Process all manual releases and add them to appropriate digests.
+
+    Supports two field naming conventions:
+      Game:     title/app_name, url/release_url, size, language, genres, etc.
+      Homebrew: app_name, version, release_url, description, platform, is_new
 
     Returns:
         Number of entries processed successfully
@@ -62,30 +77,26 @@ def process_manual_releases() -> int:
 
     for entry in entries:
         entry_type = entry.get('type', '').lower()
-        added_date = entry.get('added_date')
-
-        # Parse timestamp
-        timestamp = None
-        if added_date:
-            try:
-                timestamp = datetime.fromisoformat(added_date)
-            except ValueError:
-                logger.warning(f"Invalid date format: {added_date}, using current time")
+        timestamp = _parse_timestamp(entry)
 
         try:
             if entry_type == 'game':
+                # Support both field naming styles
+                title = entry.get('title') or entry.get('app_name', 'Unknown')
+                url = entry.get('url') or entry.get('release_url', '')
+
                 digest_manager.add_entry(
-                    title=entry.get('title', 'Unknown'),
-                    entry_url=entry.get('url', ''),
+                    title=title,
+                    entry_url=url,
                     size=entry.get('size', 'N/A'),
                     language=entry.get('language', 'N/A'),
                     is_updated=entry.get('is_updated', False),
-                    update_description=entry.get('description'),
+                    update_description=entry.get('description') or entry.get('update_description'),
                     genres=entry.get('genres', []),
                     trailer_url=entry.get('trailer_url'),
                     timestamp=timestamp
                 )
-                logger.info(f"Manual release added to daily digest: {entry.get('title')}")
+                logger.info(f"Manual release added to daily digest: {title}")
                 processed += 1
 
             elif entry_type == 'homebrew':
