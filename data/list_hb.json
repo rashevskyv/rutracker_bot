@@ -3245,5 +3245,16 @@
     "description": "Утиліта для створення NSP з відео для відтворення на Nintendo Switch.",
     "prefix": "",
     "new": true
+  },
+  {
+    "category": "DS(i)",
+    "app_name": "Alfombra Pixel Art Editor",
+    "api_url": "https://api.github.com/repos/Alfombracitario/Alfombra-s-Pixel-Art-Editor-DS",
+    "html_url": "https://github.com/Alfombracitario/Alfombra-s-Pixel-Art-Editor-DS/releases/tag/Pre-release_3_2",
+    "comm_date": "2026-03-07T20:23:57Z",
+    "tag_name": "Pre-release_3_2",
+    "description": "Піксельний редактор для Nintendo DS.",
+    "prefix": "",
+    "new": true
   }
 ]
