@@ -14,7 +14,9 @@ from digest.homebrew import homebrew_digest_manager
 
 logger = logging.getLogger(__name__)
 
-MANUAL_RELEASES_FILE = os.path.join("data", "manual_releases.json")
+# Resolve path relative to project root (same strategy as digest/base.py)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MANUAL_RELEASES_FILE = os.path.join(_PROJECT_ROOT, "data", "manual_releases.json")
 
 
 def load_manual_releases() -> List[Dict]:

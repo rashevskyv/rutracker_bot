@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 from digest.base import BaseDigest
+from utils.size_utils import format_size
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,7 @@ class DailyDigest(BaseDigest):
             for entry in sorted(new_entries, key=lambda e: e['title'].lower()):
                 title_escaped = html.escape(entry['title'])
                 # Use invisible link format to avoid URL display
-                size_text = f" [{entry['size']}]" if entry.get('size') and entry['size'] != 'N/A' else ""
+                size_text = f" [{format_size(entry['size'])}]" if entry.get('size') and entry['size'] != 'N/A' else ""
                 extra_info = format_entry_extra(entry)
                 line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203;{size_text}{extra_info}"
                 message_parts.append(line)
@@ -178,7 +179,7 @@ class DailyDigest(BaseDigest):
                 update_text = re.sub(r'\s*\n\s*', ' ', update_text).strip()
                 
                 extra_info = format_entry_extra(entry)
-                size_text = f" [{entry['size']}]" if entry.get('size') and entry['size'] != 'N/A' else ""
+                size_text = f" [{format_size(entry['size'])}]" if entry.get('size') and entry['size'] != 'N/A' else ""
                 line = f"• <a href=\"{entry['url']}\">{title_escaped}</a>&#8203;{size_text}{extra_info} — {update_text}"
                 message_parts.append(line)
 

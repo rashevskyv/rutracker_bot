@@ -21,6 +21,7 @@ from utils.telegram_utils import (
     MAX_CAPTION_LENGTH, MAX_MESSAGE_LENGTH,
 )
 from utils.html_utils import convert_markdown_to_html
+from utils.size_utils import format_size
 # ---------------------------------------------
 
 logger = logging.getLogger(__name__)
@@ -334,11 +335,15 @@ async def send_to_telegram(title_for_caption: str,
     else:
         description_part = re.sub(r"\n\n\s*<b>", "\n<b>", description_part)
 
-    size_str = f"\n<b>Размер:</b> {torrent_size}" if torrent_size and torrent_size != "N/A" else ""
+    if torrent_size and torrent_size != "N/A":
+        formatted_size = format_size(torrent_size)
+        download_label = f"<b>Скачать [{formatted_size}]:</b>"
+    else:
+        download_label = "<b>Скачать:</b>"
     base_message_text = (
         f"{title_for_caption}"
         f"###GAP###"
-        f"<b>Скачать:</b>{size_str}\n"
+        f"{download_label}\n"
         f"<code>{magnet_link}</code>"
         f"###GAP###"
         f"{description_part}"
