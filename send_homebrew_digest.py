@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from core.settings_loader import setup_logging, close_clients, LOG, IS_TEST_MODE
 from digest.homebrew import homebrew_digest_manager
 from services.telegram_sender import send_message_to_admin
+from services.manual_releases import process_manual_releases
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,11 @@ async def send_digest():
     current_time = datetime.now()
 
     logger.info(f"Homebrew digest period: {last_run_time} to {current_time}")
+
+    # Process manual releases before sending digest
+    manual_count = process_manual_releases()
+    if manual_count > 0:
+        logger.info(f"Added {manual_count} manual releases to digest")
 
     # Load settings to get DIGEST_CHANNEL configuration
     from core.settings_loader import load_config, bot
