@@ -224,6 +224,61 @@
       "is_updated": true,
       "update_description": "добавлен апдейт v262144 до версии 1.0.0.14324.",
       "timestamp": "2026-04-29T05:00:37"
+    },
+    {
+      "title": "Dementium: The Ward (Українська локалізація)",
+      "url": "https://t.me/BlackDragonStudio/127",
+      "size": "N/A",
+      "language": "N/A",
+      "is_updated": false,
+      "update_description": "Атмосферний хорор від першої особи. Ви прокидаєтеся в похмурій покинутій лікарні, де на вас чекають іржа, кров та жахи, що ховаються в темряві. Повна українська локалізація від Black Dragon Studio (2026). Пакет містить готову гру та інструкції.",
+      "genres": [],
+      "trailer_url": null,
+      "timestamp": "2026-05-03T18:46:42+00:00"
+    },
+    {
+      "title": "Castlevania: Order of Ecclesia (Українська локалізація)",
+      "url": "https://t.me/BlackDragonStudio/121",
+      "size": "N/A",
+      "language": "N/A",
+      "is_updated": false,
+      "update_description": "Остання частина трилогії Castlevania на NDS. Поринайте у похмуру атмосферу ордену Екклезія, опануйте силу магічних гліфів та протистойте Дракулі. Повна українська локалізація від Black Dragon Studio (2026). Пакет містить гру та інструкцію.",
+      "genres": [],
+      "trailer_url": null,
+      "timestamp": "2026-05-03T18:49:13+00:00"
+    },
+    {
+      "title": "The Legend of Zelda: The Minish Cap (Українська локалізація)",
+      "url": "https://t.me/zeldamc_ukr/14",
+      "size": "N/A",
+      "language": "N/A",
+      "is_updated": true,
+      "update_description": "Оновлення українського перекладу Minish Cap до версії 1.3",
+      "genres": [],
+      "trailer_url": null,
+      "timestamp": "2026-05-03T18:50:00+00:00"
+    },
+    {
+      "title": "Radiant Historia (Українська локалізація)",
+      "url": "https://t.me/BlackDragonStudio/107",
+      "size": "N/A",
+      "language": "N/A",
+      "is_updated": false,
+      "update_description": "Культова JRPG про подорожі в часі. Розплутайте вузли долі у світі, що гине. Повна українська локалізація від Black Dragon Studio (2026). Пакет містить гру, інструкцію та гайд по квестах.",
+      "genres": [],
+      "trailer_url": null,
+      "timestamp": "2026-05-03T18:56:49+00:00"
+    },
+    {
+      "title": "Chrono Trigger (Українська локалізація)",
+      "url": "https://t.me/BlackDragonStudio/24",
+      "size": "N/A",
+      "language": "N/A",
+      "is_updated": false,
+      "update_description": "Легендарна JRPG про подорожі крізь епохи. Порятуйте світ від знищення в майбутньому, мандруючи часом. Повна українська локалізація від Black Dragon Studio (2025) на основі перекладу DragonOfTheEast. Пакет включає AP-patch та інструкції.",
+      "genres": [],
+      "trailer_url": null,
+      "timestamp": "2026-05-03T18:57:42+00:00"
     }
   ]
 }
