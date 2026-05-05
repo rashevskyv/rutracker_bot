@@ -3258,50 +3258,6 @@
     "new": true
   },
   {
-    "category": "Wii U",
-    "app_name": "Vanilla",
-    "api_url": "https://api.github.com/repos/vanilla-wiiu/vanilla",
-    "html_url": "https://github.com/vanilla-wiiu/vanilla/releases/tag/continuous",
-    "comm_date": "2024-01-01T00:00:00Z",
-    "tag_name": "continuous",
-    "description": "Завантажувач homebrew для Wii U та багато іншого.",
-    "prefix": "",
-    "new": true
-  },
-  {
-    "category": "Switch",
-    "app_name": "KeyX",
-    "api_url": "https://api.github.com/repos/TOM-BadEN/KeyX",
-    "html_url": "https://github.com/TOM-BadEN/KeyX/releases/tag/v1.5.6",
-    "comm_date": "2024-01-01T00:00:00Z",
-    "tag_name": "v1.5.6",
-    "description": "Оверлей для Switch для запису та відтворення макросів.",
-    "prefix": "",
-    "new": true
-  },
-  {
-    "category": "Switch",
-    "app_name": "ovl-sysmodules",
-    "api_url": "https://api.github.com/repos/ppkantorski/ovl-sysmodules",
-    "html_url": "https://github.com/ppkantorski/ovl-sysmodules/releases/tag/v1.5.0",
-    "comm_date": "2024-01-01T00:00:00Z",
-    "tag_name": "v1.5.0",
-    "description": "Оверлей для керування системними модулями на Switch.",
-    "prefix": "",
-    "new": true
-  },
-  {
-    "category": "Switch",
-    "app_name": "sys-tune",
-    "api_url": "https://api.github.com/repos/HookedBehemoth/sys-tune",
-    "html_url": "https://github.com/HookedBehemoth/sys-tune/releases/tag/v2.1.0-beta.1",
-    "comm_date": "2024-01-01T00:00:00Z",
-    "tag_name": "v2.1.0-beta.1",
-    "description": "Фоновий музичний плеєр для Switch.",
-    "prefix": "",
-    "new": true
-  },
-  {
     "category": "Switch",
     "app_name": "snapback",
     "api_url": "https://api.github.com/repos/saulotmalo/snapback",

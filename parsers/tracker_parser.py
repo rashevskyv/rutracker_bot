@@ -60,10 +60,14 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
     checked_urls = set()
     for i in range(max_pages_to_check):
         current_offset = max(0, last_page_offset - (i * posts_per_page)); page_url = f"{base_url}&start={current_offset}"
-        if page_url in checked_urls: continue; checked_urls.add(page_url)
+        if page_url in checked_urls:
+            continue
+        checked_urls.add(page_url)
         soup = await fetch_page_content(page_url)
         if not soup:
-            if current_offset == 0: break; continue
+            if current_offset == 0:
+                break
+            continue
         user_posts = soup.find_all("tbody", class_=re.compile(r"row[12]"))
         if not user_posts: continue
         for post in reversed(user_posts):
