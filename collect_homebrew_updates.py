@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Module-level constants (avoid Python 3.14 scoping issues with os inside functions)
-DEFAULT_LIST_PATH = 'list_hb.json'
+DEFAULT_LIST_PATH = os.path.join('data', 'list_hb.json')
 DEFAULT_STATE_PATH = os.path.join('data', 'hb_state.json')
 HOMEBREW_LAST_RUN_PATH = os.path.join('data', 'last_homebrew_digest_run.json')
 

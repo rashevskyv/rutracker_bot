@@ -15,7 +15,7 @@ STATIC_FIELDS = ['category', 'app_name', 'api_url', 'description', 'prefix', 'ne
 DYNAMIC_FIELDS = ['comm_date', 'tag_name', 'html_url']
 
 OLD_LIST_PATH = os.path.join('data', 'list_hb.json')
-NEW_REGISTRY_PATH = 'list_hb.json'
+NEW_REGISTRY_PATH = os.path.join('data', 'list_hb.json')
 STATE_PATH = os.path.join('data', 'hb_state.json')
 
 
