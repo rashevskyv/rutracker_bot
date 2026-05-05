@@ -17,15 +17,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Module-level constants (avoid Python 3.14 scoping issues with os inside functions)
-DEFAULT_LIST_PATH = os.path.join('data', 'list_hb.json')
+DEFAULT_LIST_PATH = 'list_hb.json'
+DEFAULT_STATE_PATH = os.path.join('data', 'hb_state.json')
 HOMEBREW_LAST_RUN_PATH = os.path.join('data', 'last_homebrew_digest_run.json')
 
 
 class HomebrewUpdatesCollector:
     """Collects homebrew updates from GitHub/GitLab"""
 
-    def __init__(self, list_path: str, github_token: Optional[str] = None, gitlab_token: Optional[str] = None):
+    def __init__(self, list_path: str, state_path: str = None, github_token: Optional[str] = None, gitlab_token: Optional[str] = None):
         self.list_path = Path(list_path)
+        self.state_path = Path(state_path or DEFAULT_STATE_PATH)
         self.github_token = github_token
         self.gitlab_token = gitlab_token
 
@@ -35,28 +37,72 @@ class HomebrewUpdatesCollector:
         self.updates_found = 0
         self.errors = []
 
+        # State dict for saving updates
+        self._state: Dict[str, Dict] = {}
+
     @property
     def session(self) -> aiohttp.ClientSession:
         """Use the shared aiohttp session from settings_loader."""
         from core.settings_loader import get_session
         return get_session()
 
+    def load_state(self) -> Dict[str, Dict]:
+        """Load dynamic state (comm_date, tag_name, html_url) from hb_state.json"""
+        if not self.state_path.exists():
+            logger.warning(f"State file not found: {self.state_path} — using empty state")
+            return {}
+        try:
+            with open(self.state_path, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+            logger.info(f"Loaded state for {len(state)} entries from {self.state_path}")
+            return state
+        except Exception as e:
+            logger.error(f"Error loading state file: {e}")
+            return {}
+
+    def save_state(self):
+        """Save dynamic state to hb_state.json"""
+        try:
+            os.makedirs(self.state_path.parent, exist_ok=True)
+            with open(self.state_path, 'w', encoding='utf-8') as f:
+                json.dump(self._state, f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved state for {len(self._state)} entries to {self.state_path}")
+        except Exception as e:
+            logger.error(f"Error saving state: {e}")
+
     def load_homebrew_list(self) -> List[Dict]:
-        """Load homebrew list from JSON file"""
-        logger.info(f"Loading homebrew list from {self.list_path}")
+        """Load static registry and merge with dynamic state"""
+        logger.info(f"Loading homebrew registry from {self.list_path}")
 
         if not self.list_path.exists():
-            logger.error(f"File not found: {self.list_path}")
+            logger.error(f"Registry file not found: {self.list_path}")
             return []
 
         try:
             with open(self.list_path, 'r', encoding='utf-8') as f:
                 entries = json.load(f)
-            logger.info(f"Loaded {len(entries)} homebrew entries")
-            return entries
         except Exception as e:
-            logger.error(f"Error loading homebrew list: {e}")
+            logger.error(f"Error loading homebrew registry: {e}")
             return []
+
+        # Load and merge dynamic state
+        self._state = self.load_state()
+
+        for entry in entries:
+            api_url = entry.get('api_url', '')
+            if api_url in self._state:
+                state_data = self._state[api_url]
+                entry['comm_date'] = state_data.get('comm_date', '2024-01-01T00:00:00Z')
+                entry['tag_name'] = state_data.get('tag_name', '')
+                entry['html_url'] = state_data.get('html_url', '')
+            else:
+                # New entry without state — use defaults
+                entry.setdefault('comm_date', '2024-01-01T00:00:00Z')
+                entry.setdefault('tag_name', '')
+                entry.setdefault('html_url', '')
+
+        logger.info(f"Loaded {len(entries)} homebrew entries (merged with state)")
+        return entries
 
     async def github_request(self, url: str) -> Optional[Dict]:
         """Make GitHub API request with rate limit handling"""
@@ -253,6 +299,13 @@ class HomebrewUpdatesCollector:
             is_new=entry.get('new', False)
         )
 
+        # Update dynamic state
+        self._state[api_url] = {
+            'comm_date': update_info['date'],
+            'tag_name': update_info['tag_name'],
+            'html_url': update_info['html_url']
+        }
+
         return True
 
     async def collect_updates(self, translate: bool = True, max_entries: Optional[int] = None):
@@ -298,27 +351,34 @@ class HomebrewUpdatesCollector:
         tasks = [process_with_semaphore(entry, i) for i, entry in enumerate(entries)]
         await asyncio.gather(*tasks)
 
-        # Remove 'new' flag from processed entries (only in production mode)
+        # Save dynamic state (always, regardless of mode)
+        self.save_state()
+
+        # Remove 'new' flag from processed entries in the static registry
         from core.settings_loader import IS_TEST_MODE
         if new_entries_processed and not IS_TEST_MODE:
             logger.info(f"Removing 'new' flag from {len(new_entries_processed)} processed entries...")
 
-            # Reload full list (not just the slice)
-            full_entries = self.load_homebrew_list()
-
-            for index in new_entries_processed:
-                if index < len(full_entries) and full_entries[index].get('new'):
-                    del full_entries[index]['new']
-                    logger.info(f"Removed 'new' flag from {full_entries[index]['app_name']}")
-
-            # Save updated list
+            # Reload static registry (without merging state)
             try:
-                import json
-                with open(self.list_path, 'w', encoding='utf-8') as f:
-                    json.dump(full_entries, f, ensure_ascii=False, indent=2)
-                logger.info(f"Updated {self.list_path} - removed 'new' flags")
+                with open(self.list_path, 'r', encoding='utf-8') as f:
+                    registry = json.load(f)
             except Exception as e:
-                logger.error(f"Error saving updated list: {e}")
+                logger.error(f"Error reloading registry: {e}")
+                registry = None
+
+            if registry:
+                for index in new_entries_processed:
+                    if index < len(registry) and registry[index].get('new'):
+                        del registry[index]['new']
+                        logger.info(f"Removed 'new' flag from {registry[index]['app_name']}")
+
+                try:
+                    with open(self.list_path, 'w', encoding='utf-8') as f:
+                        json.dump(registry, f, ensure_ascii=False, indent=2)
+                    logger.info(f"Updated {self.list_path} - removed 'new' flags")
+                except Exception as e:
+                    logger.error(f"Error saving registry: {e}")
         elif new_entries_processed and IS_TEST_MODE:
             logger.info(f"TEST MODE: Would remove 'new' flag from {len(new_entries_processed)} entries in production")
 
@@ -346,7 +406,9 @@ async def main():
 
     parser = argparse.ArgumentParser(description='Collect homebrew updates')
     parser.add_argument('--list', default=DEFAULT_LIST_PATH,
-                        help='Path to list_hb.json')
+                        help='Path to list_hb.json (static registry)')
+    parser.add_argument('--state', default=DEFAULT_STATE_PATH,
+                        help='Path to hb_state.json (dynamic state)')
     parser.add_argument('--translate', action='store_true',
                         help='Translate descriptions to Ukrainian (default: no translation)')
     parser.add_argument('--test', type=int, metavar='N',
@@ -378,6 +440,7 @@ async def main():
 
     collector = HomebrewUpdatesCollector(
         list_path=args.list,
+        state_path=args.state,
         github_token=github_token,
         gitlab_token=gitlab_token
     )
