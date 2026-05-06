@@ -354,6 +354,7 @@ async def send_to_telegram(title_for_caption: str,
 
     # Track sent groups to avoid double posting
     sent_group_keys = set()
+    success_count = 0
     
     # Iterate through each configured group
     for group in GROUPS:
@@ -451,6 +452,7 @@ async def send_to_telegram(title_for_caption: str,
                     chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths, is_max_res_thumbnail,
                     group_name=group_name, log_file=cycle_log_file
                 )
+            success_count += 1
 
         except Exception as e:
             logger.error(f"!!! Failed to send message to group {group_name}: {type(e).__name__}: {e}")
@@ -468,6 +470,9 @@ async def send_to_telegram(title_for_caption: str,
 
         # Pause between groups
         await asyncio.sleep(2)
+
+    if success_count == 0 and GROUPS:
+        raise Exception("Failed to send message to any of the configured target groups.")
 
     # --- Final Cleanup: Close the main BytesIO objects after processing all groups ---
     if cover_image_file and hasattr(cover_image_file, 'close') and not cover_image_file.closed:
