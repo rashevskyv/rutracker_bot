@@ -60,7 +60,8 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         f"12. **Preserve Markers:** DO NOT remove or replace list markers (like •, -, *). Keep them exactly as they are in the input.\n"
         f"13. **Token Preservation (CRITICAL):** The tokens XBQSX and XBQEX are structural markers for blockquotes. Preserve them EXACTLY as-is in the output. NEVER add more XBQSX/XBQEX tokens, NEVER remove them, and NEVER split content between them. Also, NEVER use the <blockquote> tag yourself; ONLY use XBQSX for start and XBQEX for end.\n"
         f"14. **Join Sentences (CRITICAL):** The input HTML may contain arbitrary single line breaks (\\n) in the middle of sentences due to code wrapping. You MUST remove these arbitrary mid-sentence line breaks and join the sentence onto a single continuous line. However, strictly preserve intentional paragraph breaks (double line breaks) and line breaks before list markers (•).\n"
-        f"15. **No Gaps in Quotes:** NEVER use double newlines (\\n\\n) inside a blockquote (between XBQSX and XBQEX). Use only single newlines (\\n).\n\n"
+        f"15. **No Gaps in Quotes:** NEVER use double newlines (\\n\\n) inside a blockquote (between XBQSX and XBQEX). Use only single newlines (\\n).\n"
+        f"16. **Clean Updates (CRITICAL):** If the text contains update notes or changelogs, strictly REMOVE any thanks, credits, or mentions of specific people who helped with the update or release. Keep ONLY the factual, technical details of what was changed, fixed, or added.\n\n"
         f"**Text to translate:**\n{text}\n\n**Beautiful Ukrainian Translation (Telegram HTML):**"
     )
     # --- End of Updated Prompt ---
