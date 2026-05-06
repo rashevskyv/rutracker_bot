@@ -45,38 +45,38 @@ jobs:
 
       - name: Run Collect Homebrew Updates (if time matches)
         run: |
-          # Run homebrew collector only between 07:00 and 07:15 UTC
+          # Run homebrew collector only between 05:00 and 05:15 UTC (08:00 Kyiv time)
           CURRENT_HOUR=$(date -u +%H)
           CURRENT_MIN=$(date -u +%M)
-          if [ "$CURRENT_HOUR" = "07" ] && [ "$CURRENT_MIN" -lt "15" ]; then
-            echo "Time is 07:00 UTC, running homebrew collector..."
+          if [ "$CURRENT_HOUR" = "05" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+            echo "Time is 08:00 Kyiv time (05:00 UTC), running homebrew collector..."
             python collect_homebrew_updates.py
           else
-            echo "Skipping homebrew collector (not 07:00 UTC)"
+            echo "Skipping homebrew collector (not 08:00 Kyiv time)"
           fi
           
       - name: Run Send Daily Digest (if time matches)
         run: |
-          # Run digests only between 08:00 and 08:15 UTC
+          # Run digests only between 06:00 and 06:15 UTC (09:00 Kyiv time)
           CURRENT_HOUR=$(date -u +%H)
           CURRENT_MIN=$(date -u +%M)
-          if [ "$CURRENT_HOUR" = "08" ] && [ "$CURRENT_MIN" -lt "15" ]; then
-            echo "Time is 08:00 UTC, running daily digest..."
+          if [ "$CURRENT_HOUR" = "06" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+            echo "Time is 09:00 Kyiv time (06:00 UTC), running daily digest..."
             python send_daily_digest.py
           else
-            echo "Skipping daily digest (not 08:00 UTC)"
+            echo "Skipping daily digest (not 09:00 Kyiv time)"
           fi
 
       - name: Run Send Homebrew Digest (if time matches)
         run: |
-          # Run digests only between 08:00 and 08:15 UTC
+          # Run digests only between 06:00 and 06:15 UTC (09:00 Kyiv time)
           CURRENT_HOUR=$(date -u +%H)
           CURRENT_MIN=$(date -u +%M)
-          if [ "$CURRENT_HOUR" = "08" ] && [ "$CURRENT_MIN" -lt "15" ]; then
-            echo "Time is 08:00 UTC, running homebrew digest..."
+          if [ "$CURRENT_HOUR" = "06" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+            echo "Time is 09:00 Kyiv time (06:00 UTC), running homebrew digest..."
             python send_homebrew_digest.py
           else
-            echo "Skipping homebrew digest (not 08:00 UTC)"
+            echo "Skipping homebrew digest (not 09:00 Kyiv time)"
           fi
           
       - name: Upload state to Gist
