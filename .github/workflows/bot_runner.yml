@@ -5,6 +5,17 @@ on:
     # Run main bot every 15 minutes
     - cron: '*/15 * * * *'
   workflow_dispatch:
+    inputs:
+      force_task:
+        description: 'Force run a specific task'
+        required: false
+        type: choice
+        options:
+          - none
+          - run_daily_digest
+          - run_homebrew_digest
+          - run_collect_homebrew
+        default: 'none'
 
 jobs:
   run-bot:
@@ -43,40 +54,52 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: python main.py
 
-      - name: Run Collect Homebrew Updates (if time matches)
+      - name: Run Collect Homebrew Updates (if time matches or forced)
+        env:
+          FORCE_TASK: ${{ github.event.inputs.force_task }}
         run: |
-          # Run homebrew collector only between 05:00 and 05:15 UTC (08:00 Kyiv time)
           CURRENT_HOUR=$(date -u +%H)
           CURRENT_MIN=$(date -u +%M)
-          if [ "$CURRENT_HOUR" = "05" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+          if [ "$FORCE_TASK" = "run_collect_homebrew" ]; then
+            echo "Manually forced run_collect_homebrew..."
+            python collect_homebrew_updates.py
+          elif [ "$CURRENT_HOUR" = "05" ] && [ "$CURRENT_MIN" -lt "15" ]; then
             echo "Time is 08:00 Kyiv time (05:00 UTC), running homebrew collector..."
             python collect_homebrew_updates.py
           else
-            echo "Skipping homebrew collector (not 08:00 Kyiv time)"
+            echo "Skipping homebrew collector (not scheduled and not forced)"
           fi
           
-      - name: Run Send Daily Digest (if time matches)
+      - name: Run Send Daily Digest (if time matches or forced)
+        env:
+          FORCE_TASK: ${{ github.event.inputs.force_task }}
         run: |
-          # Run digests only between 06:00 and 06:15 UTC (09:00 Kyiv time)
           CURRENT_HOUR=$(date -u +%H)
           CURRENT_MIN=$(date -u +%M)
-          if [ "$CURRENT_HOUR" = "06" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+          if [ "$FORCE_TASK" = "run_daily_digest" ]; then
+            echo "Manually forced run_daily_digest..."
+            python send_daily_digest.py
+          elif [ "$CURRENT_HOUR" = "06" ] && [ "$CURRENT_MIN" -lt "15" ]; then
             echo "Time is 09:00 Kyiv time (06:00 UTC), running daily digest..."
             python send_daily_digest.py
           else
-            echo "Skipping daily digest (not 09:00 Kyiv time)"
+            echo "Skipping daily digest (not scheduled and not forced)"
           fi
 
-      - name: Run Send Homebrew Digest (if time matches)
+      - name: Run Send Homebrew Digest (if time matches or forced)
+        env:
+          FORCE_TASK: ${{ github.event.inputs.force_task }}
         run: |
-          # Run digests only between 06:00 and 06:15 UTC (09:00 Kyiv time)
           CURRENT_HOUR=$(date -u +%H)
           CURRENT_MIN=$(date -u +%M)
-          if [ "$CURRENT_HOUR" = "06" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+          if [ "$FORCE_TASK" = "run_homebrew_digest" ]; then
+            echo "Manually forced run_homebrew_digest..."
+            python send_homebrew_digest.py
+          elif [ "$CURRENT_HOUR" = "06" ] && [ "$CURRENT_MIN" -lt "15" ]; then
             echo "Time is 09:00 Kyiv time (06:00 UTC), running homebrew digest..."
             python send_homebrew_digest.py
           else
-            echo "Skipping homebrew digest (not 09:00 Kyiv time)"
+            echo "Skipping homebrew digest (not scheduled and not forced)"
           fi
           
       - name: Upload state to Gist
