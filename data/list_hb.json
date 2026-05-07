@@ -1731,6 +1731,13 @@
   },
   {
     "category": "Switch",
+    "app_name": "Mod NSP Maker",
+    "api_url": "https://api.github.com/repos/CNX17/Mod-NSP-Maker",
+    "description": "Утиліта для пакування модів у NSP.",
+    "prefix": ""
+  },
+  {
+    "category": "Switch",
     "app_name": "sys-ticon",
     "api_url": "https://api.github.com/repos/masagrator/sys-ticon",
     "description": "Утиліта для заміни іконок, назв та видавців у ігор в qlaunch.",
