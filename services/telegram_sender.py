@@ -407,7 +407,7 @@ async def send_to_telegram(title_for_caption: str,
                         split_point = quote_idx
                     
                     if split_point != -1:
-                        prepared_text = base_message_text[:split_point] + "###PARAMS_END###\n" + base_message_text[split_point:]
+                        prepared_text = base_message_text[:split_point] + "[PARAMS_END]\n" + base_message_text[split_point:]
                     else:
                         prepared_text = base_message_text
 
@@ -421,14 +421,14 @@ async def send_to_telegram(title_for_caption: str,
                     translated_message_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', translated_message_text, flags=re.IGNORECASE)
 
                     # Force consolidation of technical parameters ONLY
-                    if "###PARAMS_END###" in translated_message_text:
-                        params_part, rest_part = translated_message_text.split("###PARAMS_END###", 1)
+                    if "[PARAMS_END]" in translated_message_text:
+                        params_part, rest_part = translated_message_text.split("[PARAMS_END]", 1)
                         params_part = re.sub(r"\n\n\s*<b>", "\n<b>", params_part)
                         translated_message_text = params_part + rest_part
                     else:
                         translated_message_text = re.sub(r"\n\n\s*<b>", "\n<b>", translated_message_text)
                     
-                    translated_message_text = translated_message_text.replace("###PARAMS_END###", "")
+                    translated_message_text = translated_message_text.replace("[PARAMS_END]", "")
                     
                     logger.debug(f"Cached translated message (len {len(translated_message_text)})")
                 except Exception as e: 

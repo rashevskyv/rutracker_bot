@@ -243,6 +243,9 @@ def split_text(text: str, max_length: int) -> List[str]:
     full_content = re.sub(r'(?m)^[ \t]*•[ \t]*(?=\n|$)', '', full_content)
     full_content = re.sub(r'•[ \t]*(?=\n)', '', full_content)
     
+    # 2.1 Delete orphaned # symbols (sometimes left by GPT artifacts or split markers)
+    full_content = re.sub(r'(?m)^[ \t]*#[ \t]*(?=\n|$)', '', full_content)
+    
     # 2.5 Dynamic header spacing: If a line has <= 4 words, contains b/strong/i/em/u, and ends with a colon, ensure an empty line before it.
     lines = full_content.split('\n')
     new_lines = []
