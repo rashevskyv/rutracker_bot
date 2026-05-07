@@ -1,0 +1,56 @@
+[
+  {
+    "type": "game",
+    "title": "Castlevania: Order of Ecclesia",
+    "url": "https://t.me/kefir_ukr/25501/521075",
+    "language": "UKR",
+    "is_updated": false,
+    "description": "Додано українську локалізацію для метроїдванії Castlevania: Order of Ecclesia (Nintendo DS). Перекладено текст, адаптовано шрифти та графіку від команди Black Dragon Studio.",
+    "date": "2026-05-07T11:52:11+03:00"
+  },
+  {
+    "type": "game",
+    "title": "Castlevania: Dawn of Sorrow",
+    "url": "https://t.me/BlackDragonStudio/114",
+    "language": "UKR",
+    "is_updated": false,
+    "description": "Додано українську локалізацію для метроїдванії Castlevania: Dawn of Sorrow (Nintendo DS). Перекладено текст, адаптовано графіку та шрифти від команди Black Dragon Studio.",
+    "date": "2026-05-07T11:52:11+03:00"
+  },
+  {
+    "type": "game",
+    "title": "Radiant Historia",
+    "url": "https://t.me/BlackDragonStudio/107",
+    "language": "UKR",
+    "is_updated": false,
+    "description": "Додано українську локалізацію JRPG Radiant Historia (Nintendo DS) від команди Black Dragon Studio. Перекладено текст, адаптовано шрифти та інтегровано AP-patch.",
+    "date": "2026-05-07T11:52:11+03:00"
+  },
+  {
+    "type": "game",
+    "title": "Chrono Trigger",
+    "url": "https://t.me/BlackDragonStudio/24",
+    "language": "UKR",
+    "is_updated": false,
+    "description": "Додано українську локалізацію культової JRPG Chrono Trigger (Nintendo DS) від Black Dragon Studio. Здійснено переклад тексту, адаптацію шрифтів та розроблено AP-patch.",
+    "date": "2026-05-07T11:52:11+03:00"
+  },
+  {
+    "type": "game",
+    "title": "The Legend of Zelda: The Minish Cap",
+    "url": "https://t.me/zeldamc_ukr/14/2969",
+    "language": "UKR",
+    "is_updated": true,
+    "description": "Оновлено український переклад пригодницької гри The Legend of Zelda: The Minish Cap (GBA) до версії 1.3.",
+    "date": "2026-05-07T11:52:38+03:00"
+  },
+  {
+    "type": "game",
+    "title": "Super Mario Galaxy 1",
+    "url": "https://swuk.com.ua",
+    "language": "UKR",
+    "is_updated": true,
+    "description": "Оновлено українську локалізацію платформера Super Mario Galaxy 1 до останньої версії.",
+    "date": "2026-05-07T11:54:20+03:00"
+  }
+]
