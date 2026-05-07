@@ -297,7 +297,8 @@ class HomebrewUpdatesCollector:
             release_url=update_info['html_url'],
             description=description,
             platform=entry['category'],
-            timestamp=update_date,
+            timestamp=datetime.now(),
+            release_date=update_date,
             is_new=entry.get('new', False)
         )
 

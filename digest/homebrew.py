@@ -23,7 +23,7 @@ class HomebrewDigest(BaseDigest):
 
     def add_entry(self, app_name: str, version: str, release_url: str, description: str,
                   platform: str = "3DS/DS(i)/Switch", timestamp: Optional[datetime] = None,
-                  is_new: bool = False):
+                  release_date: Optional[datetime] = None, is_new: bool = False):
         """
         Add a new homebrew entry to the digest
 
@@ -33,7 +33,8 @@ class HomebrewDigest(BaseDigest):
             release_url: GitHub release URL
             description: Short description of the app
             platform: Platform category (e.g., "3DS/DS(i)/Switch", "Wii", "Windows/macOS/Linux")
-            timestamp: Entry timestamp (defaults to now if not provided)
+            timestamp: Entry discovery timestamp (defaults to now if not provided)
+            release_date: Original GitHub release date for display
             is_new: Whether this is a new app (not just an update)
         """
         data = self._load_data()
@@ -45,6 +46,7 @@ class HomebrewDigest(BaseDigest):
             "description": description,
             "platform": platform,
             "timestamp": (timestamp or datetime.now()).isoformat(),
+            "release_date": (release_date or datetime.now()).isoformat(),
             "is_new": is_new
         }
 
@@ -101,7 +103,7 @@ class HomebrewDigest(BaseDigest):
 
                 # Parse date from timestamp
                 try:
-                    entry_date = datetime.fromisoformat(entry['timestamp'])
+                    entry_date = datetime.fromisoformat(entry.get('release_date', entry['timestamp']))
                     date_str = entry_date.strftime('%d.%m.%Y')
                 except Exception:
                     date_str = "дата невідома"

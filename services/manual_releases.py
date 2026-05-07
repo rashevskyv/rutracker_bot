@@ -39,15 +39,6 @@ def load_manual_releases() -> List[Dict]:
         return []
 
 
-def clear_manual_releases():
-    """Clear the manual releases file after processing"""
-    try:
-        with open(MANUAL_RELEASES_FILE, 'w', encoding='utf-8') as f:
-            json.dump([], f, indent=2, ensure_ascii=False)
-        logger.info("Cleared manual_releases.json")
-    except Exception as e:
-        logger.error(f"Error clearing manual_releases.json: {e}")
-
 
 def _parse_timestamp(entry: Dict) -> datetime:
     """Parse timestamp from entry, trying multiple field names and formats."""
@@ -78,6 +69,9 @@ def process_manual_releases() -> int:
     processed = 0
 
     for entry in entries:
+        if entry.get('processed'):
+            continue
+
         entry_type = entry.get('type', '').lower()
         timestamp = _parse_timestamp(entry)
 
@@ -99,6 +93,7 @@ def process_manual_releases() -> int:
                     timestamp=timestamp
                 )
                 logger.info(f"Manual release added to daily digest: {title}")
+                entry['processed'] = True
                 processed += 1
 
             elif entry_type == 'homebrew':
@@ -109,9 +104,11 @@ def process_manual_releases() -> int:
                     description=entry.get('description', ''),
                     platform=entry.get('platform', 'Switch'),
                     is_new=entry.get('is_new', False),
-                    timestamp=timestamp
+                    timestamp=datetime.now(),
+                    release_date=timestamp
                 )
                 logger.info(f"Manual release added to homebrew digest: {entry.get('app_name')}")
+                entry['processed'] = True
                 processed += 1
 
             else:
@@ -121,7 +118,11 @@ def process_manual_releases() -> int:
             logger.error(f"Error processing manual release: {e}")
 
     if processed > 0:
-        clear_manual_releases()
-        logger.info(f"Processed {processed} manual releases")
+        try:
+            with open(MANUAL_RELEASES_FILE, 'w', encoding='utf-8') as f:
+                json.dump(entries, f, indent=2, ensure_ascii=False)
+            logger.info(f"Marked {processed} manual releases as processed")
+        except Exception as e:
+            logger.error(f"Error updating manual_releases.json: {e}")
 
     return processed
