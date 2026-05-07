@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 
 # fetch_page_content remains the same
 async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[BeautifulSoup]:
-    headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'}
     session = get_session()
     for attempt in range(retries):
         try:
-            async with session.get(url, timeout=25, headers=headers) as response:
+            async with session.get(url, timeout=45, headers=headers) as response:
                 response.raise_for_status()
                 content = await response.read()
                 soup = BeautifulSoup(content, "html.parser")
@@ -62,6 +62,8 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
         current_offset = max(0, last_page_offset - (i * posts_per_page)); page_url = f"{base_url}&start={current_offset}"
         if page_url in checked_urls:
             continue
+        if len(checked_urls) > 0:
+            await asyncio.sleep(1.5)
         checked_urls.add(page_url)
         soup = await fetch_page_content(page_url)
         if not soup:
