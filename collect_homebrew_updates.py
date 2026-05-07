@@ -35,6 +35,7 @@ class HomebrewUpdatesCollector:
         self.github_requests = 0
         self.gitlab_requests = 0
         self.updates_found = 0
+        self.updated_apps = []
         self.errors = []
 
         # State dict for saving updates
@@ -271,6 +272,7 @@ class HomebrewUpdatesCollector:
         if not is_new:
             logger.info(f"✓ Update found: {app_name} {update_info['tag_name']}")
         self.updates_found += 1
+        self.updated_apps.append(f"{app_name} {update_info['tag_name']}{' (NEW)' if is_new else ''}")
 
         # Translate description if needed
         description = entry['description']
@@ -387,6 +389,12 @@ class HomebrewUpdatesCollector:
         logger.info(f"Collection complete!")
         logger.info(f"Total entries processed: {total}")
         logger.info(f"Updates found: {self.updates_found}")
+        
+        if self.updated_apps:
+            logger.info("Updated Apps List:")
+            for app in self.updated_apps:
+                logger.info(f"  - {app}")
+        
         logger.info(f"GitHub requests: {self.github_requests}")
         logger.info(f"GitLab requests: {self.gitlab_requests}")
         logger.info(f"Errors: {len(self.errors)}")

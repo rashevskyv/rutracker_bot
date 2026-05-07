@@ -52,6 +52,9 @@ class HomebrewDigest(BaseDigest):
         replaced = False
         for i, existing in enumerate(data["entries"]):
             if existing.get("release_url") == release_url:
+                # Preserve the is_new flag if the existing entry was new
+                if existing.get("is_new"):
+                    entry["is_new"] = True
                 data["entries"][i] = entry
                 replaced = True
                 logger.info(f"Replaced existing homebrew digest entry: {app_name} {version}")
