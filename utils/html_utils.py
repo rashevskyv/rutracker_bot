@@ -96,6 +96,14 @@ def clean_description_html(description_html_str: str) -> str:
         for section in description_soup.find_all(class_=class_name):
             section.decompose()
 
+    # Convert large font-size spans to bold (game titles in multi-game posts)
+    for span in description_soup.find_all("span", style=True):
+        style = span.get("style", "")
+        size_match = re.search(r"font-size:\s*(\d+)", style)
+        if size_match and int(size_match.group(1)) >= 18:
+            span.name = "b"
+            span.attrs = {}
+
     # 1. Process links (a tags) FIRST so they are preserved inside spoilers and quotes
     for a in description_soup.find_all('a', href=True):
         href = a['href']
@@ -319,21 +327,24 @@ def convert_markdown_to_html(text: str) -> str:
     return text
 
 
-# make_tag remains the same
 def make_tag(description: str, keyword: str) -> str:
     """
-    Finds a keyword line (like 'Genre: ...' or 'Год выпуска: ...')
-    and converts the items after the keyword into clickable hashtags.
-    Modifies the description string in place (conceptually).
+    Finds ALL keyword lines (like 'Genre: ...' or 'Год выпуска: ...')
+    and converts the items after each keyword into clickable hashtags.
+    Handles multiple occurrences for multi-game posts.
     """
     tag_header_pattern = re.compile(
         r"<b>" + re.escape(keyword) + r"</b>\s*:\s*(.*?)\s*(\n|<br|$)",
         re.IGNORECASE | re.DOTALL
     )
-    match = tag_header_pattern.search(description)
 
-    if match:
-        line_after_header = match.group(1).strip() # The content (e.g., "Action, RPG")
+    offset = 0
+    while True:
+        match = tag_header_pattern.search(description, offset)
+        if not match:
+            break
+
+        line_after_header = match.group(1).strip()
         placeholder = "@@COMMA@@"
         temp_line = re.sub(r'<[^>]+>', lambda m: m.group(0).replace(',', placeholder), line_after_header)
         items = [item.replace(placeholder, ',').strip() for item in temp_line.split(',')]
@@ -358,6 +369,9 @@ def make_tag(description: str, keyword: str) -> str:
             start_index = match.start(1)
             end_index = match.end(1)
             description = description[:start_index] + formatted_line + description[end_index:]
+            offset = start_index + len(formatted_line)
+        else:
+            offset = match.end()
 
     return description
 # --- END OF FILE html_utils.py ---
