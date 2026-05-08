@@ -171,6 +171,10 @@ async def send_digest():
             if sent_count > 0:
                 # Save timestamp AFTER successful send
                 save_last_run_time()
+                
+                # Mark included entries as no longer new
+                homebrew_digest_manager.mark_as_sent(last_run_time)
+                
                 cleanup_time = datetime.now() - timedelta(days=7)
                 homebrew_digest_manager.clear_old_entries(cleanup_time)
                 logger.info(f"Cleared homebrew entries older than {cleanup_time}")

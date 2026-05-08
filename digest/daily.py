@@ -60,9 +60,14 @@ class DailyDigest(BaseDigest):
         replaced = False
         for i, existing in enumerate(data["entries"]):
             if existing.get("url") == entry_url and existing.get("is_updated") == is_updated:
+                # If title is the same, preserve original discovery timestamp
+                if existing.get("title") == title:
+                    entry["timestamp"] = existing.get("timestamp", entry["timestamp"])
+                    logger.debug(f"Preserving timestamp for unchanged daily entry: {title}")
+                
                 data["entries"][i] = entry
                 replaced = True
-                logger.info(f"Replaced existing {'updated' if is_updated else 'new'} digest entry: {title}")
+                logger.info(f"Updated existing {'updated' if is_updated else 'new'} digest entry: {title}")
                 break
 
         if not replaced:
