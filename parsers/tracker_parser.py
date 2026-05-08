@@ -203,7 +203,8 @@ async def _strategy_author_update_post(soup: BeautifulSoup, base_url: str) -> Op
 # parse_tracker_entry remains the same (uses functions from html_utils)
 async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str]]:
     soup = await fetch_page_content(entry_url)
-    if not soup: return None
+    if not soup:
+        raise ValueError(f"Failed to fetch page content (timeout or HTTP error)")
 
     page_display_title = "Unknown Title"
     title_tag = soup.find('title')
@@ -247,8 +248,7 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     # Find post body BEFORE trying to use it for language extraction
     post_body = soup.find("div", class_="post_body")
     if not post_body:
-        logger.error(f"Could not find main post body in {entry_url}.")
-        return None
+        raise ValueError(f"Could not find post body div on page (page structure changed or access denied)")
 
     try:
         # Extract language from post body
@@ -359,11 +359,9 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
                     magnet_link = match.group(1)
         
         if not magnet_link:
-            logger.error("Error: Magnet link could not be extracted.")
-            return None
+            raise ValueError("Magnet link not found (torrent may be removed or login required)")
     except Exception as e:
-        logger.error(f"Error extracting magnet link: {e}")
-        return None
+        raise ValueError(f"Error extracting magnet link: {e}")
 
     # Extract genres for digest
     genres = []
