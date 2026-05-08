@@ -132,7 +132,23 @@ async def main_loop():
                 logger.info(f"SKIP: Already posted {entry_link} on {posted_links[entry_link]}")
                 continue
 
-            parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
+            try:
+                parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
+            except ValueError as parse_err:
+                logger.warning(f"Parse failed for {entry_link}: {parse_err}")
+                await send_error_to_telegram(
+                    f"Failed to parse tracker page.\n\n<b>Reason</b>: {html.escape(str(parse_err))}",
+                    entry_url=entry_link
+                )
+                continue
+            except Exception as parse_err:
+                logger.error(f"Unexpected error parsing {entry_link}: {parse_err}")
+                await send_error_to_telegram(
+                    f"Unexpected parse error.\n\n<b>Error</b>: {html.escape(type(parse_err).__name__)}: {html.escape(str(parse_err))}",
+                    entry_url=entry_link
+                )
+                continue
+
             if parsed_data:
                 page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres = parsed_data
 
@@ -281,7 +297,7 @@ async def main_loop():
                 send_error = True;
                 # Avoid sending error if the feed itself failed (new_entries would be None)
                 if not IS_TEST_MODE and 'new_entries' in locals() and new_entries is None: send_error = False
-                if send_error: await send_error_to_telegram(f"Failed to parse tracker page: {entry_link}", entry_url=entry_link)
+                if send_error: await send_error_to_telegram(f"Parser returned empty data (no exception raised).\n\n<b>Reason</b>: Unknown — check bot.log for details", entry_url=entry_link)
 
         # Loop Finished
         if processed_count > 0: logger.info(f"Successfully processed {processed_count} entries.")
