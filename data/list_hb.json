@@ -2296,5 +2296,125 @@
     "description": "Виправлення snapback для контролерів Switch.",
     "prefix": "",
     "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "Mario Kart World 3DS Edition",
+    "api_url": "https://api.github.com/repos/JeremMK7/Mario-Kart-World-3DS-Edition",
+    "description": "Фанатський порт Mario Kart World для Nintendo 3DS.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "Tunez-3DS",
+    "api_url": "https://api.github.com/repos/veylo-3DS/Tunez-3DS",
+    "description": "Музичний плеєр для Nintendo 3DS.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "Doors-3DS",
+    "api_url": "https://api.github.com/repos/carmander152/Doors-3DS",
+    "description": "Фанатський демейк Roblox-хорору Doors для Nintendo 3DS.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "TJAP_3DS",
+    "api_url": "https://api.github.com/repos/LuMariGames/TJAP_3DS",
+    "description": "TJAPlayer (симулятор Taiko no Tatsujin) для Nintendo 3DS.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "DSSH",
+    "api_url": "https://api.github.com/repos/Fishason/DSSH",
+    "description": "SSH клієнт для Nintendo 3DS з підтримкою RSA-авторизації та ANSI-терміналу.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "gd3ds",
+    "api_url": "https://api.github.com/repos/AleFunky/gd3ds",
+    "description": "Порт Geometry Dash для Nintendo 3DS.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "osus-revented",
+    "api_url": "https://api.github.com/repos/ohasanov-hbrw/osus-revented",
+    "description": "Клон osu! для Nintendo 3DS.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "Angband",
+    "api_url": "https://api.github.com/repos/angband/angband",
+    "description": "Класичний roguelike з дослідженням підземель.",
+    "prefix": " [Multiplatform]",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "NZ:Portable",
+    "api_url": "https://api.github.com/repos/nzp-team/nzportable",
+    "description": "Демейк Call of Duty: Zombies на базі движків Quake.",
+    "prefix": " [+Switch/PSP/VITA]",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "isle-portable",
+    "api_url": "https://api.github.com/repos/isledecomp/isle-portable",
+    "description": "Кросплатформний порт LEGO Island (1997).",
+    "prefix": " [Multiplatform]",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "Butterscotch",
+    "api_url": "https://api.github.com/repos/efimandreev0/Butterscotch",
+    "description": "Реімплементація раннера GameMaker: Studio для запуску Undertale v1.08.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "re3-3DS",
+    "api_url": "https://api.github.com/repos/GNU-Pattor-Team/re3-3DS",
+    "description": "Порт GTA III / Vice City для New Nintendo 3DS.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "RSDKv5-Decompilation",
+    "api_url": "https://api.github.com/repos/SaturnSH2x2/RSDKv5-Decompilation",
+    "description": "Декомпіляція Retro Engine (v5) для запуску Sonic Mania та інших ігор.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "jfblood-3ds",
+    "api_url": "https://api.github.com/repos/MrHuu/jfblood-3ds",
+    "description": "Порт гри Blood для Nintendo 3DS.",
+    "prefix": "",
+    "new": true
+  },
+  {
+    "category": "3DS",
+    "app_name": "Xash3DS",
+    "api_url": "https://api.github.com/repos/masterfeizz/Xash3DS",
+    "description": "Порт движка Xash3D (Half-Life) для Nintendo 3DS.",
+    "prefix": "",
+    "new": true
   }
 ]
