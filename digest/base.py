@@ -99,8 +99,8 @@ class BaseDigest:
         current_entry = []
         for line in lines:
             stripped = line.strip()
-            # New entry starts with • or section header or hashtag
-            if stripped.startswith('•') or stripped.startswith('===') or stripped.startswith('#'):
+            # New entry starts with • or ⚠️ or section header or hashtag
+            if stripped.startswith('•') or stripped.startswith('⚠️') or stripped.startswith('===') or stripped.startswith('#'):
                 if current_entry:
                     entries.append('\n'.join(current_entry))
                 current_entry = [line]

@@ -88,6 +88,18 @@ class HomebrewDigest(BaseDigest):
             logger.info("No homebrew entries for digest")
             return None
 
+        # Deduplicate by release_url (safety net against data file duplicates)
+        seen_urls = set()
+        unique_entries = []
+        for entry in entries:
+            url = entry.get('release_url', '')
+            if url not in seen_urls:
+                seen_urls.add(url)
+                unique_entries.append(entry)
+        if len(unique_entries) < len(entries):
+            logger.warning(f"Removed {len(entries) - len(unique_entries)} duplicate entries from digest output")
+        entries = unique_entries
+
         # Group entries by platform
         platforms: Dict[str, List[Dict]] = {}
         for entry in entries:
