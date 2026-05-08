@@ -80,12 +80,15 @@ Strategies are tried in order. First non-None result wins.
 
 ### Daily digest (`digest/daily.py`)
 - Key: `url` + `is_updated` flag
-- Same URL + same type → **replace** (keep latest version)
+- Same URL + same type → **update** entry.
 - Same URL + different type (new → updated) → **keep both**
+- **Timestamp Preservation**: Like the homebrew digest, it preserves the original discovery `timestamp` if the title and update status haven't changed.
 
 ### Homebrew digest (`digest/homebrew.py`)
 - Key: `release_url`
-- Same release URL → **replace** with latest version info
+- Same release URL → **update** entry.
+- **Discovery Timestamp Preservation**: If the `version` and `app_name` are the same as existing, the original discovery `timestamp` is preserved. This prevents the entry from reappearing in the "last 24 hours" digest if it's re-added without changes.
+- **Automatic Marker Clearing**: After a successful digest send, all entries included in that digest have their `is_new` flag set to `False`.
 
 ## Timestamp Management
 

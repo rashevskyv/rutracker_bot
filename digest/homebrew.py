@@ -57,14 +57,21 @@ class HomebrewDigest(BaseDigest):
                 # Preserve the is_new flag if the existing entry was new
                 if existing.get("is_new"):
                     entry["is_new"] = True
+                
+                # If version and app_name are the same, preserve original discovery timestamp
+                # This prevents entry from reappearing in digests if re-added with same info
+                if existing.get("version") == version and existing.get("app_name") == app_name:
+                    entry["timestamp"] = existing.get("timestamp", entry["timestamp"])
+                    logger.debug(f"Preserving timestamp for unchanged entry: {app_name} {version}")
+
                 data["entries"][i] = entry
                 replaced = True
-                logger.info(f"Replaced existing homebrew digest entry: {app_name} {version}")
+                logger.info(f"Updated existing homebrew digest entry: {app_name} {version}")
                 break
 
         if not replaced:
             data["entries"].append(entry)
-            logger.info(f"Added homebrew entry to digest: {app_name} {version}{'(NEW)' if is_new else ''}")
+            logger.info(f"Added homebrew entry to digest: {app_name} {version}{' (NEW)' if is_new else ''}")
 
         self._save_data(data)
 
@@ -120,6 +127,27 @@ class HomebrewDigest(BaseDigest):
         message_parts.append("📢 <a href=\"https://t.me/Nin3DSBrewNews\">Nin3DSBrewNews</a>")
 
         return "\n".join(message_parts).rstrip()
+
+    def mark_as_sent(self, since_time: datetime):
+        """
+        Mark all entries included in the digest (timestamp >= since_time) as no longer new.
+        """
+        data = self._load_data()
+        since_time = self._normalize_time(since_time)
+        updated_count = 0
+
+        for entry in data["entries"]:
+            try:
+                entry_time = self._normalize_time(datetime.fromisoformat(entry["timestamp"]))
+                if entry_time >= since_time and entry.get("is_new"):
+                    entry["is_new"] = False
+                    updated_count += 1
+            except Exception as e:
+                logger.error(f"Error parsing entry timestamp during mark_as_sent: {e}")
+
+        if updated_count > 0:
+            self._save_data(data)
+            logger.info(f"Marked {updated_count} homebrew entries as no longer new")
 
 
 # Global instance

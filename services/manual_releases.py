@@ -104,10 +104,10 @@ def process_manual_releases() -> int:
                     description=entry.get('description', ''),
                     platform=entry.get('platform', 'Switch'),
                     is_new=entry.get('is_new', False),
-                    timestamp=datetime.now(),
+                    timestamp=timestamp, # Use original entry date as discovery time
                     release_date=timestamp
                 )
-                logger.info(f"Manual release added to homebrew digest: {entry.get('app_name')}")
+                logger.info(f"Manual release added to homebrew digest: {entry.get('app_name')} with timestamp {timestamp}")
                 entry['processed'] = True
                 processed += 1
 
@@ -121,8 +121,8 @@ def process_manual_releases() -> int:
         try:
             with open(MANUAL_RELEASES_FILE, 'w', encoding='utf-8') as f:
                 json.dump(entries, f, indent=2, ensure_ascii=False)
-            logger.info(f"Marked {processed} manual releases as processed")
+            logger.info(f"Successfully updated manual_releases.json and marked {processed} entries as processed")
         except Exception as e:
-            logger.error(f"Error updating manual_releases.json: {e}")
+            logger.error(f"FATAL: Error updating manual_releases.json: {e}")
 
     return processed
