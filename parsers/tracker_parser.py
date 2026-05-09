@@ -201,7 +201,7 @@ async def _strategy_author_update_post(soup: BeautifulSoup, base_url: str) -> Op
 
 
 # parse_tracker_entry remains the same (uses functions from html_utils)
-async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str]]:
+async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str]]]:
     soup = await fetch_page_content(entry_url)
     if not soup:
         raise ValueError(f"Failed to fetch page content (timeout or HTTP error)")
@@ -387,6 +387,6 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
-    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres
+    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text
 
 # --- END OF FILE tracker_parser.py ---
