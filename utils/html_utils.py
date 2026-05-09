@@ -79,6 +79,17 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     cleaned_html = re.sub(r'\n{2,}', '\n\n', cleaned_html) # Max 1 empty line
     # Remove gaps between list items
     cleaned_html = re.sub(r'\n{2,}(\s*(?:•|\d+\.) )', r'\n\1', cleaned_html)
+    # Collapse blank lines between metadata fields (e.g. "Жанр:", "Год выпуска:", "Разработчик:")
+    # Any line starting with <b>...</b>: followed by a blank line and another <b> line → remove the blank line
+    # Apply repeatedly since each pass only collapses one layer
+    while True:
+        collapsed = re.sub(r'(\n<b>[^<]+</b>:[^\n]*)\n\n(<b>)', r'\1\n\2', cleaned_html)
+        if collapsed == cleaned_html:
+            break
+        cleaned_html = collapsed
+    # Ensure game title headers (bold WITHOUT colon, e.g. "<b>Game Name</b>")
+    # have a blank line after them before the metadata block starts
+    cleaned_html = re.sub(r'(<b>[^<]+</b>)\n(<b>[^<]+</b>:)', r'\1\n\n\2', cleaned_html)
     cleaned_html = cleaned_html.strip()
     
     return cleaned_html

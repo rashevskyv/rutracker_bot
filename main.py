@@ -150,7 +150,7 @@ async def main_loop():
                 continue
 
             if parsed_data:
-                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres = parsed_data
+                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres, raw_update_text = parsed_data
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
@@ -226,36 +226,36 @@ async def main_loop():
 
                      # Add to daily digest after successful send
                      try:
-                         # Extract update description if available
+                         # Build update_description directly from parser's raw update text
                          update_description = None
-                         if is_updated and "Обновлено:" in cleaned_description:
-                             match = re.search(r'<b>Обновлено:</b>\s*(.+?)(?:\n\n|$)', cleaned_description, re.DOTALL)
-                             if match:
-                                 update_text = match.group(1).strip()
-                                 # Remove HTML tags EXCEPT <a> tags (keep links)
-                                 update_text = re.sub(r'<(?!/?a\b)[^>]+>', '', update_text)
+                         if is_updated and raw_update_text:
+                             # raw_update_text format: "<b>Обновлено:</b> <a href="...">Details</a>\ntext"
+                             # Strip the "<b>Обновлено:</b>" prefix
+                             update_text = re.sub(r'^<b>Обновлено:</b>\s*', '', raw_update_text)
+                             # Remove HTML tags EXCEPT <a> tags (keep links)
+                             update_text = re.sub(r'<(?!/?a\b)[^>]+>', '', update_text)
 
-                                 # Escape HTML entities but preserve <a> tags
-                                 parts = re.split(r'(<a\s+[^>]*>.*?</a>)', update_text)
-                                 escaped_parts = []
-                                 for part in parts:
-                                     if part.startswith('<a '):
-                                         escaped_parts.append(part)  # Keep <a> tags as-is
-                                     else:
-                                         escaped_parts.append(html.escape(part))  # Escape text
-                                 update_text = ''.join(escaped_parts)
+                             # Escape HTML entities but preserve <a> tags
+                             parts = re.split(r'(<a\s+[^>]*>.*?</a>)', update_text)
+                             escaped_parts = []
+                             for part in parts:
+                                 if part.startswith('<a '):
+                                     escaped_parts.append(part)  # Keep <a> tags as-is
+                                 else:
+                                     escaped_parts.append(html.escape(part))  # Escape text
+                             update_text = ''.join(escaped_parts)
 
-                                 update_description = update_text[:200]  # Limit length
-                                 # Fix broken HTML tags from truncation
-                                 # Remove any incomplete <a ...> tag at the end
-                                 update_description = re.sub(r'<a\s+[^>]*$', '', update_description)
-                                 # Remove any <a> without closing </a>
-                                 open_tags = len(re.findall(r'<a\s', update_description))
-                                 close_tags = len(re.findall(r'</a>', update_description))
-                                 if open_tags > close_tags:
-                                     # Remove the last unclosed <a>...</a> tag pair attempt
-                                     update_description = re.sub(r'<a\s+[^>]*>[^<]*$', '', update_description)
-                                 update_description = update_description.strip() or None
+                             update_description = update_text[:200]  # Limit length
+                             # Fix broken HTML tags from truncation
+                             # Remove any incomplete <a ...> tag at the end
+                             update_description = re.sub(r'<a\s+[^>]*$', '', update_description)
+                             # Remove any <a> without closing </a>
+                             open_tags = len(re.findall(r'<a\s', update_description))
+                             close_tags = len(re.findall(r'</a>', update_description))
+                             if open_tags > close_tags:
+                                 # Remove the last unclosed <a>...</a> tag pair attempt
+                                 update_description = re.sub(r'<a\s+[^>]*>[^<]*$', '', update_description)
+                             update_description = update_description.strip() or None
 
                          # Add to daily digest (skip in test mode to avoid duplicates)
                          if not IS_TEST_MODE:
