@@ -2416,5 +2416,13 @@
     "description": "Порт движка Xash3D (Half-Life) для Nintendo 3DS.",
     "prefix": "",
     "new": true
+  },
+  {
+    "category": "PC/Mobile",
+    "app_name": "Dusk",
+    "api_url": "https://api.github.com/repos/TwilitRealm/dusk",
+    "description": "Порт The Legend of Zelda: Twilight Princess на базі декомпіляції оригінальної версії для GameCube/Wii. Підтримує HD-роздільну здатність, інтерполяцію до 60 FPS, широкоформатний режим, збереження в будь-який момент та моди.",
+    "prefix": " [Windows/Linux/macOS/Android]",
+    "new": true
   }
 ]
