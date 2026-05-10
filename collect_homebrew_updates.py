@@ -250,13 +250,47 @@ class HomebrewUpdatesCollector:
         # Determine source (GitHub or GitLab)
         update_info = None
         if is_new:
-            # For new entries, use current release info without checking for updates
-            logger.info(f"✓ New app: {app_name} {entry['tag_name']}")
-            update_info = {
-                'tag_name': entry['tag_name'],
-                'html_url': entry['html_url'],
-                'date': entry['comm_date']
-            }
+            # For new entries, fetch current release info from API
+            # (entry fields tag_name/html_url may be empty for freshly added apps)
+            if 'github' in api_url:
+                releases_url = f"{api_url}/releases"
+                releases = await self.github_request(releases_url)
+                if releases and isinstance(releases, list) and len(releases) > 0:
+                    latest = releases[0]
+                    if 'message' not in latest:
+                        try:
+                            release_date = datetime.fromisoformat(latest['published_at'].replace('Z', '+00:00'))
+                            update_info = {
+                                'tag_name': latest['tag_name'],
+                                'html_url': latest['html_url'],
+                                'date': release_date.isoformat()
+                            }
+                        except Exception as e:
+                            logger.error(f"Error parsing new app release for {app_name}: {e}")
+            elif 'gitlab' in api_url:
+                releases = await self.gitlab_request(api_url)
+                if releases and isinstance(releases, list) and len(releases) > 0:
+                    releases.sort(key=lambda x: x.get('released_at', ''), reverse=True)
+                    latest = releases[0]
+                    try:
+                        release_date = datetime.fromisoformat(latest['released_at'].replace('Z', '+00:00'))
+                        update_info = {
+                            'tag_name': latest['tag_name'],
+                            'html_url': latest['_links']['self'],
+                            'date': release_date.isoformat()
+                        }
+                    except Exception as e:
+                        logger.error(f"Error parsing new app release for {app_name}: {e}")
+
+            # Fallback: use entry fields if API failed
+            if not update_info:
+                update_info = {
+                    'tag_name': entry.get('tag_name') or 'unknown',
+                    'html_url': entry.get('html_url') or '',
+                    'date': entry.get('comm_date', datetime.now().isoformat())
+                }
+
+            logger.info(f"✓ New app: {app_name} {update_info['tag_name']}")
         elif 'github' in api_url:
             update_info = await self.check_github_updates(entry)
         elif 'gitlab' in api_url:
