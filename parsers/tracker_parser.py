@@ -26,10 +26,11 @@ async def fetch_page_content(url: str, retries: int = 6, delay: int = 5) -> Opti
         'Upgrade-Insecure-Requests': '1',
         'Referer': 'https://rutracker.org/forum/index.php'
     }
+    timeout = aiohttp.ClientTimeout(total=90, connect=30)
     session = get_session()
     for attempt in range(retries):
         try:
-            async with session.get(url, timeout=90, headers=headers) as response:
+            async with session.get(url, timeout=timeout, headers=headers) as response:
                 if response.status == 521:
                     logger.warning(f"Cloudflare Error 521 for {url} (Attempt {attempt + 1}/{retries})")
                     if attempt < retries - 1:
