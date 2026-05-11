@@ -16,11 +16,26 @@ logger = logging.getLogger(__name__)
 
 # fetch_page_content remains the same
 async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[BeautifulSoup]:
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
+        'Cache-Control': 'max-age=0',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Referer': 'https://rutracker.org/forum/index.php'
+    }
     session = get_session()
     for attempt in range(retries):
         try:
             async with session.get(url, timeout=45, headers=headers) as response:
+                if response.status == 521:
+                    logger.warning(f"Cloudflare Error 521 for {url} (Attempt {attempt + 1}/{retries})")
+                    if attempt < retries - 1:
+                        await asyncio.sleep(delay * 2) # Double delay for 521
+                        continue
+                
                 response.raise_for_status()
                 content = await response.read()
                 soup = BeautifulSoup(content, "html.parser")
@@ -31,13 +46,18 @@ async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Opti
             logger.error(f"HTTP Error fetching {url}: {e.status}")
             if e.status == 404: return None
             if 400 <= e.status < 500 and e.status != 429: return None
+            # For 5xx errors, we retry
         except asyncio.TimeoutError:
             logger.warning(f"Timeout fetching {url} (Attempt {attempt + 1}/{retries})")
         except Exception as e:
             logger.error(f"An unexpected error occurred fetching {url}: {e}")
             break
-        if attempt < retries - 1: await asyncio.sleep(delay)
-        else: logger.error(f"Failed to fetch {url} after {retries} attempts."); return None
+        
+        if attempt < retries - 1: 
+            await asyncio.sleep(delay)
+        else: 
+            logger.error(f"Failed to fetch {url} after {retries} attempts.")
+            return None
 
 # get_last_post_with_phrase remains the same
 async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:

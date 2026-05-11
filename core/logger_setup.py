@@ -1,7 +1,7 @@
 import logging
 import os
 
-def setup_logging(log_level=logging.INFO, log_file="bot.log", log_to_console=True):
+def setup_logging(log_level=logging.INFO, log_file="log/bot.log", log_to_console=True):
     """
     Sets up the logging configuration for the bot.
     """

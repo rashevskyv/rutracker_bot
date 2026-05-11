@@ -19,6 +19,7 @@ config/credentials.json
 config/run_checker.sh
 
 # Logs
+log/
 *.log
 log_tg_send.txt
 
