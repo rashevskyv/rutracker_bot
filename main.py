@@ -136,11 +136,17 @@ async def main_loop():
             try:
                 parsed_data = await parse_tracker_entry(entry_link, entry_title_feed_or_placeholder)
             except ValueError as parse_err:
-                logger.warning(f"Parse failed for {entry_link}: {parse_err}")
+                err_msg = str(parse_err)
+                logger.warning(f"Parse failed for {entry_link}: {err_msg}")
                 await send_error_to_telegram(
-                    f"Failed to parse tracker page.\n\n<b>Reason</b>: {html.escape(str(parse_err))}",
+                    f"Failed to parse tracker page.\n\n<b>Reason</b>: {html.escape(err_msg)}",
                     entry_url=entry_link
                 )
+                # Network/fetch errors: stop processing — don't skip to next entry,
+                # so the failed entry is retried on the next run
+                if "fetch page content" in err_msg.lower():
+                    logger.warning("Stopping entry processing due to network error. Remaining entries will be retried next run.")
+                    break
                 continue
             except Exception as parse_err:
                 logger.error(f"Unexpected error parsing {entry_link}: {parse_err}")

@@ -15,7 +15,7 @@ from core.settings_loader import get_session
 logger = logging.getLogger(__name__)
 
 # fetch_page_content remains the same
-async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Optional[BeautifulSoup]:
+async def fetch_page_content(url: str, retries: int = 6, delay: int = 5) -> Optional[BeautifulSoup]:
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -29,7 +29,7 @@ async def fetch_page_content(url: str, retries: int = 3, delay: int = 5) -> Opti
     session = get_session()
     for attempt in range(retries):
         try:
-            async with session.get(url, timeout=45, headers=headers) as response:
+            async with session.get(url, timeout=90, headers=headers) as response:
                 if response.status == 521:
                     logger.warning(f"Cloudflare Error 521 for {url} (Attempt {attempt + 1}/{retries})")
                     if attempt < retries - 1:
