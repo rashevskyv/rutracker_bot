@@ -42,30 +42,20 @@ async def fetch_page_content(url: str, retries: int = 6, delay: int = 5) -> Opti
                 soup = BeautifulSoup(content, "html.parser")
                 return soup
         except aiohttp.ClientConnectorError as e:
-            logger.error(f"Connection error fetching {url}: {e}")
-            if attempt < retries - 1:
-                await asyncio.sleep(delay)
-                continue
-            raise ValueError(f"Failed to fetch page content (timeout or connection error)")
+            logger.error(f"Connection error fetching {url} (Attempt {attempt + 1}/{retries}): {e}")
         except aiohttp.ClientResponseError as e:
-            logger.error(f"HTTP Error fetching {url}: {e.status}")
+            logger.error(f"HTTP Error fetching {url}: {e.status} (Attempt {attempt + 1}/{retries})")
             if e.status == 404:
                 return None
-            if 400 <= e.status < 500 and e.status != 429:
-                # Client errors (except 429) are permanent for this URL — skip, don't retry
-                raise ValueError(f"Failed to fetch page content (HTTP error {e.status})")
-            # For 5xx / 429 — retry
+            # For all other errors (400, 403, 5xx, etc.) — retry with delay
         except asyncio.TimeoutError:
             logger.warning(f"Timeout fetching {url} (Attempt {attempt + 1}/{retries})")
-            if attempt < retries - 1:
-                await asyncio.sleep(delay)
-                continue
-            raise ValueError(f"Failed to fetch page content (timeout or connection error)")
         except Exception as e:
             logger.error(f"An unexpected error occurred fetching {url}: {e}")
             break
 
         if attempt < retries - 1:
+            logger.info(f"Retrying in {delay}s... ({attempt + 2}/{retries})")
             await asyncio.sleep(delay)
         else:
             logger.error(f"Failed to fetch {url} after {retries} attempts.")
