@@ -142,10 +142,10 @@ async def main_loop():
                     f"Failed to parse tracker page.\n\n<b>Reason</b>: {html.escape(err_msg)}",
                     entry_url=entry_link
                 )
-                # Network/fetch errors: stop processing — don't skip to next entry,
-                # so the failed entry is retried on the next run
-                if "timeout or connection error" in err_msg.lower():
-                    logger.warning("Stopping entry processing due to network error. Remaining entries will be retried next run.")
+                # Any fetch failure: stop — entry will be retried on next run
+                # (continue only for content parse errors, not fetch errors)
+                if "fetch page content" in err_msg.lower():
+                    logger.warning("Stopping entry processing due to fetch error. Remaining entries will be retried next run.")
                     break
                 continue
             except Exception as parse_err:
