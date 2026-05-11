@@ -112,6 +112,7 @@ DEEPL_API_KEY = get_env_or_setting(settings, 'DEEPL_API_KEY', 'DEEPL_API_KEY')
 
 GROUPS = settings.get('GROUPS', [])
 ERROR_TG = settings.get('ERROR_TG', [])
+RUTRACKER_COOKIES: Optional[Dict[str, str]] = settings.get('RUTRACKER_COOKIES', None)
 # Get the test link ONLY if in test mode
 TEST_LAST_ENTRY_LINK = settings.get('test_last_entry_link') if IS_TEST_MODE else None
 
@@ -151,9 +152,13 @@ def get_session() -> aiohttp.ClientSession:
     """Returns the shared aiohttp.ClientSession, initializing it if necessary."""
     global app_session
     if app_session is None or app_session.closed:
-        headers = {'User-Agent': 'Mozilla/5.0 RutrackerBot/1.0'}
-        app_session = aiohttp.ClientSession(headers=headers)
-        logging.info("Shared aiohttp ClientSession initialized.")
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'}
+        cookies = RUTRACKER_COOKIES or {}
+        app_session = aiohttp.ClientSession(headers=headers, cookies=cookies)
+        if cookies:
+            logging.info(f"Shared aiohttp ClientSession initialized with {len(cookies)} RuTracker cookie(s).")
+        else:
+            logging.warning("Shared aiohttp ClientSession initialized WITHOUT cookies. RuTracker may return 400.")
     return app_session
 
 # --- Cleanup ---
