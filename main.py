@@ -112,7 +112,7 @@ async def main_loop():
             entries_to_process = new_entries
 
         # Create a single per-cycle log file for all entries
-        cycle_log_file = "log_tg_send.txt"
+        cycle_log_file = os.path.join("log", "log_tg_send.txt")
         with open(cycle_log_file, "w", encoding="utf-8") as f:
             f.write(f"=== BOT RUN CYCLE {datetime.now().isoformat()} ===\n")
             f.write(f"Entries to process: {len(entries_to_process)}\n\n")
@@ -126,9 +126,10 @@ async def main_loop():
             logger.info(f"\n--- Processing Entry ---")
             logger.info(f"Link: {entry_link}")
 
-            # Deduplication: skip if already posted
+            # Deduplication: skip if already posted (but allow updates through)
+            is_updated_entry = "[Обновлено]" in entry_title_feed_or_placeholder or "[Updated]" in entry_title_feed_or_placeholder
             posted_links = load_posted_links()
-            if entry_link in posted_links and not IS_TEST_MODE:
+            if entry_link in posted_links and not IS_TEST_MODE and not is_updated_entry:
                 logger.info(f"SKIP: Already posted {entry_link} on {posted_links[entry_link]}")
                 continue
 
@@ -162,7 +163,7 @@ async def main_loop():
                 logger.info(f"Display Title: '{page_display_title}'")
                 logger.info(f"Title for Search/Lookup: '{title_text_for_youtube}'")
 
-                is_updated = "[Обновлено]" in entry_title_feed_or_placeholder or "[Updated]" in entry_title_feed_or_placeholder
+                is_updated = is_updated_entry
                 update_prefix = "<b>[Обновлено]</b> " if is_updated else ""
                 title_link_html = f'<a href="{entry_link}">{html.escape(page_display_title)}</a>'
                 final_title_for_telegram = f"{update_prefix}{title_link_html}"

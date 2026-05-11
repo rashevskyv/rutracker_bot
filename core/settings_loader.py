@@ -99,7 +99,7 @@ if isinstance(LOG, str): LOG = LOG.lower() == 'true' # Ensure boolean
 
 # Initialize logging immediately after determining LOG flag
 log_level = logging.DEBUG if LOG else logging.INFO
-setup_logging(log_level=log_level)
+setup_logging(log_level=log_level, log_file="log/bot.log")
 
 logging.info(f"Final Mode - IS_TEST_MODE: {IS_TEST_MODE}")
 
