@@ -91,6 +91,8 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # have a blank line after them before the metadata block starts
     cleaned_html = re.sub(r'(<b>[^<]+</b>)\n(<b>[^<]+</b>:)', r'\1\n\n\2', cleaned_html)
     cleaned_html = cleaned_html.strip()
+    # Final safety pass: collapse any 3+ consecutive newlines introduced by structural operations above
+    cleaned_html = re.sub(r'\n{3,}', '\n\n', cleaned_html)
     
     return cleaned_html
 
@@ -324,6 +326,8 @@ def convert_markdown_to_html(text: str) -> str:
     # 0. Clean up ###GAP### markers (convert to double newlines)
     text = re.sub(r'(?:\s*###GAP###\s*)+', '\n\n', text)
     text = re.sub(r'###\s*-?\s*', '', text)  # Remove stray ### markers
+    # Collapse any 3+ consecutive newlines to max one blank line
+    text = re.sub(r'\n{3,}', '\n\n', text)
 
     # 1. Bold: **text** -> <b>text</b>
     text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
