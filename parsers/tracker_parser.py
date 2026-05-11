@@ -43,22 +43,33 @@ async def fetch_page_content(url: str, retries: int = 6, delay: int = 5) -> Opti
                 return soup
         except aiohttp.ClientConnectorError as e:
             logger.error(f"Connection error fetching {url}: {e}")
+            if attempt < retries - 1:
+                await asyncio.sleep(delay)
+                continue
+            raise ValueError(f"Failed to fetch page content (timeout or connection error)")
         except aiohttp.ClientResponseError as e:
             logger.error(f"HTTP Error fetching {url}: {e.status}")
-            if e.status == 404: return None
-            if 400 <= e.status < 500 and e.status != 429: return None
-            # For 5xx errors, we retry
+            if e.status == 404:
+                return None
+            if 400 <= e.status < 500 and e.status != 429:
+                # Client errors (except 429) are permanent for this URL — skip, don't retry
+                raise ValueError(f"Failed to fetch page content (HTTP error {e.status})")
+            # For 5xx / 429 — retry
         except asyncio.TimeoutError:
             logger.warning(f"Timeout fetching {url} (Attempt {attempt + 1}/{retries})")
+            if attempt < retries - 1:
+                await asyncio.sleep(delay)
+                continue
+            raise ValueError(f"Failed to fetch page content (timeout or connection error)")
         except Exception as e:
             logger.error(f"An unexpected error occurred fetching {url}: {e}")
             break
-        
-        if attempt < retries - 1: 
+
+        if attempt < retries - 1:
             await asyncio.sleep(delay)
-        else: 
+        else:
             logger.error(f"Failed to fetch {url} after {retries} attempts.")
-            return None
+            raise ValueError(f"Failed to fetch page content (timeout or connection error)")
 
 # get_last_post_with_phrase remains the same
 async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:
