@@ -1,6 +1,7 @@
 # --- START OF FILE tracker_parser.py ---
 import aiohttp
 import asyncio
+from curl_cffi.requests import AsyncSession as CurlSession
 from bs4 import BeautifulSoup, NavigableString, Tag
 import re
 import time
@@ -9,57 +10,49 @@ import logging
 from typing import Optional, Tuple, List # Import Optional, Tuple, List
 # --- Import functions moved to html_utils ---
 from utils.html_utils import clean_description_html, make_tag, sanitize_html_for_telegram
-from core.settings_loader import get_session
+from core.settings_loader import get_session, RUTRACKER_COOKIES
 # --------------------------------------------
 
 logger = logging.getLogger(__name__)
 
-# fetch_page_content remains the same
 async def fetch_page_content(url: str, retries: int = 6, delay: int = 5) -> Optional[BeautifulSoup]:
+    """Fetch a RuTracker page using curl_cffi with Chrome TLS impersonation."""
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br, zstd',
         'Cache-Control': 'max-age=0',
-        'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
         'Referer': 'https://rutracker.org/forum/index.php'
     }
-    timeout = aiohttp.ClientTimeout(total=90, connect=30)
-    session = get_session()
+    cookies = RUTRACKER_COOKIES or {}
+
     for attempt in range(retries):
         try:
-            async with session.get(url, timeout=timeout, headers=headers) as response:
-                if response.status == 521:
-                    logger.warning(f"Cloudflare Error 521 for {url} (Attempt {attempt + 1}/{retries})")
+            async with CurlSession(impersonate="chrome110") as session:
+                response = await session.get(
+                    url, headers=headers, cookies=cookies, timeout=90
+                )
+                if response.status_code == 404:
+                    return None
+                if response.status_code != 200:
+                    logger.error(f"HTTP {response.status_code} fetching {url} (Attempt {attempt + 1}/{retries})")
                     if attempt < retries - 1:
-                        await asyncio.sleep(delay * 2) # Double delay for 521
+                        logger.info(f"Retrying in {delay}s... ({attempt + 2}/{retries})")
+                        await asyncio.sleep(delay)
                         continue
-                
-                response.raise_for_status()
-                content = await response.read()
-                soup = BeautifulSoup(content, "html.parser")
+                    raise ValueError(f"Failed to fetch page content (HTTP error {response.status_code})")
+                soup = BeautifulSoup(response.content, "html.parser")
                 return soup
-        except aiohttp.ClientConnectorError as e:
-            logger.error(f"Connection error fetching {url} (Attempt {attempt + 1}/{retries}): {e}")
-        except aiohttp.ClientResponseError as e:
-            logger.error(f"HTTP Error fetching {url}: {e.status} (Attempt {attempt + 1}/{retries})")
-            if e.status == 404:
-                return None
-            # For all other errors (400, 403, 5xx, etc.) — retry with delay
-        except asyncio.TimeoutError:
-            logger.warning(f"Timeout fetching {url} (Attempt {attempt + 1}/{retries})")
+        except ValueError:
+            raise
         except Exception as e:
-            logger.error(f"An unexpected error occurred fetching {url}: {e}")
-            break
-
-        if attempt < retries - 1:
-            logger.info(f"Retrying in {delay}s... ({attempt + 2}/{retries})")
-            await asyncio.sleep(delay)
-        else:
-            logger.error(f"Failed to fetch {url} after {retries} attempts.")
-            raise ValueError(f"Failed to fetch page content (timeout or connection error)")
+            logger.error(f"Error fetching {url} (Attempt {attempt + 1}/{retries}): {e}")
+            if attempt < retries - 1:
+                logger.info(f"Retrying in {delay}s... ({attempt + 2}/{retries})")
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"Failed to fetch {url} after {retries} attempts.")
+                raise ValueError(f"Failed to fetch page content (timeout or connection error)")
 
 # get_last_post_with_phrase remains the same
 async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:
