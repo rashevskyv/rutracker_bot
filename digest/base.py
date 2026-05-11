@@ -91,29 +91,50 @@ class BaseDigest:
         """
         Split digest message at entry boundaries (• markers).
         Each entry (• line + continuation lines) stays together.
+        Section headers (=== ... ===) are kept attached to the first entry of their section.
         """
         lines = message.split('\n')
-        
-        # Group lines into entries: each entry starts with • or === or #
+
+        # Group lines into entries: each entry starts with • or ⚠️ or # (header/hashtag)
+        # Section headers (===) are NOT standalone — they are buffered and prepended to the next entry
         entries = []
         current_entry = []
+        pending_header = []  # holds === lines waiting to be attached to the next entry
+
         for line in lines:
             stripped = line.strip()
-            # New entry starts with • or ⚠️ or section header or hashtag
-            if stripped.startswith('•') or stripped.startswith('⚠️') or stripped.startswith('===') or stripped.startswith('#'):
+            if stripped.startswith('==='):
+                # Flush current entry first
                 if current_entry:
                     entries.append('\n'.join(current_entry))
-                current_entry = [line]
+                    current_entry = []
+                pending_header.append(line)
+            elif stripped.startswith('•') or stripped.startswith('⚠️') or stripped.startswith('#'):
+                # Flush current entry
+                if current_entry:
+                    entries.append('\n'.join(current_entry))
+                # Start new entry, prepending any pending section header
+                current_entry = pending_header + [line]
+                pending_header = []
             else:
-                current_entry.append(line)
+                # Continuation line — if we have a pending header but no entry started yet,
+                # attach the continuation to the header buffer (e.g. empty line between header and first entry)
+                if pending_header and not current_entry:
+                    pending_header.append(line)
+                else:
+                    current_entry.append(line)
+
+        # Flush remaining
+        if pending_header:
+            current_entry = pending_header + current_entry
         if current_entry:
             entries.append('\n'.join(current_entry))
-        
+
         # Pack entries into parts respecting max_length
         parts = []
         current_part = []
         current_length = 0
-        
+
         for entry in entries:
             entry_length = len(entry) + 1  # +1 for \n separator
             if current_length + entry_length > max_length and current_part:
@@ -122,10 +143,10 @@ class BaseDigest:
                 current_length = 0
             current_part.append(entry)
             current_length += entry_length
-        
+
         if current_part:
             parts.append('\n'.join(current_part).strip())
-        
+
         return [p for p in parts if p]
 
     async def send_digest(self, target_chat_id: int, target_topic_id: Optional[int] = None,
