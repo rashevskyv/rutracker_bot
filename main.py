@@ -144,7 +144,7 @@ async def main_loop():
                 )
                 # Network/fetch errors: stop processing — don't skip to next entry,
                 # so the failed entry is retried on the next run
-                if "fetch page content" in err_msg.lower():
+                if "timeout or connection error" in err_msg.lower():
                     logger.warning("Stopping entry processing due to network error. Remaining entries will be retried next run.")
                     break
                 continue
