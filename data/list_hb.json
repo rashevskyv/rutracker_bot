@@ -858,8 +858,7 @@
     "app_name": "DBIPatcher",
     "api_url": "https://api.github.com/repos/rashevskyv/DBIPatcher",
     "description": "Неофіційний переклад DBI на 22 мови.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "Switch",
@@ -2238,191 +2237,168 @@
     "app_name": "RipJKAnimeNX",
     "api_url": "https://api.github.com/repos/darkxex/RipJKAnimeNX",
     "description": "Додаток для перегляду та завантаження аніме з платформи JKAnime безпосередньо на консолі.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "Switch",
     "app_name": "Akira",
     "api_url": "https://api.github.com/repos/xlanor/akira",
     "description": "Графічна оболонка для chiaki-ng, що дозволяє стрімити ігри з PlayStation (Remote Play) на Switch.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "Switch",
     "app_name": "SwitchRPC",
     "api_url": "https://api.github.com/repos/llsc12/SwitchRPC",
     "description": "Інструмент для відображення активності Switch у Discord (Rich Presence).",
-    "prefix": "",
-    "new": true
-  },
-  {
-    "category": "Switch",
-    "app_name": "melonDS-Switch-BUENO",
-    "api_url": "https://api.github.com/repos/AakashNB/melonDS-Switch-BUENO",
-    "description": "Форк melonDS з виправленою функцією апскейлінгу (до 4x). Значно покращує чіткість у 2D-іграх.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "Switch",
     "app_name": "sys-ftpd-ovl",
     "api_url": "https://api.github.com/repos/Alpacinator/sys-ftpd-ovl",
     "description": "Оверлей для Tesla Menu, що дозволяє керувати фоновим FTP-сервером (sys-ftpd) прямо під час гри.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "Switch",
     "app_name": "NXVideoMaker",
     "api_url": "https://api.github.com/repos/TheExpertNoob/NXVideoMaker",
     "description": "Утиліта для створення NSP з відео для відтворення на Nintendo Switch.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "DS(i)",
     "app_name": "Alfombra Pixel Art Editor",
     "api_url": "https://api.github.com/repos/Alfombracitario/Alfombra-s-Pixel-Art-Editor-DS",
     "description": "Піксельний редактор для Nintendo DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "Switch",
     "app_name": "snapback",
     "api_url": "https://api.github.com/repos/saulotmalo/snapback",
     "description": "Виправлення snapback для контролерів Switch.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "Mario Kart World 3DS Edition",
     "api_url": "https://api.github.com/repos/JeremMK7/Mario-Kart-World-3DS-Edition",
     "description": "Фанатський порт Mario Kart World для Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "Tunez-3DS",
     "api_url": "https://api.github.com/repos/veylo-3DS/Tunez-3DS",
     "description": "Музичний плеєр для Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "Doors-3DS",
     "api_url": "https://api.github.com/repos/carmander152/Doors-3DS",
     "description": "Фанатський демейк Roblox-хорору Doors для Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "TJAP_3DS",
     "api_url": "https://api.github.com/repos/LuMariGames/TJAP_3DS",
     "description": "TJAPlayer (симулятор Taiko no Tatsujin) для Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "DSSH",
     "api_url": "https://api.github.com/repos/Fishason/DSSH",
     "description": "SSH клієнт для Nintendo 3DS з підтримкою RSA-авторизації та ANSI-терміналу.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "gd3ds",
     "api_url": "https://api.github.com/repos/AleFunky/gd3ds",
     "description": "Порт Geometry Dash для Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "osus-revented",
     "api_url": "https://api.github.com/repos/ohasanov-hbrw/osus-revented",
     "description": "Клон osu! для Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "Angband",
     "api_url": "https://api.github.com/repos/angband/angband",
     "description": "Класичний roguelike з дослідженням підземель.",
-    "prefix": " [Multiplatform]",
-    "new": true
+    "prefix": " [Multiplatform]"
   },
   {
     "category": "3DS",
     "app_name": "NZ:Portable",
     "api_url": "https://api.github.com/repos/nzp-team/nzportable",
     "description": "Демейк Call of Duty: Zombies на базі движків Quake.",
-    "prefix": " [+Switch/PSP/VITA]",
-    "new": true
+    "prefix": " [+Switch/PSP/VITA]"
   },
   {
     "category": "3DS",
     "app_name": "isle-portable",
     "api_url": "https://api.github.com/repos/isledecomp/isle-portable",
     "description": "Кросплатформний порт LEGO Island (1997).",
-    "prefix": " [Multiplatform]",
-    "new": true
+    "prefix": " [Multiplatform]"
   },
   {
     "category": "3DS",
     "app_name": "Butterscotch",
     "api_url": "https://api.github.com/repos/efimandreev0/Butterscotch",
     "description": "Реімплементація раннера GameMaker: Studio для запуску Undertale v1.08.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "re3-3DS",
     "api_url": "https://api.github.com/repos/GNU-Pattor-Team/re3-3DS",
     "description": "Порт GTA III / Vice City для New Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "RSDKv5-Decompilation",
     "api_url": "https://api.github.com/repos/SaturnSH2x2/RSDKv5-Decompilation",
     "description": "Декомпіляція Retro Engine (v5) для запуску Sonic Mania та інших ігор.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "jfblood-3ds",
     "api_url": "https://api.github.com/repos/MrHuu/jfblood-3ds",
     "description": "Порт гри Blood для Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "3DS",
     "app_name": "Xash3DS",
     "api_url": "https://api.github.com/repos/masterfeizz/Xash3DS",
     "description": "Порт движка Xash3D (Half-Life) для Nintendo 3DS.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "PC/Mobile",
     "app_name": "Dusk",
     "api_url": "https://api.github.com/repos/TwilitRealm/dusk",
     "description": "Порт The Legend of Zelda: Twilight Princess на базі декомпіляції оригінальної версії для GameCube/Wii. Підтримує HD-роздільну здатність, інтерполяцію до 60 FPS, широкоформатний режим, збереження в будь-який момент та моди.",
-    "prefix": " [Windows/Linux/macOS/Android]",
+    "prefix": " [Windows/Linux/macOS/Android]"
+  },
+  {
+    "category": "Switch",
+    "app_name": "Dusk",
+    "api_url": "https://api.github.com/repos/givethesourceplox/dusk",
+    "description": "Реімплементація The Legend of Zelda: Twilight Princess для Nintendo Switch.",
+    "prefix": "",
     "new": true
   }
 ]
