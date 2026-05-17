@@ -6,7 +6,10 @@
 main.py                  — Main bot loop (feed → parse → post → digest)
 send_daily_digest.py     — Daily digest sender (cron 08:00)
 send_homebrew_digest.py  — Homebrew digest sender (cron 08:00)
-collect_homebrew_updates.py — Homebrew GitHub/GitLab collector (cron 07:00)
+send_homebrew_digest.py  — Homebrew digest sender (cron 08:00)
+send_swuk_digest.py      — Switch UA localizations digest sender (cron 08:00)
+collect_homebrew_updates.py — Multi-source homebrew collector (cron 07:00)
+collect_swuk_updates.py  — swuk.com.ua RSS collector (cron 07:00)
 
 core/
   settings_loader.py     — Settings, session, bot init
@@ -26,6 +29,7 @@ digest/
   base.py                — Base digest class (load/save/split/send)
   daily.py               — Daily game digest (dedup by URL+type)
   homebrew.py            — Homebrew digest (dedup by release_url)
+  swuk.py                — Ukrainian Switch localizations digest
 
 utils/
   html_utils.py          — HTML cleaning/sanitization
@@ -90,11 +94,63 @@ Strategies are tried in order. First non-None result wins.
 - **Discovery Timestamp Preservation**: If the `version` and `app_name` are the same as existing, the original discovery `timestamp` is preserved. This prevents the entry from reappearing in the "last 24 hours" digest if it's re-added without changes.
 - **Automatic Marker Clearing**: After a successful digest send, all entries included in that digest have their `is_new` flag set to `False`.
 
+## Homebrew Collector — Multi-Source Architecture
+
+`collect_homebrew_updates.py` runs in phases. Each phase returns a set of GitHub `owner/repo` slugs it covered. Phase 2 skips any entry whose slug was already handled.
+
+```
+Phase 1a: UDB API          — 3DS/DS(i)    https://udb-api.lightsage.dev/all        (GET)
+Phase 1b: ForTheUsers      — Switch       https://switch.cdn.fortheusers.org/repo.json (GET)
+Phase 1c: ForTheUsers      — WiiU         https://wiiu.cdn.fortheusers.org/repo.json   (GET)
+Phase 1d: VitaDB           — PSVita       3 POST endpoints on rinnegatamante.eu
+Phase 2:  GitHub/GitLab    — Everything else not covered above
+```
+
+### Description Cache (`data/hb_descriptions.json`)
+
+Shared across all sources. Key format: `{prefix}:{id}`. Descriptions are translated **once** via GPT and cached permanently.
+
+**Priority per entry:**
+1. `list_hb.json` description (already Ukrainian) → used directly
+2. `hb_descriptions.json` cache hit → used directly
+3. API `long_description`/`description` → GPT translate → saved to cache
+
+### Changelog Summarization
+
+All sources: `_extract_latest_changelog()` extracts the top block, then GPT (`gpt-4o-mini`) summarizes to 1–2 Ukrainian sentences. Appended as `<i>...</i>` to the digest entry.
+
+### State Files
+
+| File | Source | Key format |
+|------|--------|------------|
+| `data/udb_state.json` | UDB API | `{slug}` |
+| `data/fortheusers_state.json` | Switch/WiiU FTU | `switch-hb:{name}` / `wiiu-hb:{name}` |
+| `data/vitadb_state.json` | VitaDB | `vita-hb:{id}` / `vita-plugin:{id}` / `vita-tool:{id}` |
+| `data/hb_state.json` | GitHub/GitLab | `{api_url}` |
+| `data/hb_descriptions.json` | Shared cache | `{prefix}:{id}` |
+
+### First Run Behavior
+
+All Phase 1 collectors: if an entry is **not** in state → save current version/date, **do not post**. Only subsequent runs with changed `version` or `updated`/`date` trigger a digest entry.
+
+## Swuk Digest (Ukrainian Switch Localizations)
+
+**Source:** `https://swuk.com.ua/feed/tg-updates/` — RSS 2.0, updates hourly.
+
+**Key detection:** `<guid>` contains `?modified=YYYYMMDDHHMMSS`. `<pubDate>` does NOT change on updates — only `guid` does.
+
+**State file:** `data/swuk_state.json` — `{url: {modified, title}}`
+
+**Digest:** `digest/swuk.py` — separate from homebrew digest. Sent via `send_swuk_digest.py`.
+
+**Config key** in `settings.json`: `SWUK_CHANNEL` with `enabled`, `chat_id`, `topic_id`.
+
 ## Timestamp Management
 
 Timestamps are saved by **senders**, not collectors:
 - `send_daily_digest.py` → `data/last_digest_run.json`
 - `send_homebrew_digest.py` → `data/last_homebrew_digest_run.json`
+- `send_swuk_digest.py` → `data/last_swuk_digest_run.json`
 
 This ensures the digest window is between two successful **sends** (posts to Telegram), not between collections.
 

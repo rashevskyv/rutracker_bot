@@ -6,7 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = "gpt-4o-mini") -> bool:
+async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = "gpt-5.5-nano") -> bool:
     """
     Uses ChatGPT to validate if a found YouTube title is relevant to the searched game title.
     Treats only an exact 'true' (case-insensitive) response as relevant.
@@ -63,7 +63,7 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
         logger.error(f"Error during GPT validation API call: {e}")
         return False # Default to False on API error
 
-async def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-4o-mini") -> str:
+async def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-5.5-nano") -> str:
     """
     Summarizes a long description using an AI model to fit within a target length.
 
