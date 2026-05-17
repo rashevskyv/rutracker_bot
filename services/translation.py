@@ -83,6 +83,12 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.5-nano") -> str:
         # FINAL SANITIZATION: Clean any unsupported tags from GPT response
         logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
         
+        # Replace accidental BBCode with HTML (GPT sometimes hallucinates [b] instead of <b>)
+        cleaned_text = re.sub(r'\[b\](.*?)\[/b\]', r'<b>\1</b>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+        cleaned_text = re.sub(r'\[i\](.*?)\[/i\]', r'<i>\1</i>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+        cleaned_text = re.sub(r'\[u\](.*?)\[/u\]', r'<u>\1</u>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+        cleaned_text = re.sub(r'\[s\](.*?)\[/s\]', r'<s>\1</s>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+
         final_text = sanitize_html_for_telegram(cleaned_text)
         
         # AGGRESSIVE MERGE OF ALL POSSIBLE BLOCKQUOTE MARKERS
