@@ -5,8 +5,10 @@
 #   ./run_checker.sh           - Run main RuTracker checker (default)
 #   ./run_checker.sh rt        - Run RuTracker checker
 #   ./run_checker.sh hb        - Run Homebrew updates checker
+#   ./run_checker.sh swuk      - Run Switch UA updates checker
 #   ./run_checker.sh digest    - Send daily digest
 #   ./run_checker.sh hb-digest - Send homebrew digest
+#   ./run_checker.sh swuk-digest - Send Switch UA digest
 
 # Get project root (one level up from config/)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -68,6 +70,16 @@ case "$COMMAND" in
         python send_homebrew_digest.py
         ;;
 
+    swuk|switch-ua)
+        echo "=== Running Switch UA updates checker ==="
+        python collect_swuk_updates.py
+        ;;
+
+    swuk-digest|switch-ua-digest)
+        echo "=== Sending Switch UA digest ==="
+        python send_swuk_digest.py
+        ;;
+
     all)
         echo "=== Running all checkers ==="
         echo ""
@@ -84,8 +96,10 @@ case "$COMMAND" in
         echo "Commands:"
         echo "  rt, rutracker       Run RuTracker checker (default)"
         echo "  hb, homebrew        Run Homebrew updates checker"
+        echo "  swuk, switch-ua     Run Switch UA updates checker"
         echo "  digest              Send daily digest"
         echo "  hb-digest           Send homebrew digest"
+        echo "  swuk-digest         Send Switch UA digest"
         echo "  all                 Run all checkers"
         echo "  help                Show this help message"
         echo ""
