@@ -113,35 +113,39 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.5-nano") -> str:
 
 async def translate_short_description(text: str, model: str = "gpt-5.5-nano") -> str:
     """
-    Translates short descriptions (1-2 sentences) from Russian to Ukrainian.
-    Designed for homebrew app descriptions - keeps them concise without adding extra content.
+    Summarizes and translates a homebrew app description into 1 concise Ukrainian sentence.
+    Focuses on what the app IS and DOES, not implementation details.
 
-    :param text: Short text to translate (typically 1-2 sentences).
-    :param model: GPT model to use. Defaults to "gpt-4o-mini".
-    :return: Translated text or original text on error.
+    :param text: App description text (any language).
+    :param model: GPT model to use.
+    :return: 1-sentence Ukrainian description, or original text on error.
     """
     if not openai_client:
         logger.error("Error: OpenAI client not available for GPT translation.")
         return text
 
-    logger.info(f"Translating short description RU -> UA using GPT model: {model}...")
+    logger.info(f"Summarizing description using GPT model: {model}...")
 
     prompt = (
-        f"Translate the following short text from Russian to Ukrainian.\n\n"
+        f"Summarize the following app description into exactly ONE short sentence in Ukrainian.\n\n"
         f"**Rules:**\n"
-        f"1. Keep it SHORT - translate exactly what's given, don't add extra information\n"
-        f"2. Preserve HTML tags like <b>, <i> exactly as they are\n"
-        f"3. Keep the same structure and length as the original\n"
-        f"4. Use natural, readable Ukrainian\n"
-        f"5. Translate 'русский язык' as 'російська' or 'москальська', NEVER 'руська'\n"
-        f"6. Keep English words, brand names, and technical terms untranslated\n\n"
-        f"**Text to translate:**\n{text}\n\n**Ukrainian translation:**"
+        f"1. ONE sentence only — no more.\n"
+        f"2. Describe only WHAT the app/game IS and WHAT it does for the user.\n"
+        f"3. Do NOT include technical implementation details (e.g. how a port was made, "
+        f"what libraries it uses, how it loads executables, patching methods, etc.)\n"
+        f"4. Example: instead of 'port that loads an ARMv7 binary into memory...', "
+        f"write 'Порт гри Beat Hazard 2 для PS Vita.'\n"
+        f"5. Keep English brand names, game titles, and technical terms untranslated.\n"
+        f"6. Use natural, readable Ukrainian. End with a period.\n\n"
+        f"**App description:**\n{text}\n\n**One-sentence Ukrainian summary:**"
     )
 
     try:
         response = await openai_client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=100,
+            temperature=0.3,
         )
         translated_text = response.choices[0].message.content.strip()
 
@@ -152,7 +156,7 @@ async def translate_short_description(text: str, model: str = "gpt-5.5-nano") ->
         return translated_text
 
     except Exception as e:
-        logger.error(f"Error during GPT translation: {e}")
+        logger.error(f"Error during GPT description summarization: {e}")
         return text
 
 # Function translate_ru_to_ua_deepl remains the same (using aiohttp)
