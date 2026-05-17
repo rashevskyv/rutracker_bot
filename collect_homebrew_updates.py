@@ -255,26 +255,30 @@ class HomebrewUpdatesCollector:
         return None
 
     async def summarize_and_translate_notes(self, notes: str) -> Optional[str]:
-        """Summarize update notes to 1-2 Ukrainian sentences using GPT."""
+        """Summarize update notes to exactly 1 Ukrainian sentence using GPT."""
         from core.settings_loader import openai_client
         if not openai_client or not notes or not notes.strip():
             return None
         try:
             prompt = (
-                f"Summarize the following software update notes into 1-2 concise sentences in Ukrainian. "
-                f"Focus only on the key changes, new features, or bug fixes. "
-                f"Do not include greetings, thanks, or author mentions. "
-                f"Output plain text only (no HTML, no markdown).\n\n"
-                f"Update notes:\n{notes.strip()}"
+                f"Summarize the following software update notes into exactly ONE concise sentence in Ukrainian.\n\n"
+                f"Rules:\n"
+                f"1. ONE sentence only — no more.\n"
+                f"2. Describe only WHAT was changed, fixed, or added in this update.\n"
+                f"3. Do NOT include thanks, credits, author names, or release ceremony text.\n"
+                f"4. Keep English brand names and technical terms untranslated.\n"
+                f"5. Output plain text only (no HTML, no markdown). End with a period.\n\n"
+                f"Update notes:\n{notes.strip()}\n\n"
+                f"One-sentence Ukrainian summary:"
             )
             response = await openai_client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[{'role': 'user', 'content': prompt}],
-                max_tokens=150,
+                max_tokens=100,
                 temperature=0.3,
             )
             result = response.choices[0].message.content.strip()
-            logger.info(f"Summarized update notes to: {result[:80]}...")
+            logger.info(f"Summarized update notes: {result[:80]}")
             return result
         except Exception as e:
             logger.error(f"Error summarizing update notes: {e}")
