@@ -143,9 +143,8 @@ async def send_digest():
                     chat_id = int(group['chat_id'])
                     topic_id = int(group['topic_id']) if group['topic_id'] and str(group['topic_id']).strip() else None
 
-                    # Use language from config
-                    group_lang = group.get('language', 'RU').upper()
-                    translate_to_ua = group_lang == 'UA'
+                    # Homebrew descriptions are already in Ukrainian — no re-translation needed
+                    translate_to_ua = False
 
                     logger.info(f"Sending homebrew digest to {group['name']} (chat_id: {chat_id}, topic_id: {topic_id}, translate: {translate_to_ua})")
 

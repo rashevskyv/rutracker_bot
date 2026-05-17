@@ -543,15 +543,17 @@ class HomebrewUpdatesCollector:
         self.updates_found += 1
         self.updated_apps.append(f"{app_name} {update_info['tag_name']}{' (NEW)' if is_new else ''}")
 
-        # Translate description if needed
-        description = entry['description']
-        if translate:
-            try:
-                logger.info(f"Translating description for {app_name}...")
-                description = await translate_ru_to_ua(description)
-            except Exception as e:
-                logger.error(f"Translation failed for {app_name}: {e}")
-                # Keep original Russian description
+        # Resolve description via shared cache:
+        # 1. list_hb.json description (already Ukrainian) → used directly, no GPT
+        # 2. hb_descriptions.json cache hit → used directly
+        # 3. GitHub release body → GPT translate → save to cache
+        slug = self._extract_github_slug(entry['api_url']) or entry['api_url']
+        description = await self._get_description_cached(
+            cache_key=f'github:{slug}',
+            local_entry=entry,
+            raw_text='',  # GitHub Phase 2 has no raw API description
+            fallback_name=app_name,
+        )
 
         # Parse date for display
         try:
