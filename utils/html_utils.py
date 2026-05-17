@@ -75,6 +75,9 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # Remove trailing bullet if it's completely empty at the end of the text
     cleaned_html = re.sub(r'\n•\s*$', '', cleaned_html)
 
+    # Remove standalone exclamation marks or punctuation on empty lines (often left over from image stripping)
+    cleaned_html = re.sub(r'\n\s*[!.,?;:-]\s*\n', '\n', cleaned_html)
+
     cleaned_html = re.sub(r'[ \t]+\n', '\n', cleaned_html)
     cleaned_html = re.sub(r'\n{2,}', '\n\n', cleaned_html) # Max 1 empty line
     # Remove gaps between list items
