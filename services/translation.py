@@ -21,13 +21,13 @@ async def translate_ru_to_ua(text: str) -> str:
         logger.warning("OpenAI client not available for translation. Returning original text.")
         return text # Fallback if GPT client failed initialization
 
-async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
+async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
     """
     Translates text from Russian to Ukrainian using GPT, requesting logical formatting
     and allowing light emphasis for readability.
 
     :param text: Text to translate.
-    :param model: GPT model to use. Defaults to "gpt-4o-mini".
+    :param model: GPT model to use. Defaults to "gpt-5.4-nano".
     :return: Translated text or original text on error.
     """
     if not openai_client:
@@ -117,7 +117,7 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-4o-mini") -> str:
         logger.error(f"Error during GPT translation: {e}")
         return text # Fallback to original text
 
-async def translate_short_description(text: str, model: str = "gpt-4o-mini") -> str:
+async def translate_short_description(text: str, model: str = "gpt-5.4-nano") -> str:
     """
     Summarizes and translates a homebrew app description into 1 concise Ukrainian sentence.
     Focuses on what the app IS and DOES, not implementation details.

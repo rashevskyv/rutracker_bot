@@ -37,7 +37,7 @@ WIIU_FTU_CATEGORIES = {'WiiU', 'WiiU/Switch'}
 # Shared descriptions cache (translated, never re-translated)
 DESCRIPTIONS_CACHE_PATH = os.path.join('data', 'hb_descriptions.json')
 
-GPT_MODEL = 'gpt-4o-mini'
+GPT_MODEL = 'gpt-5.4-nano'
 
 # VitaDB (PS Vita)
 VITADB_STATE_PATH = os.path.join('data', 'vitadb_state.json')
