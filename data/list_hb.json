@@ -2398,8 +2398,7 @@
     "app_name": "Dusk",
     "api_url": "https://api.github.com/repos/givethesourceplox/dusk",
     "description": "Реімплементація The Legend of Zelda: Twilight Princess для Nintendo Switch.",
-    "prefix": "",
-    "new": true
+    "prefix": ""
   },
   {
     "category": "Switch",
