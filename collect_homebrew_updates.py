@@ -49,6 +49,9 @@ VITADB_ENDPOINTS = [
 # Vita entries in list_hb.json (if any) use this category
 VITA_CATEGORIES = {'Vita', 'PSVita'}
 
+# Collector run stats (saved after each run for the digest sender)
+HB_STATS_PATH = os.path.join('data', 'hb_collect_stats.json')
+
 
 class HomebrewUpdatesCollector:
     """Collects homebrew updates from GitHub/GitLab"""
@@ -66,6 +69,9 @@ class HomebrewUpdatesCollector:
         self.updates_found = 0
         self.updated_apps = []
         self.errors = []
+
+        # Per-source stats: {source_name: {'checked': int, 'found': int}}
+        self.source_stats: Dict[str, Dict[str, int]] = {}
 
         # State dicts
         self._state: Dict[str, Dict] = {}              # hb_state.json (GitHub/GitLab)
@@ -624,11 +630,13 @@ class HomebrewUpdatesCollector:
         covered_github_slugs: Set[str] = set()
         first_run_initialized = 0
         updates_from_udb = 0
+        udb_checked = 0
 
         for udb_slug, udb_app in udb_data.items():
             systems = [s.upper() for s in udb_app.get('systems', [])]
             if not any(s in ('3DS', 'DS') for s in systems):
                 continue
+            udb_checked += 1
 
             # Mark GitHub slug as covered
             github_url = udb_app.get('github', '')
@@ -727,6 +735,7 @@ class HomebrewUpdatesCollector:
             f"{first_run_initialized} new entries initialized, "
             f"{len(covered_github_slugs)} GitHub repos covered"
         )
+        self.source_stats['UDB (3DS/DS)'] = {'checked': udb_checked, 'found': updates_from_udb}
         return covered_github_slugs
 
     async def collect_fortheusers_updates(
@@ -781,11 +790,13 @@ class HomebrewUpdatesCollector:
         covered_github_slugs: Set[str] = set()
         first_run_initialized = 0
         updates_found = 0
+        ftu_checked = 0
 
         for pkg in packages:
             name = pkg.get('name', '')
             if not name:
                 continue
+            ftu_checked += 1
 
             state_key = f"{key_prefix}:{name}"
 
@@ -882,6 +893,7 @@ class HomebrewUpdatesCollector:
             f"ForTheUsers [{platform}] complete: {updates_found} updates, "
             f"{first_run_initialized} initialized, {len(covered_github_slugs)} GitHub repos covered"
         )
+        self.source_stats[f'{platform} (FTU)'] = {'checked': ftu_checked, 'found': updates_found}
         return covered_github_slugs
 
     async def collect_vitadb_updates(
@@ -929,6 +941,7 @@ class HomebrewUpdatesCollector:
         covered_github_slugs: Set[str] = set()
         first_run_initialized = 0
         updates_found = 0
+        vita_checked = 0
 
         for pkg in packages:
             pkg_id = str(pkg.get('id', ''))
@@ -938,6 +951,7 @@ class HomebrewUpdatesCollector:
             # Skip inactive entries
             if str(pkg.get('status', '0')) != '0':
                 continue
+            vita_checked += 1
 
             state_key = f"{key_prefix}:{pkg_id}"
 
@@ -1033,6 +1047,7 @@ class HomebrewUpdatesCollector:
             f"VitaDB [{platform_name}] complete: {updates_found} updates, "
             f"{first_run_initialized} initialized, {len(covered_github_slugs)} GitHub repos covered"
         )
+        self.source_stats[platform_name] = {'checked': vita_checked, 'found': updates_found}
         return covered_github_slugs
 
     async def collect_updates(self, translate: bool = True, max_entries: Optional[int] = None):
@@ -1106,6 +1121,7 @@ class HomebrewUpdatesCollector:
         )
 
         entries = filtered_entries
+        github_total = len(entries)
 
         if max_entries:
             entries = entries[:max_entries]
@@ -1173,17 +1189,29 @@ class HomebrewUpdatesCollector:
         elif new_entries_processed and IS_TEST_MODE:
             logger.info(f"TEST MODE: Would remove 'new' flag from {len(new_entries_processed)} entries in production")
 
+        # Track GitHub/GitLab stats
+        self.source_stats['GitHub/GitLab'] = {'checked': github_total, 'found': self.updates_found - sum(s['found'] for s in self.source_stats.values())}
+
+        # Save stats for digest sender
+        try:
+            os.makedirs('data', exist_ok=True)
+            with open(HB_STATS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(self.source_stats, f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved collector stats to {HB_STATS_PATH}")
+        except Exception as e:
+            logger.error(f"Error saving collector stats: {e}")
+
         # Summary
         logger.info("=" * 60)
         logger.info(f"Collection complete!")
         logger.info(f"Total entries processed: {total}")
         logger.info(f"Updates found: {self.updates_found}")
-        
+
         if self.updated_apps:
             logger.info("Updated Apps List:")
             for app in self.updated_apps:
                 logger.info(f"  - {app}")
-        
+
         logger.info(f"UDB requests: {self.udb_requests}")
         logger.info(f"GitHub requests: {self.github_requests}")
         logger.info(f"GitLab requests: {self.gitlab_requests}")
