@@ -18,6 +18,38 @@ from services.manual_releases import process_manual_releases
 logger = logging.getLogger(__name__)
 
 LAST_RUN_FILE = os.path.join("data", "last_homebrew_digest_run.json")
+HB_STATS_FILE = os.path.join("data", "hb_collect_stats.json")
+SWUK_STATS_FILE = os.path.join("data", "swuk_collect_stats.json")
+
+
+def build_stats_text() -> str:
+    """Build a per-source stats block from the last collector run files."""
+    lines = ["\n\n📋 <b>Статистика збору:</b>"]
+
+    # Homebrew sources
+    try:
+        with open(HB_STATS_FILE, encoding='utf-8') as f:
+            hb_stats = json.load(f)
+        for source, s in hb_stats.items():
+            emoji = "✅" if s['found'] > 0 else "➖"
+            lines.append(f"{emoji} {source}: перевірено {s['checked']}, знайдено {s['found']}")
+    except FileNotFoundError:
+        lines.append("➖ Homebrew: немає даних (колектор ще не запускався)")
+    except Exception as e:
+        lines.append(f"⚠️ Помилка читання homebrew stats: {e}")
+
+    # SWUK source
+    try:
+        with open(SWUK_STATS_FILE, encoding='utf-8') as f:
+            swuk = json.load(f)
+        emoji = "✅" if swuk['found'] > 0 else "➖"
+        lines.append(f"{emoji} SWUK (Switch UA): перевірено {swuk['checked']}, знайдено {swuk['found']}")
+    except FileNotFoundError:
+        lines.append("➖ SWUK: немає даних")
+    except Exception as e:
+        lines.append(f"⚠️ Помилка читання SWUK stats: {e}")
+
+    return "\n".join(lines)
 
 
 def get_last_run_time() -> datetime:
@@ -78,6 +110,18 @@ async def send_digest():
                 since_time=last_run_time
             )
             logger.info("Test homebrew digest sent successfully")
+
+            # Send stats report to test channel
+            stats_message = (
+                f"📊 <b>Тест-дайджест відправлено</b>"
+                f"{build_stats_text()}"
+            )
+            await bot.send_message(
+                chat_id=TEST_CHAT_ID,
+                message_thread_id=TEST_TOPIC_ID,
+                text=stats_message,
+                parse_mode='HTML'
+            )
         except Exception as e:
             logger.error(f"Failed to send test homebrew digest: {e}")
             import traceback
@@ -185,6 +229,7 @@ async def send_digest():
                 f"Оновлень: {update_count}\n"
                 f"Всього: {total_count}\n"
                 f"Груп: {sent_count}/{len(target_groups)}"
+                f"{build_stats_text()}"
             )
             await bot.send_message(
                 chat_id=TEST_CHAT_ID,

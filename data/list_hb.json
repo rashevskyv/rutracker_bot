@@ -2400,5 +2400,12 @@
     "description": "Реімплементація The Legend of Zelda: Twilight Princess для Nintendo Switch.",
     "prefix": "",
     "new": true
+  },
+  {
+    "category": "Switch",
+    "app_name": "4IFIR",
+    "api_url": "https://api.github.com/repos/rashevskyv/4ifir-checker",
+    "description": "4IFIR",
+    "prefix": ""
   }
 ]

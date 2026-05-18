@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 SWUK_FEED_URL = 'https://swuk.com.ua/feed/tg-updates/'
 SWUK_STATE_PATH = os.path.join('data', 'swuk_state.json')
+SWUK_STATS_PATH = os.path.join('data', 'swuk_collect_stats.json')
 
 
 def load_swuk_state() -> Dict:
@@ -71,6 +72,7 @@ async def collect_swuk_updates():
     """Main collection logic: fetch RSS, compare with state, add to digest."""
     state = load_swuk_state()
     updates_found = 0
+    items_checked = 0
 
     from core.settings_loader import get_session
     session = get_session()
@@ -103,6 +105,7 @@ async def collect_swuk_updates():
 
         if not link or not title_raw:
             continue
+        items_checked += 1
 
         is_new = '[НОВИНКА]' in title_raw
         game_name = clean_title(title_raw)
@@ -139,6 +142,14 @@ async def collect_swuk_updates():
 
     save_swuk_state(state)
     logger.info(f"Swuk collection complete: {updates_found} new/updated entries")
+
+    # Save stats for digest sender
+    try:
+        os.makedirs('data', exist_ok=True)
+        with open(SWUK_STATS_PATH, 'w', encoding='utf-8') as f:
+            json.dump({'checked': items_checked, 'found': updates_found}, f)
+    except Exception as e:
+        logger.error(f"Error saving swuk stats: {e}")
 
 
 async def main():
