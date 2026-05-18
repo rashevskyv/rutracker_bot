@@ -64,5 +64,16 @@
     "description": "Оновлено українську локалізацію платформера Super Mario Galaxy 1 до останньої версії.",
     "date": "2026-05-07T11:54:20+03:00",
     "processed": true
+  },
+  {
+    "type": "homebrew",
+    "app_name": "Dementium II",
+    "version": "v1.0",
+    "release_url": "https://t.me/BlackDragonStudio/134",
+    "platform": "DS(i)",
+    "is_new": true,
+    "description": "Додано українську локалізацію хорору Dementium II (Nintendo DS) від Black Dragon Studio. Здійснено переклад тексту, адаптацію графіку та шрифтів.",
+    "date": "2026-05-15T20:26:07+03:00",
+    "processed": true
   }
 ]
