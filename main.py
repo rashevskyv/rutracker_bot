@@ -179,29 +179,31 @@ async def main_loop():
                 video_id_for_thumbnail = None # Initialize video ID
                 current_trailer_url = None # For digest
                 try:
-                    trailer_url, found_yt_title = await search_trailer_on_youtube(title_text_for_youtube, YOUTUBE_API_KEY)
-                    current_trailer_url = trailer_url
-                    if trailer_url and found_yt_title:
-                        is_title_relevant = await validate_yt_title_with_gpt(title_text_for_youtube, found_yt_title)
-                        if is_title_relevant:
-                            video_id_for_thumbnail = get_youtube_video_id(trailer_url)
-                            if video_id_for_thumbnail:
-                                logger.info(f"Trailer validated. Video ID for thumbnail: {video_id_for_thumbnail}")
-                            else:
-                                logger.warning(f"Could not extract video ID from validated trailer URL: {trailer_url}")
-                            if 'Trailer</a>' not in final_title_for_telegram:
-                                final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
-                        else:
-                            logger.warning(f"GPT validation deemed YT title not relevant.")
-                            await notify_mismatched_trailer(title_text_for_youtube, found_yt_title, trailer_url)
-                    elif trailer_url:
-                         logger.warning(f"Found trailer URL but YT title missing. Adding link cautiously.")
-                         if 'Trailer</a>' not in final_title_for_telegram:
-                             final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
-                             logger.info(f"Added Trailer link (unvalidated): {trailer_url}")
+                    candidates = await search_trailer_on_youtube(title_text_for_youtube, YOUTUBE_API_KEY)
+                    validated_trailer = None
+
+                    for candidate_url, candidate_title in candidates:
+                        is_relevant = await validate_yt_title_with_gpt(title_text_for_youtube, candidate_title)
+                        if is_relevant:
+                            validated_trailer = (candidate_url, candidate_title)
+                            break
+
+                    if validated_trailer:
+                        trailer_url, found_yt_title = validated_trailer
+                        current_trailer_url = trailer_url
+                        video_id_for_thumbnail = get_youtube_video_id(trailer_url)
+                        if video_id_for_thumbnail:
+                            logger.info(f"Trailer validated: '{found_yt_title}' — {trailer_url}")
+                        if 'Trailer</a>' not in final_title_for_telegram:
+                            final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
+                    elif candidates:
+                        # No candidate passed — report the best (first) one
+                        best_url, best_title = candidates[0]
+                        logger.warning(f"No candidate passed validation. Best: '{best_title}'")
+                        await notify_mismatched_trailer(title_text_for_youtube, best_title, best_url)
 
                 except Exception as yt_err:
-                     logger.warning(f"YouTube search/validation failed: {yt_err}")
+                    logger.warning(f"YouTube search/validation failed: {yt_err}")
 
                 # Get and Download Screenshots from TitleDB
                 local_screenshot_paths: List[str] = []

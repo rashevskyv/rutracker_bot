@@ -1,46 +1,77 @@
 # --- START OF FILE ai_validator.py ---
-from core.settings_loader import openai_client # Import OpenAI client
+from core.settings_loader import openai_client
 from typing import Optional
-import re # Import re for cleaning title in prompt
+import re
 import logging
 
 logger = logging.getLogger(__name__)
 
+_STOP_WORDS = {
+    'the', 'a', 'an', 'of', 'and', 'or', 'in', 'on', 'at', 'to', 'for',
+    'is', 'it', 'its', 'be', 'as', 'by', 'with', 'that', 'this', 'from',
+}
+
+
+def _word_overlap_ratio(searched: str, found: str) -> float:
+    """Return ratio of significant searched words that appear in found title."""
+    words = {w for w in re.findall(r'\w+', searched.lower()) if len(w) > 2 and w not in _STOP_WORDS}
+    if not words:
+        return 0.0
+    found_lower = found.lower()
+    matched = sum(1 for w in words if w in found_lower)
+    return matched / len(words)
+
+
 async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = "gpt-5.4-nano") -> bool:
     """
-    Validates if a found YouTube title is relevant to the searched game title.
-    First tries a simple string check (no GPT needed), then falls back to GPT.
+    3-layer validation for YouTube trailer relevance:
+      Layer 1 — Exact contains: searched title is a substring of found title.
+      Layer 2 — Word overlap: ≥60% of significant words from searched title appear in found title.
+      Layer 3 — GPT with structured RELEVANT/NOT_RELEVANT + REASON response.
 
     Args:
         searched_title: The game title that was searched for.
         found_yt_title: The title of the YouTube video found by the search.
-        model: The OpenAI model to use for validation.
+        model: Primary GPT model to use.
 
     Returns:
-        True if the video is relevant, False otherwise.
+        True if the video is considered relevant, False otherwise.
     """
-    # Clean title for comparison (remove brackets/parentheses)
     prompt_searched_title = re.sub(r'\[.*?\]|\(.*?\)', '', searched_title).strip()
     clean_searched = prompt_searched_title.lower().strip()
     clean_found = found_yt_title.lower().strip()
 
-    # --- Pre-check: if searched title is literally contained in found title → always True ---
+    # --- Layer 1: Exact contains ---
     if clean_searched and clean_searched in clean_found:
-        logger.info(f"YouTube validation: '{searched_title}' found in '{found_yt_title}' — accepted without GPT.")
+        logger.info(f"YT Layer 1 (contains): '{searched_title}' ⊆ '{found_yt_title}' — ACCEPTED")
         return True
 
+    # --- Layer 2: Word overlap ≥ 60% ---
+    overlap = _word_overlap_ratio(clean_searched, clean_found)
+    if overlap >= 0.6:
+        logger.info(f"YT Layer 2 (word overlap {overlap:.0%}): '{searched_title}' ~ '{found_yt_title}' — ACCEPTED")
+        return True
+    else:
+        logger.debug(f"YT Layer 2 (word overlap {overlap:.0%}): below threshold, proceeding to GPT")
+
     if not openai_client:
-        logger.warning("OpenAI client unavailable for YouTube title validation. Skipping validation, assuming False.")
+        logger.warning("OpenAI client unavailable for YouTube title validation.")
         return False
 
+    # --- Layer 3: GPT with structured response ---
     prompt = (
-        f"You are a game title validation assistant. Your task is to determine if the 'Found YouTube Video Title' "
-        f"is relevant (likely an official trailer, gameplay video, review, or closely related content) "
-        f"for the 'Searched Game Title'. Consider different languages, subtitles, and common variations "
-        f"(e.g., 'Gameplay Trailer' vs 'Trailer').\n\n"
+        f"You are a strict game trailer validation assistant.\n\n"
         f"Searched Game Title: \"{prompt_searched_title}\"\n"
         f"Found YouTube Video Title: \"{found_yt_title}\"\n\n"
-        f"Is the YouTube video title relevant and specifically about the searched game? Respond ONLY with True or False."
+        f"Task: Determine if the YouTube video is specifically about the searched game "
+        f"(official trailer, gameplay, announcement, review). "
+        f"Consider alternate spellings, subtitles, and localized names.\n\n"
+        f"Respond in EXACTLY this format (two lines):\n"
+        f"RELEVANT: Yes\n"
+        f"REASON: one sentence\n\n"
+        f"or:\n"
+        f"RELEVANT: No\n"
+        f"REASON: one sentence"
     )
 
     fallback_model = "gpt-4o-mini"
@@ -48,27 +79,32 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
     for attempt_model in (model, fallback_model):
         try:
             use_new_param = attempt_model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
-            extra = {'max_completion_tokens': 10} if use_new_param else {'max_tokens': 10}
+            extra = {'max_completion_tokens': 60} if use_new_param else {'max_tokens': 60}
             response = await openai_client.chat.completions.create(
                 model=attempt_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 **extra,
             )
-            result_text = response.choices[0].message.content.strip().lower()
-            logger.debug(f"GPT Validation ({attempt_model}) response: '{result_text}'")
+            raw = response.choices[0].message.content.strip()
+            logger.debug(f"YT Layer 3 GPT ({attempt_model}) raw: {raw!r}")
 
-            is_relevant = result_text.startswith("true")
+            # Parse structured response
+            relevant_line = next((l for l in raw.splitlines() if l.upper().startswith('RELEVANT:')), '')
+            reason_line   = next((l for l in raw.splitlines() if l.upper().startswith('REASON:')), '')
+            reason = reason_line.split(':', 1)[1].strip() if ':' in reason_line else ''
+            is_relevant = 'yes' in relevant_line.lower()
+
             if is_relevant:
-                logger.info(f"GPT Validation ({attempt_model}): RELEVANT.")
+                logger.info(f"YT Layer 3 ({attempt_model}): RELEVANT — {reason}")
             else:
-                logger.info(f"GPT Validation ({attempt_model}): NOT relevant (response: '{result_text}').")
+                logger.info(f"YT Layer 3 ({attempt_model}): NOT RELEVANT — {reason}")
             return is_relevant
 
         except Exception as e:
-            logger.error(f"Error during GPT validation with {attempt_model}: {e}")
+            logger.error(f"YT Layer 3 GPT error ({attempt_model}): {e}")
             if attempt_model == fallback_model:
-                return False  # Both models failed
+                return False
 
     return False  # unreachable
 
