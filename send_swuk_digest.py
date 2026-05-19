@@ -2,6 +2,7 @@
 Send Swuk Digest Script
 Sends accumulated Ukrainian Switch localizations digest to configured channel.
 Should be run by cron/scheduler (e.g. daily at 09:00).
+Uses the same GROUPS + DIGEST_CHANNEL targets as the homebrew digest.
 """
 import asyncio
 import logging
@@ -48,7 +49,7 @@ def save_last_run_time():
 
 
 async def send_digest():
-    """Send swuk digest to configured channel."""
+    """Send swuk digest to configured channels (same targets as homebrew digest)."""
     last_run_time = get_last_run_time()
     current_time = datetime.now()
 
@@ -81,7 +82,7 @@ async def send_digest():
             sys.exit(1)
         return
 
-    # PRODUCTION MODE
+    # PRODUCTION MODE: use same GROUPS + DIGEST_CHANNEL as homebrew digest
     from core.settings_loader import load_config, bot
     current_dir = os.path.dirname(os.path.abspath(__file__))
     settings_path = os.path.join(current_dir, 'config', 'settings.json')
@@ -92,37 +93,64 @@ async def send_digest():
         await send_message_to_admin("❌ Swuk digest: Could not load settings.json")
         sys.exit(1)
 
-    swuk_config = config.get('SWUK_CHANNEL')
-    if not swuk_config or not swuk_config.get('enabled', False):
-        logger.info("SWUK_CHANNEL not configured or disabled — skipping production send")
-        await send_message_to_admin("ℹ️ Swuk digest: SWUK_CHANNEL not configured")
-        return
+    # Collect target groups (same logic as send_homebrew_digest.py)
+    target_groups = []
 
-    chat_id = int(swuk_config['chat_id'])
-    topic_id_raw = swuk_config.get('topic_id')
-    topic_id = int(topic_id_raw) if topic_id_raw and str(topic_id_raw).strip() else None
-    group_name = swuk_config.get('group_name', 'Swuk Channel')
+    for group in config.get('GROUPS', []):
+        target_groups.append({
+            'name': group.get('group_name', 'Unknown'),
+            'chat_id': group.get('chat_id'),
+            'topic_id': group.get('topic_id'),
+        })
 
-    logger.info(f"PRODUCTION MODE: Sending swuk digest to {group_name} (chat: {chat_id}, topic: {topic_id})")
+    digest_config = config.get('DIGEST_CHANNEL')
+    if digest_config and digest_config.get('enabled', False):
+        target_groups.append({
+            'name': digest_config.get('group_name', 'Digest Channel'),
+            'chat_id': digest_config.get('chat_id'),
+            'topic_id': digest_config.get('topic_id'),
+        })
+
+    if not target_groups:
+        logger.error("No target groups configured")
+        await send_message_to_admin("❌ Swuk digest: No target groups configured")
+        sys.exit(1)
+
+    logger.info(f"PRODUCTION MODE: Sending swuk digest to {len(target_groups)} groups")
 
     try:
-        await swuk_digest_manager.send_digest(
-            target_chat_id=chat_id,
-            target_topic_id=topic_id,
-            since_time=last_run_time,
-        )
-        logger.info(f"Swuk digest sent to {group_name}")
+        sent_count = 0
+        for group in target_groups:
+            try:
+                chat_id = int(group['chat_id'])
+                topic_id_raw = group.get('topic_id')
+                topic_id = int(topic_id_raw) if topic_id_raw and str(topic_id_raw).strip() else None
 
-        save_last_run_time()
-        swuk_digest_manager.mark_as_sent(last_run_time)
-        cleanup_time = datetime.now() - timedelta(days=7)
-        swuk_digest_manager.clear_old_entries(cleanup_time)
+                logger.info(f"Sending swuk digest to {group['name']} (chat: {chat_id}, topic: {topic_id})")
+                await swuk_digest_manager.send_digest(
+                    target_chat_id=chat_id,
+                    target_topic_id=topic_id,
+                    since_time=last_run_time,
+                )
+                sent_count += 1
+                logger.info(f"Swuk digest sent to {group['name']}")
+                await asyncio.sleep(1)
+
+            except Exception as group_err:
+                logger.error(f"Failed to send swuk digest to {group['name']}: {group_err}")
+
+        if sent_count > 0:
+            save_last_run_time()
+            swuk_digest_manager.mark_as_sent(last_run_time)
+            cleanup_time = datetime.now() - timedelta(days=7)
+            swuk_digest_manager.clear_old_entries(cleanup_time)
 
         stats_message = (
             f"🇺🇦 <b>Swuk дайджест відправлено</b>\n\n"
             f"Нових локалізацій: {new_count}\n"
             f"Оновлень: {update_count}\n"
-            f"Всього: {total_count}"
+            f"Всього: {total_count}\n"
+            f"Груп: {sent_count}/{len(target_groups)}"
         )
         await bot.send_message(
             chat_id=TEST_CHAT_ID,

@@ -121,16 +121,15 @@ async def translate_short_description(text: str, model: str = "gpt-5.4-nano") ->
     """
     Summarizes and translates a homebrew app description into 1 concise Ukrainian sentence.
     Focuses on what the app IS and DOES, not implementation details.
+    Falls back to gpt-4o-mini if the primary model fails.
 
     :param text: App description text (any language).
-    :param model: GPT model to use.
+    :param model: GPT model to use (primary).
     :return: 1-sentence Ukrainian description, or original text on error.
     """
     if not openai_client:
         logger.error("Error: OpenAI client not available for GPT translation.")
         return text
-
-    logger.info(f"Summarizing description using GPT model: {model}...")
 
     prompt = (
         f"Summarize the following app description into exactly ONE short sentence in Ukrainian.\n\n"
@@ -146,24 +145,34 @@ async def translate_short_description(text: str, model: str = "gpt-5.4-nano") ->
         f"**App description:**\n{text}\n\n**One-sentence Ukrainian summary:**"
     )
 
-    try:
-        response = await openai_client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=100,
-            temperature=0.3,
-        )
-        translated_text = response.choices[0].message.content.strip()
+    fallback_model = "gpt-4o-mini"
 
-        # Clean any markdown artifacts
-        translated_text = re.sub(r"^(```html|```)", "", translated_text).strip()
-        translated_text = re.sub(r"```$", "", translated_text).strip()
+    for attempt_model in (model, fallback_model):
+        try:
+            logger.info(f"Summarizing description using GPT model: {attempt_model}...")
+            response = await openai_client.chat.completions.create(
+                model=attempt_model,
+                messages=[{'role': 'user', 'content': prompt}],
+                max_tokens=100,
+                temperature=0.3,
+            )
+            translated_text = response.choices[0].message.content.strip()
 
-        return translated_text
+            # Clean any markdown artifacts
+            translated_text = re.sub(r"^(```html|```)", "", translated_text).strip()
+            translated_text = re.sub(r"```$", "", translated_text).strip()
 
-    except Exception as e:
-        logger.error(f"Error during GPT description summarization: {e}")
-        return text
+            if attempt_model != model:
+                logger.info(f"Used fallback model {attempt_model} for description translation.")
+            return translated_text
+
+        except Exception as e:
+            logger.error(f"Error during GPT description summarization with {attempt_model}: {e}")
+            if attempt_model == fallback_model:
+                # Both models failed — return original text (caller decides whether to cache)
+                return text
+
+    return text  # unreachable, but satisfies type checker
 
 # Function translate_ru_to_ua_deepl remains the same (using aiohttp)
 async def translate_ru_to_ua_deepl(text: str) -> str:

@@ -316,12 +316,13 @@ class HomebrewUpdatesCollector:
         try:
             from services.translation import translate_short_description
             translated = await translate_short_description(raw_text)
+            # Only cache if translation succeeded (i.e. result differs from raw input or is clearly Ukrainian)
+            self._descriptions[cache_key] = translated
+            return translated
         except Exception as e:
             logger.error(f"[{cache_key}]: description translation failed: {e}")
-            translated = raw_text
-
-        self._descriptions[cache_key] = translated
-        return translated
+            # Do NOT cache — return fallback without saving raw English text
+            return fallback_name
 
     async def _get_description_for_udb_app(
         self, slug: str, udb_app: Dict, local_entry: Optional[Dict]
