@@ -88,6 +88,10 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
             cleaned_text = re.sub(r"^(```html|```)", "", cleaned_text).strip()
             cleaned_text = re.sub(r"```$", "", cleaned_text).strip()
 
+            # Clean up prompt hallucination if GPT repeated/mimicked the prompt suffix
+            cleaned_text = re.sub(r'(?i)\*\*Beautiful Ukrainian Translation.*?:\*\*', '', cleaned_text).strip()
+            cleaned_text = re.sub(r'(?i)\bBeautiful Ukrainian Translation.*?:\s*', '', cleaned_text).strip()
+
             # FINAL SANITIZATION: Clean any unsupported tags from GPT response
             logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
 
