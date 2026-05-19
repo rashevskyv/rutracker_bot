@@ -67,55 +67,55 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
     )
     # --- End of Updated Prompt ---
 
-    try:
-        response = await openai_client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=8192,
-        )
-        translated_text = response.choices[0].message.content
+    fallback_model = "gpt-4o-mini"
 
-        # Clean trailing markdown code fences and whitespace
-        cleaned_text = translated_text.strip()
-        cleaned_text = re.sub(r"^(```html|```)", "", cleaned_text).strip()
-        cleaned_text = re.sub(r"```$", "", cleaned_text).strip()
-        
-        # FINAL SANITIZATION: Clean any unsupported tags from GPT response
-        logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
-        
-        # Replace accidental BBCode with HTML (GPT sometimes hallucinates [b] instead of <b>)
-        cleaned_text = re.sub(r'\[b\](.*?)\[/b\]', r'<b>\1</b>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
-        cleaned_text = re.sub(r'\[i\](.*?)\[/i\]', r'<i>\1</i>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
-        cleaned_text = re.sub(r'\[u\](.*?)\[/u\]', r'<u>\1</u>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
-        cleaned_text = re.sub(r'\[s\](.*?)\[/s\]', r'<s>\1</s>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+    for attempt_model in (model, fallback_model):
+        try:
+            use_new_param = attempt_model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
+            extra = {'max_completion_tokens': 8192} if use_new_param else {'max_tokens': 8192}
+            response = await openai_client.chat.completions.create(
+                model=attempt_model,
+                messages=[{"role": "user", "content": prompt}],
+                **extra,
+            )
+            if attempt_model != model:
+                logger.info(f"Translation: used fallback model {attempt_model}.")
 
-        final_text = sanitize_html_for_telegram(cleaned_text)
-        
-        # AGGRESSIVE MERGE OF ALL POSSIBLE BLOCKQUOTE MARKERS
-        # First, normalize any literal tags GPT might have used back to tokens
-        final_text = final_text.replace("<blockquote>", "XBQSX").replace("</blockquote>", "XBQEX")
-        
-        # Merge any XBQEX ... XBQSX pairs
-        # Allow ANY content between them (not just whitespace) since GPT might insert empty tags like <b></b>
-        final_text = re.sub(r'XBQEX[\s\S]*?XBQSX', 'XBQEXXBQSX', final_text, flags=re.IGNORECASE)
-        
-        # RESTORE blockquote tokens
-        final_text = final_text.replace("XBQSX", "<blockquote>")
-        final_text = final_text.replace("XBQEX", "</blockquote>")
-        
-        # Merge any remaining fragmented blockquotes tightly
-        final_text = re.sub(r'</blockquote>[ \t\n\r]*<blockquote>', '</blockquote><blockquote>', final_text, flags=re.IGNORECASE)
-        
-        # Remove triple+ newlines and leading/trailing whitespace
-        final_text = re.sub(r'\n{3,}', '\n\n', final_text).strip()
-        
-        logger.debug(f"GPT Response (final bytes {len(final_text)}): {final_text[:300]}...")
-        
-        return final_text
+            translated_text = response.choices[0].message.content
 
-    except Exception as e:
-        logger.error(f"Error during GPT translation: {e}")
-        return text # Fallback to original text
+            # Clean trailing markdown code fences and whitespace
+            cleaned_text = translated_text.strip()
+            cleaned_text = re.sub(r"^(```html|```)", "", cleaned_text).strip()
+            cleaned_text = re.sub(r"```$", "", cleaned_text).strip()
+
+            # FINAL SANITIZATION: Clean any unsupported tags from GPT response
+            logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
+
+            # Replace accidental BBCode with HTML (GPT sometimes hallucinates [b] instead of <b>)
+            cleaned_text = re.sub(r'\[b\](.*?)\[/b\]', r'<b>\1</b>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+            cleaned_text = re.sub(r'\[i\](.*?)\[/i\]', r'<i>\1</i>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+            cleaned_text = re.sub(r'\[u\](.*?)\[/u\]', r'<u>\1</u>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+            cleaned_text = re.sub(r'\[s\](.*?)\[/s\]', r'<s>\1</s>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+
+            final_text = sanitize_html_for_telegram(cleaned_text)
+
+            # AGGRESSIVE MERGE OF ALL POSSIBLE BLOCKQUOTE MARKERS
+            final_text = final_text.replace("<blockquote>", "XBQSX").replace("</blockquote>", "XBQEX")
+            final_text = re.sub(r'XBQEX[\s\S]*?XBQSX', 'XBQEXXBQSX', final_text, flags=re.IGNORECASE)
+            final_text = final_text.replace("XBQSX", "<blockquote>")
+            final_text = final_text.replace("XBQEX", "</blockquote>")
+            final_text = re.sub(r'</blockquote>[ \t\n\r]*<blockquote>', '</blockquote><blockquote>', final_text, flags=re.IGNORECASE)
+            final_text = re.sub(r'\n{3,}', '\n\n', final_text).strip()
+
+            logger.debug(f"GPT Response (final bytes {len(final_text)}): {final_text[:300]}...")
+            return final_text
+
+        except Exception as e:
+            logger.error(f"Error during GPT translation with {attempt_model}: {e}")
+            if attempt_model == fallback_model:
+                return text  # Both models failed — return original
+
+    return text  # unreachable
 
 async def translate_short_description(text: str, model: str = "gpt-5.4-nano") -> str:
     """
