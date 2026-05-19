@@ -150,11 +150,14 @@ async def translate_short_description(text: str, model: str = "gpt-5.4-nano") ->
     for attempt_model in (model, fallback_model):
         try:
             logger.info(f"Summarizing description using GPT model: {attempt_model}...")
+            # New-generation models require max_completion_tokens instead of max_tokens
+            use_new_param = attempt_model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
+            extra = {'max_completion_tokens': 100} if use_new_param else {'max_tokens': 100}
             response = await openai_client.chat.completions.create(
                 model=attempt_model,
                 messages=[{'role': 'user', 'content': prompt}],
-                max_tokens=100,
                 temperature=0.3,
+                **extra,
             )
             translated_text = response.choices[0].message.content.strip()
 
@@ -173,6 +176,7 @@ async def translate_short_description(text: str, model: str = "gpt-5.4-nano") ->
                 return text
 
     return text  # unreachable, but satisfies type checker
+
 
 # Function translate_ru_to_ua_deepl remains the same (using aiohttp)
 async def translate_ru_to_ua_deepl(text: str) -> str:
