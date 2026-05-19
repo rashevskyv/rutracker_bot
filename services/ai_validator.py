@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = "gpt-5.4-nano") -> bool:
     """
-    Uses ChatGPT to validate if a found YouTube title is relevant to the searched game title.
-    Treats only an exact 'true' (case-insensitive) response as relevant.
+    Validates if a found YouTube title is relevant to the searched game title.
+    First tries a simple string check (no GPT needed), then falls back to GPT.
 
     Args:
         searched_title: The game title that was searched for.
@@ -17,14 +17,21 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
         model: The OpenAI model to use for validation.
 
     Returns:
-        True if GPT response is exactly 'true', False otherwise (including errors or other responses).
+        True if the video is relevant, False otherwise.
     """
+    # Clean title for comparison (remove brackets/parentheses)
+    prompt_searched_title = re.sub(r'\[.*?\]|\(.*?\)', '', searched_title).strip()
+    clean_searched = prompt_searched_title.lower().strip()
+    clean_found = found_yt_title.lower().strip()
+
+    # --- Pre-check: if searched title is literally contained in found title → always True ---
+    if clean_searched and clean_searched in clean_found:
+        logger.info(f"YouTube validation: '{searched_title}' found in '{found_yt_title}' — accepted without GPT.")
+        return True
+
     if not openai_client:
         logger.warning("OpenAI client unavailable for YouTube title validation. Skipping validation, assuming False.")
-        return False # Cannot validate without client
-
-    # Clean title for the prompt
-    prompt_searched_title = re.sub(r'\[.*?\]|\(.*?\)', '', searched_title).strip()
+        return False
 
     prompt = (
         f"You are a game title validation assistant. Your task is to determine if the 'Found YouTube Video Title' "
@@ -36,32 +43,34 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
         f"Is the YouTube video title relevant and specifically about the searched game? Respond ONLY with True or False."
     )
 
-    logger.debug(f"Requesting GPT validation for: '{prompt_searched_title}' vs '{found_yt_title}'")
+    fallback_model = "gpt-4o-mini"
 
-    try:
-        response = await openai_client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=10, # Expecting short response
-            temperature=0.1 # Low temperature
-        )
-        result_text = response.choices[0].message.content.strip().lower() # Get response, strip whitespace, convert to lowercase
-        logger.debug(f"GPT Validation Raw Response: '{response.choices[0].message.content}', Processed: '{result_text}'")
+    for attempt_model in (model, fallback_model):
+        try:
+            use_new_param = attempt_model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
+            extra = {'max_completion_tokens': 10} if use_new_param else {'max_tokens': 10}
+            response = await openai_client.chat.completions.create(
+                model=attempt_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                **extra,
+            )
+            result_text = response.choices[0].message.content.strip().lower()
+            logger.debug(f"GPT Validation ({attempt_model}) response: '{result_text}'")
 
-        # --- Simplified Check ---
-        is_relevant = (result_text == "true")
-        # ----------------------
+            is_relevant = result_text.startswith("true")
+            if is_relevant:
+                logger.info(f"GPT Validation ({attempt_model}): RELEVANT.")
+            else:
+                logger.info(f"GPT Validation ({attempt_model}): NOT relevant (response: '{result_text}').")
+            return is_relevant
 
-        if is_relevant:
-            logger.info("GPT Validation: Title judged as RELEVANT.")
-        else:
-            logger.info(f"GPT Validation: Title judged as NOT relevant (Response was: '{result_text}').")
+        except Exception as e:
+            logger.error(f"Error during GPT validation with {attempt_model}: {e}")
+            if attempt_model == fallback_model:
+                return False  # Both models failed
 
-        return is_relevant
-
-    except Exception as e:
-        logger.error(f"Error during GPT validation API call: {e}")
-        return False # Default to False on API error
+    return False  # unreachable
 
 async def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-5.4-nano") -> str:
     """
@@ -96,11 +105,13 @@ async def summarize_description_with_ai(description: str, target_length: int = 6
     )
 
     try:
+        use_new_param = model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
+        extra = {'max_completion_tokens': 2048} if use_new_param else {'max_tokens': 2048}
         response = await openai_client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=2048,  # Allow for a substantial summary
-            temperature=0.5
+            temperature=0.5,
+            **extra,
         )
         from utils.html_utils import sanitize_html_for_telegram
         summary = response.choices[0].message.content.strip()
