@@ -22,7 +22,8 @@ class SwukDigest(BaseDigest):
         super().__init__(data_file, digest_name="swuk digest")
 
     def add_entry(self, game_name: str, release_url: str, description: str,
-                  is_new: bool = True, timestamp: Optional[datetime] = None):
+                  is_new: bool = True, timestamp: Optional[datetime] = None,
+                  versions: Optional[List[str]] = None, modified_date: Optional[str] = None):
         """
         Add or update a localization entry.
 
@@ -32,6 +33,8 @@ class SwukDigest(BaseDigest):
             description: Game description (already Ukrainian, from RSS <description>)
             is_new: True for new localizations, False for updates
             timestamp: Discovery timestamp (defaults to now)
+            versions: List of game versions supported (e.g., ["1.0.0", "1.3.1"])
+            modified_date: Readable update date from guid modified timestamp (e.g. "03.05.2026")
         """
         data = self._load_data()
 
@@ -41,6 +44,8 @@ class SwukDigest(BaseDigest):
             "description": description,
             "is_new": is_new,
             "timestamp": (timestamp or datetime.now()).isoformat(),
+            "versions": versions or [],
+            "modified_date": modified_date,
         }
 
         # Dedup by release_url
@@ -50,6 +55,11 @@ class SwukDigest(BaseDigest):
                 # Preserve is_new if it was marked new before
                 if existing.get("is_new"):
                     entry["is_new"] = True
+                # If we don't have new versions/date but existing has them, keep them
+                if not entry["versions"] and existing.get("versions"):
+                    entry["versions"] = existing.get("versions")
+                if not entry["modified_date"] and existing.get("modified_date"):
+                    entry["modified_date"] = existing.get("modified_date")
                 data["entries"][i] = entry
                 replaced = True
                 logger.info(f"Updated swuk digest entry: {game_name}")
@@ -86,22 +96,37 @@ class SwukDigest(BaseDigest):
             key=lambda x: x["app_name"].lower()
         )
 
-        parts = ["🇺🇦 <b>Switch Українською</b>", ""]
+        parts = ["#swuk", "🇺🇦 <b>Switch Українською</b>", ""]
+
+        def _format_entry_line(e: Dict) -> str:
+            name = html.escape(e["app_name"])
+            desc = e.get("description", "")
+            
+            # Format versions nicely (e.g. "v1.0.0, v1.3.1")
+            version_str = ""
+            e_versions = e.get("versions", [])
+            if e_versions:
+                formatted_v = [f"v{v}" if not v.lower().startswith('v') else v for v in e_versions]
+                version_str = f" ({', '.join(formatted_v)})"
+            
+            # Format update date (e.g. "[03.05.2026]")
+            date_str = ""
+            e_date = e.get("modified_date")
+            if e_date:
+                date_str = f" [{e_date}]"
+                
+            return f"• <a href=\"{e['release_url']}\">{name}</a>{version_str}{date_str} — {desc}"
 
         if new_entries:
             parts.append("⚠️ <b>Нові локалізації:</b>")
             for e in new_entries:
-                name = html.escape(e["app_name"])
-                desc = e.get("description", "")
-                parts.append(f"• <a href=\"{e['release_url']}\">{name}</a> — {desc}")
+                parts.append(_format_entry_line(e))
             parts.append("")
 
         if updated_entries:
             parts.append("🔄 <b>Оновлені локалізації:</b>")
             for e in updated_entries:
-                name = html.escape(e["app_name"])
-                desc = e.get("description", "")
-                parts.append(f"• <a href=\"{e['release_url']}\">{name}</a> — {desc}")
+                parts.append(_format_entry_line(e))
             parts.append("")
 
         parts.append("📢 <a href=\"https://swuk.com.ua\">swuk.com.ua</a>")
