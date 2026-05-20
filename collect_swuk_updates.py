@@ -11,7 +11,8 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
+from bs4 import BeautifulSoup
 
 from digest.swuk import swuk_digest_manager
 
@@ -53,6 +54,38 @@ def parse_modified_from_guid(guid: str) -> Optional[str]:
     """Extract ?modified=TIMESTAMP from guid string."""
     match = re.search(r'\?modified=(\d+)', guid)
     return match.group(1) if match else None
+
+
+def format_modified_date(modified_str: Optional[str]) -> Optional[str]:
+    """Format YYYYMMDDHHMMSS modified timestamp to DD.MM.YYYY."""
+    if not modified_str or len(modified_str) < 8:
+        return None
+    try:
+        return f"{modified_str[6:8]}.{modified_str[4:6]}.{modified_str[0:4]}"
+    except Exception:
+        return None
+
+
+async def fetch_game_versions(url: str, session) -> Optional[List[str]]:
+    """Fetch the game page and extract supported game versions."""
+    try:
+        async with session.get(url, timeout=15) as resp:
+            if resp.status != 200:
+                return None
+            html_content = await resp.text()
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            versions = []
+            for tag in soup.find_all(string=True):
+                if 'Версія гри' in tag:
+                    match = re.search(r'Версія гри\s*([0-9.]+)', tag)
+                    if match:
+                        versions.append(match.group(1).strip())
+            
+            return sorted(list(set(versions))) if versions else None
+    except Exception as e:
+        logger.error(f"Error fetching versions from {url}: {e}")
+        return None
 
 
 def clean_title(title: str) -> str:
@@ -126,17 +159,29 @@ async def collect_swuk_updates():
 
         logger.info(f"Swuk [{action}]: {game_name} (modified: {modified})")
 
+        # Fetch versions from the web page and format the modified date
+        versions = await fetch_game_versions(link, session)
+        modified_date = format_modified_date(modified)
+        if versions:
+            logger.info(f"  Versions found: {versions}")
+        if modified_date:
+            logger.info(f"  Modified date: {modified_date}")
+
         swuk_digest_manager.add_entry(
             game_name=game_name,
             release_url=link,
             description=description,
             is_new=is_new,
             timestamp=datetime.now(),
+            versions=versions,
+            modified_date=modified_date,
         )
 
         state[link] = {
             'modified': modified or '',
             'title': game_name,
+            'versions': versions or [],
+            'modified_date': modified_date or '',
         }
         updates_found += 1
 
