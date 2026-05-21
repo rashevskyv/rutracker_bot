@@ -249,15 +249,20 @@ class HomebrewUpdatesCollector:
 
     @staticmethod
     def _extract_github_slug(url: str) -> Optional[str]:
-        """Extract 'owner/repo' from a GitHub URL (api or web)."""
+        """Extract 'owner/repo' from a GitHub URL (api or web) or slug."""
         if not url:
             return None
         url = url.rstrip('/')
-        for prefix in ('https://api.github.com/repos/', 'https://github.com/'):
-            if url.startswith(prefix):
-                slug = url[len(prefix):]
-                # Remove any trailing path segments (e.g. /releases)
-                return '/'.join(slug.split('/')[:2])
+        if url.startswith(('http://', 'https://')):
+            for prefix in ('https://api.github.com/repos/', 'https://github.com/'):
+                if url.startswith(prefix):
+                    slug = url[len(prefix):]
+                    # Remove any trailing path segments (e.g. /releases)
+                    return '/'.join(slug.split('/')[:2])
+            return None
+        # If it doesn't look like a URL but contains exactly one slash, it might be a slug
+        if '/' in url and url.count('/') == 1:
+            return url
         return None
 
     async def summarize_and_translate_notes(self, notes: str) -> Optional[str]:
@@ -277,11 +282,13 @@ class HomebrewUpdatesCollector:
                 f"Update notes:\n{notes.strip()}\n\n"
                 f"One-sentence Ukrainian summary:"
             )
+            use_new_param = GPT_MODEL.startswith(('gpt-5', 'o1', 'o3', 'o4'))
+            extra = {'max_completion_tokens': 100} if use_new_param else {'max_tokens': 100}
             response = await openai_client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[{'role': 'user', 'content': prompt}],
-                max_tokens=100,
                 temperature=0.3,
+                **extra,
             )
             result = response.choices[0].message.content.strip()
             logger.info(f"Summarized update notes: {result[:80]}")
@@ -620,6 +627,10 @@ class HomebrewUpdatesCollector:
         except Exception as e:
             logger.error(f"UDB API request failed: {e} — skipping UDB phase")
             return set()
+
+        # Convert list to dict for compatibility if needed
+        if isinstance(udb_data, list):
+            udb_data = {app.get('slug'): app for app in udb_data if app.get('slug')}
 
         # udb_data is a dict: {slug: app_object}
         if not isinstance(udb_data, dict):
