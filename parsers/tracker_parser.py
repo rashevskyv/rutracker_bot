@@ -131,7 +131,7 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
                 # Strip trailing user-directed messages (author addressing another user)
                 # Pattern: username (bold or plain) followed by a message like "Попробуйте..."
                 cleaned_update_text = re.sub(r'\s*(?:<b>[^<]+</b>|[A-Za-z0-9_а-яА-ЯёЁіІїЇєЄґҐ]+)\s*[,.]?\s*(?:Попробуйте|попробуйте|Пожалуйста|пожалуйста|Обновите|обновите).*$', '', cleaned_update_text, flags=re.DOTALL)
-                return f'<b><a href="{post_url}">Обновлено</a>:</b>\n<blockquote>{cleaned_update_text}</blockquote>'
+                return f'<b><a href="{post_url}">Оновлено:</a></b>\n<blockquote>{cleaned_update_text}</blockquote>'
         if current_offset == 0: break 
     return None 
 
@@ -179,10 +179,10 @@ async def get_update_from_author_post(soup: BeautifulSoup, base_url: str) -> Opt
 
     if last_update_text and last_post_url:
         logger.info(f"Found fallback update text: {last_update_text}")
-        return f'<b><a href="{last_post_url}">Обновлено</a>:</b>\n<blockquote>{html.escape(last_update_text)}</blockquote>'
+        return f'<b><a href="{last_post_url}">Оновлено:</a></b>\n<blockquote>{html.escape(last_update_text)}</blockquote>'
     elif last_update_text:
         logger.info(f"Found fallback update text (no post link): {last_update_text}")
-        return f'<b>Обновлено:</b>\n<blockquote>{html.escape(last_update_text)}</blockquote>'
+        return f'<b>Оновлено:</b>\n<blockquote>{html.escape(last_update_text)}</blockquote>'
 
     return None
 
