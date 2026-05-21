@@ -52,6 +52,12 @@ VITA_CATEGORIES = {'Vita', 'PSVita'}
 # Collector run stats (saved after each run for the digest sender)
 HB_STATS_PATH = os.path.join('data', 'hb_collect_stats.json')
 
+# Chrome-like headers to bypass Cloudflare protection on a remote server/hosting
+BROWSER_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*'
+}
+
 
 class HomebrewUpdatesCollector:
     """Collects homebrew updates from GitHub/GitLab"""
@@ -249,15 +255,20 @@ class HomebrewUpdatesCollector:
 
     @staticmethod
     def _extract_github_slug(url: str) -> Optional[str]:
-        """Extract 'owner/repo' from a GitHub URL (api or web)."""
+        """Extract 'owner/repo' from a GitHub URL (api or web) or slug."""
         if not url:
             return None
         url = url.rstrip('/')
-        for prefix in ('https://api.github.com/repos/', 'https://github.com/'):
-            if url.startswith(prefix):
-                slug = url[len(prefix):]
-                # Remove any trailing path segments (e.g. /releases)
-                return '/'.join(slug.split('/')[:2])
+        if url.startswith(('http://', 'https://')):
+            for prefix in ('https://api.github.com/repos/', 'https://github.com/'):
+                if url.startswith(prefix):
+                    slug = url[len(prefix):]
+                    # Remove any trailing path segments (e.g. /releases)
+                    return '/'.join(slug.split('/')[:2])
+            return None
+        # If it doesn't look like a URL but contains exactly one slash, it might be a slug
+        if '/' in url and url.count('/') == 1:
+            return url
         return None
 
     async def summarize_and_translate_notes(self, notes: str) -> Optional[str]:
@@ -277,11 +288,13 @@ class HomebrewUpdatesCollector:
                 f"Update notes:\n{notes.strip()}\n\n"
                 f"One-sentence Ukrainian summary:"
             )
+            use_new_param = GPT_MODEL.startswith(('gpt-5', 'o1', 'o3', 'o4'))
+            extra = {'max_completion_tokens': 100} if use_new_param else {'max_tokens': 100}
             response = await openai_client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[{'role': 'user', 'content': prompt}],
-                max_tokens=100,
                 temperature=0.3,
+                **extra,
             )
             result = response.choices[0].message.content.strip()
             logger.info(f"Summarized update notes: {result[:80]}")
@@ -601,6 +614,9 @@ class HomebrewUpdatesCollector:
         """
         logger.info("=== Phase 1: Universal-DB (3DS/DS) ===")
 
+        # Initialize default stats in case of failure or empty response
+        self.source_stats['UDB (3DS/DS)'] = {'checked': 0, 'found': 0}
+
         # Build a lookup: github_slug -> local list_hb entry (for description priority)
         local_by_slug: Dict[str, Dict] = {}
         for entry in local_entries:
@@ -611,19 +627,29 @@ class HomebrewUpdatesCollector:
 
         # Fetch all UDB apps
         try:
-            async with self.session.get(UDB_API_URL, timeout=30) as resp:
+            async with self.session.get(UDB_API_URL, headers=BROWSER_HEADERS, timeout=30) as resp:
                 if resp.status != 200:
                     logger.error(f"UDB API returned {resp.status} — skipping UDB phase")
+                    self.source_stats['UDB (3DS/DS)']['error'] = True
+                    self.source_stats['UDB (3DS/DS)']['error_msg'] = f"HTTP {resp.status}"
                     return set()
                 udb_data = await resp.json()
                 self.udb_requests += 1
         except Exception as e:
             logger.error(f"UDB API request failed: {e} — skipping UDB phase")
+            self.source_stats['UDB (3DS/DS)']['error'] = True
+            self.source_stats['UDB (3DS/DS)']['error_msg'] = str(e)
             return set()
+
+        # Convert list to dict for compatibility if needed
+        if isinstance(udb_data, list):
+            udb_data = {app.get('slug'): app for app in udb_data if app.get('slug')}
 
         # udb_data is a dict: {slug: app_object}
         if not isinstance(udb_data, dict):
             logger.error(f"Unexpected UDB response format: {type(udb_data)}")
+            self.source_stats['UDB (3DS/DS)']['error'] = True
+            self.source_stats['UDB (3DS/DS)']['error_msg'] = "Unexpected response format"
             return set()
 
         logger.info(f"Fetched {len(udb_data)} apps from Universal-DB")
@@ -755,6 +781,9 @@ class HomebrewUpdatesCollector:
         """
         logger.info(f"=== Phase 1 [{platform}]: {repo_url} ===")
 
+        # Initialize default stats
+        self.source_stats[f'{platform} (FTU)'] = {'checked': 0, 'found': 0}
+
         # Build lookup: github_slug -> local list_hb entry (for description/category)
         local_by_gh_slug: Dict[str, Dict] = {}
         for entry in local_entries:
@@ -772,13 +801,17 @@ class HomebrewUpdatesCollector:
                     local_by_gh_slug_web[gh_slug.lower()] = entry
 
         try:
-            async with self.session.get(repo_url, timeout=30) as resp:
+            async with self.session.get(repo_url, headers=BROWSER_HEADERS, timeout=30) as resp:
                 if resp.status != 200:
                     logger.error(f"ForTheUsers [{platform}] API returned {resp.status} — skipping")
+                    self.source_stats[f'{platform} (FTU)']['error'] = True
+                    self.source_stats[f'{platform} (FTU)']['error_msg'] = f"HTTP {resp.status}"
                     return set()
                 repo_data = await resp.json(content_type=None)
         except Exception as e:
             logger.error(f"ForTheUsers [{platform}] request failed: {e} — skipping")
+            self.source_stats[f'{platform} (FTU)']['error'] = True
+            self.source_stats[f'{platform} (FTU)']['error_msg'] = str(e)
             return set()
 
         packages = repo_data.get('packages', [])
@@ -914,6 +947,9 @@ class HomebrewUpdatesCollector:
         """
         logger.info(f"=== Phase 1d [{platform_name}]: {endpoint_url} ===")
 
+        # Initialize default stats
+        self.source_stats[platform_name] = {'checked': 0, 'found': 0}
+
         # Build local lookup: github_slug -> list_hb entry (Vita category)
         local_by_gh_slug: Dict[str, Dict] = {}
         for entry in local_entries:
@@ -924,13 +960,17 @@ class HomebrewUpdatesCollector:
 
         try:
             # VitaDB requires POST request with no body
-            async with self.session.post(endpoint_url, timeout=30) as resp:
+            async with self.session.post(endpoint_url, headers=BROWSER_HEADERS, timeout=30) as resp:
                 if resp.status != 200:
                     logger.error(f"VitaDB [{platform_name}] returned {resp.status} — skipping")
+                    self.source_stats[platform_name]['error'] = True
+                    self.source_stats[platform_name]['error_msg'] = f"HTTP {resp.status}"
                     return set()
                 packages = await resp.json(content_type=None)
         except Exception as e:
             logger.error(f"VitaDB [{platform_name}] request failed: {e} — skipping")
+            self.source_stats[platform_name]['error'] = True
+            self.source_stats[platform_name]['error_msg'] = str(e)
             return set()
 
         if not isinstance(packages, list):

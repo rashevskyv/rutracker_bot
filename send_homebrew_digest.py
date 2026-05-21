@@ -31,8 +31,12 @@ def build_stats_text() -> str:
         with open(HB_STATS_FILE, encoding='utf-8') as f:
             hb_stats = json.load(f)
         for source, s in hb_stats.items():
-            emoji = "✅" if s['found'] > 0 else "➖"
-            lines.append(f"{emoji} {source}: перевірено {s['checked']}, знайдено {s['found']}")
+            if s.get('error'):
+                error_desc = f" ({s.get('error_msg')})" if s.get('error_msg') else ""
+                lines.append(f"⚠️ {source}: помилка збору{error_desc}")
+            else:
+                emoji = "✅" if s['found'] > 0 else "➖"
+                lines.append(f"{emoji} {source}: перевірено {s['checked']}, знайдено {s['found']}")
     except FileNotFoundError:
         lines.append("➖ Homebrew: немає даних (колектор ще не запускався)")
     except Exception as e:

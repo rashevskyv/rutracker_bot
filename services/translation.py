@@ -48,7 +48,7 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
         f"**Translation Rules:**\n"
         f"1.  **Language Naming:** If the text mentions 'Russian language' (русский язык), translate it ONLY as 'мова росії', 'москальська', or 'російська'. NEVER use 'руська'.\n"
         f"{gap_instruction}"
-        f"3.  **Compact Density:** Keep technical parameters (Year, Genre, etc.) on consecutive lines with NO blank lines between them. However, for the 'Description' text and especially inside <blockquote> blocks, you MUST preserve the original structural line breaks and tags for readability.\n"
+        f"3.  **Compact Density:** Keep simple technical parameters (Year, Genre, Publisher, Format, Language, Multiplayer, Age rating, etc.) on consecutive lines with NO blank lines between them. However, major logical sections (such as Description/Опис, Features/Особливості, Additional Info/Дод. інформація, Changelog/Оновлено, System Requirements/Системні вимоги) MUST be separated by a blank line (double newline) from each other and from the metadata block.\n"
         f"4.  **No HTML Lists:** NEVER use HTML tags like <ul> or <li>. Use plain text bullet characters (•) for lists.\n"
         f"5.  **Emojis:** Use relevant emojis sparingly to enhance visual appeal, but do not overdo it.\n"
         f"6.  **Preserve Content:** Do not lose ANY original information. Keep the meaning and all technical details intact.\n"
@@ -58,11 +58,11 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
         f"10. **Line Stability & Link Unity (STRICT):** Do NOT merge paragraphs separated by ###GAP### (if present). Preserve the line unity of the input. If a line contains a link (<a> tag), the entire line INCLUDING the text before and after the link MUST remain on a single line in the output. NEVER add newlines inside or around <a> tags.\n"
         f"11. **Quote Unity:** Do NOT break a single <blockquote> block into multiple ones. All content between the input <blockquote> tags MUST remain inside a single pair of tags in the output.\n"
         f"12. **Preserve Markers:** DO NOT remove or replace list markers (like •, -, *). Keep them exactly as they are in the input.\n"
-        f"13. **Token Preservation (CRITICAL):** The tokens XBQSX and XBQEX are structural markers for blockquotes. Preserve them EXACTLY as-is in the output. NEVER add more XBQSX/XBQEX tokens, NEVER remove them, and NEVER split content between them. Also, NEVER use the <blockquote> tag yourself; ONLY use XBQSX for start and XBQEX for end.\n"
+        f"13. **Token Preservation (CRITICAL):** The tokens XBQSX and XBQEX are structural markers for blockquotes. Preserve them EXACTLY as-is in the output. Each XBQSX marker MUST always start on a new line and have a newline immediately after it (e.g. \nXBQSX\n). Each XBQEX marker MUST always have a newline before it, and end with a newline (e.g. \nXBQEX\n). NEVER add more XBQSX/XBQEX tokens, NEVER remove them, and NEVER split content between them. Also, NEVER use the <blockquote> tag yourself; ONLY use XBQSX for start and XBQEX for end.\n"
         f"14. **Join Sentences (CRITICAL):** The input HTML may contain arbitrary single line breaks (\\n) in the middle of sentences due to code wrapping. You MUST remove these arbitrary mid-sentence line breaks and join the sentence onto a single continuous line. However, strictly preserve intentional paragraph breaks (double line breaks) and line breaks before list markers (•).\n"
         f"15. **No Gaps in Quotes:** NEVER use double newlines (\\n\\n) inside a blockquote (between XBQSX and XBQEX). Use only single newlines (\\n).\n"
         f"16. **Clean Updates (CRITICAL):** If the text contains update notes or changelogs, strictly REMOVE any thanks, credits, or mentions of specific people who helped with the update or release. Keep ONLY the factual, technical details of what was changed, fixed, or added.\n"
-        f"17. **Inline Tags:** Do NOT add line breaks before or after inline HTML tags like <b>, <i>, <u>, <s>, <a>. Keep them on the same line as the surrounding text.\n\n"
+        f"17. **Inline Tags:** Do NOT add line breaks before or after inline HTML tags like <b>, <i>, <u>, <s>, <a>. Keep them on the same line as the surrounding text. Note that XBQSX and XBQEX are block tokens, not inline tags, so they MUST be on their own lines.\n\n"
         f"**Text to translate:**\n{text}\n\n**Beautiful Ukrainian Translation (Telegram HTML):**"
     )
     # --- End of Updated Prompt ---
@@ -91,6 +91,26 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
             # Clean up prompt hallucination if GPT repeated/mimicked the prompt suffix
             cleaned_text = re.sub(r'(?i)\*\*Beautiful Ukrainian Translation.*?:\*\*', '', cleaned_text).strip()
             cleaned_text = re.sub(r'(?i)\bBeautiful Ukrainian Translation.*?:\s*', '', cleaned_text).strip()
+
+            # --- Post-translation structural cleaning ---
+            # 1. Clean up newlines around blockquote markers
+            cleaned_text = re.sub(r'\s*XBQSX\s*', '\nXBQSX\n', cleaned_text)
+            cleaned_text = re.sub(r'\s*XBQEX\s*', '\nXBQEX\n', cleaned_text)
+
+            # 2. Snap floating colons back to the bold tags outside the blockquote
+            # If the bold header has no colon, but there is a leading colon inside the blockquote
+            cleaned_text = re.sub(
+                r'(<b>[^<:]+</b>)\s*\n*XBQSX\s*\n*\s*:\s*',
+                r'\1:\nXBQSX\n',
+                cleaned_text
+            )
+            # If the bold header already has a colon, and there is also a colon inside the blockquote
+            cleaned_text = re.sub(
+                r'(<b>[^<]+:</b>|<b>[^<]+</b>:)\s*\n*XBQSX\s*\n*\s*:\s*',
+                r'\1\nXBQSX\n',
+                cleaned_text
+            )
+            # ---------------------------------------------
 
             # FINAL SANITIZATION: Clean any unsupported tags from GPT response
             logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
