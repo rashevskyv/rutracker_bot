@@ -111,6 +111,7 @@ YOUTUBE_API_KEY = get_env_or_setting(settings, 'YOUTUBE_API_KEY', 'YOUTUBE_API_K
 DEEPL_API_KEY = get_env_or_setting(settings, 'DEEPL_API_KEY', 'DEEPL_API_KEY')
 
 GROUPS = settings.get('GROUPS', [])
+TEST_GROUPS = settings.get('TEST_GROUPS', [])
 ERROR_TG = settings.get('ERROR_TG', [])
 RUTRACKER_COOKIES: Optional[Dict[str, str]] = settings.get('RUTRACKER_COOKIES', None)
 # Get the test link ONLY if in test mode
@@ -187,6 +188,7 @@ async def close_clients():
         except Exception as e:
             logging.error(f"Error closing shared aiohttp session: {e}")
 
-# Warnings about GROUPS/ERROR_TG
+# Warnings about GROUPS/ERROR_TG/TEST_GROUPS
 if not GROUPS: logging.warning("No 'GROUPS' defined in settings. Posting to groups will not work.")
+if IS_TEST_MODE and not TEST_GROUPS: logging.warning("Test mode is active, but no 'TEST_GROUPS' are defined in settings.")
 if not ERROR_TG: logging.warning("No 'ERROR_TG' defined in settings. Error notifications disabled.")

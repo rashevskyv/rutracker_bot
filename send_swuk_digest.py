@@ -11,7 +11,7 @@ import json
 import os
 from datetime import datetime, timedelta
 
-from core.settings_loader import setup_logging, close_clients, LOG, IS_TEST_MODE
+from core.settings_loader import setup_logging, close_clients, LOG, IS_TEST_MODE, TEST_GROUPS
 from digest.swuk import swuk_digest_manager
 from services.telegram_sender import send_message_to_admin
 
@@ -19,9 +19,8 @@ logger = logging.getLogger(__name__)
 
 LAST_RUN_FILE = os.path.join("data", "last_swuk_digest_run.json")
 
-# Test channel (same as homebrew digest)
-TEST_CHAT_ID = -1001960832921
-TEST_TOPIC_ID = None
+# Fallback test channel for stats if TEST_GROUPS not set
+DEFAULT_TEST_CHAT_ID = -1001960832921
 
 
 def get_last_run_time() -> datetime:
@@ -66,15 +65,29 @@ async def send_digest():
     new_count = sum(1 for e in entries if e.get('is_new'))
     update_count = total_count - new_count
 
+    # Determine stats chat details from TEST_GROUPS
+    stats_chat_id = DEFAULT_TEST_CHAT_ID
+    stats_topic_id = None
+    if TEST_GROUPS:
+        stats_chat_id = int(TEST_GROUPS[0]['chat_id'])
+        stats_topic_id = int(TEST_GROUPS[0]['topic_id']) if TEST_GROUPS[0].get('topic_id') and str(TEST_GROUPS[0]['topic_id']).strip() else None
+
     if IS_TEST_MODE:
-        logger.info("TEST MODE: Sending swuk digest to test group only")
+        logger.info("TEST MODE: Sending swuk digest to test groups only")
+        if not TEST_GROUPS:
+            logger.error("TEST_GROUPS is not configured.")
+            sys.exit(1)
         try:
-            await swuk_digest_manager.send_digest(
-                target_chat_id=TEST_CHAT_ID,
-                target_topic_id=TEST_TOPIC_ID,
-                since_time=last_run_time,
-            )
-            logger.info("Test swuk digest sent successfully")
+            for group in TEST_GROUPS:
+                chat_id = int(group['chat_id'])
+                topic_id = int(group['topic_id']) if group.get('topic_id') and str(group['topic_id']).strip() else None
+                logger.info(f"Sending test swuk digest to {group.get('group_name', 'Unknown')} (chat: {chat_id}, topic: {topic_id})")
+                await swuk_digest_manager.send_digest(
+                    target_chat_id=chat_id,
+                    target_topic_id=topic_id,
+                    since_time=last_run_time,
+                )
+            logger.info("Test swuk digests sent successfully")
         except Exception as e:
             logger.error(f"Failed to send test swuk digest: {e}")
             import traceback
@@ -153,8 +166,8 @@ async def send_digest():
             f"Груп: {sent_count}/{len(target_groups)}"
         )
         await bot.send_message(
-            chat_id=TEST_CHAT_ID,
-            message_thread_id=TEST_TOPIC_ID,
+            chat_id=stats_chat_id,
+            message_thread_id=stats_topic_id,
             text=stats_message,
             parse_mode='HTML'
         )
