@@ -394,41 +394,33 @@ async def send_to_telegram(title_for_caption: str,
                 # Translate once and cache
                 logger.info("Translating message to UA (first UA group)...")
                 try: 
-                    description_headers = ["Описание", "Описание игры", "Description", "Опис", "Опис гри"]
-                    # Identify where parameters end to isolate consolidation
-                    split_point = -1
-                    for header in description_headers:
-                        idx = base_message_text.find(f"<b>{header}</b>")
-                        if idx != -1 and (split_point == -1 or idx < split_point):
-                            split_point = idx
-                    
-                    quote_idx = base_message_text.find("<blockquote>")
-                    if quote_idx != -1 and (split_point == -1 or quote_idx < split_point):
-                        split_point = quote_idx
-                    
-                    if split_point != -1:
-                        prepared_text = base_message_text[:split_point] + "[PARAMS_END]\n" + base_message_text[split_point:]
-                    else:
-                        prepared_text = base_message_text
-
                     # Replace <blockquote> tags with opaque tokens before GPT translation.
-                    prepared_text = prepared_text.replace("<blockquote>", "XBQSX")
+                    prepared_text = base_message_text.replace("<blockquote>", "XBQSX")
                     prepared_text = prepared_text.replace("</blockquote>", "XBQEX")
 
                     translated_message_text = await translate_ru_to_ua(prepared_text)
                     
-                    # Final safety: merge any consecutive blockquotes tightly
+                    # Final safety: merge any consecutive blockquotes tightly (using the tokens)
+                    translated_message_text = re.sub(r'XBQEX\s*XBQSX', 'XBQEXXBQSX', translated_message_text, flags=re.IGNORECASE)
+
+                    # Restore blockquote tags
+                    translated_message_text = translated_message_text.replace("XBQSX", "<blockquote>")
+                    translated_message_text = translated_message_text.replace("XBQEX", "</blockquote>")
                     translated_message_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', translated_message_text, flags=re.IGNORECASE)
 
-                    # Force consolidation of technical parameters ONLY
-                    if "[PARAMS_END]" in translated_message_text:
-                        params_part, rest_part = translated_message_text.split("[PARAMS_END]", 1)
+                    # Force consolidation of technical parameters ONLY by finding where they end in the translated text.
+                    # We match any of our logical headers or blockquotes.
+                    logical_headers_list_ua = "Опис|Особливост|Дод\\. інформаці|Додатков|Оновлен|Системн|Описан|Особенност|Доп\\.|Систем|Description|Features|Changelog|System"
+                    match_boundary = re.search(r'<b>(?:' + logical_headers_list_ua + r')[^<]*?</b>|<blockquote>', translated_message_text, re.IGNORECASE)
+                    
+                    if match_boundary:
+                        split_point = match_boundary.start()
+                        params_part = translated_message_text[:split_point]
+                        rest_part = translated_message_text[split_point:]
                         params_part = re.sub(r"\n\n\s*<b>", "\n<b>", params_part)
                         translated_message_text = params_part + rest_part
                     else:
                         translated_message_text = re.sub(r"\n\n\s*<b>", "\n<b>", translated_message_text)
-                    
-                    translated_message_text = translated_message_text.replace("[PARAMS_END]", "")
                     
                     logger.debug(f"Cached translated message (len {len(translated_message_text)})")
                 except Exception as e: 
