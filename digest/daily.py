@@ -166,7 +166,7 @@ class DailyDigest(BaseDigest):
                 # Reformat: move Details link to end as » 
                 # Format A: "<a href="...">Details</a>\ntext" → "text <a>»</a>"
                 details_match = re.match(
-                    r'<a\s+href="([^"]+)"[^>]*>Details</a>\s*\n?(.*)',
+                    r'<a\s+href="([^"]+)"[^>]*>(?:Details|Обновлено|Оновлено)</a>\s*:?\s*\n?(.*)',
                     update_text, re.DOTALL
                 )
                 if details_match:

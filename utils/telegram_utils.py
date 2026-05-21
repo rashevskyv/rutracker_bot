@@ -209,18 +209,54 @@ def split_text(text: str, max_length: int) -> List[str]:
                 current_length = sum(len(t) for t in current_part_tokens)
             else:
                 # Normal split
-                suffix = "".join([f"</{t[0]}>" for t in reversed(open_tags)])
-                parts.append("".join(current_part_tokens).strip() + suffix)
+                # Check if current part ends with a lone parameter header (<b>Header:</b>)
+                # without its value. If so, move it to the next part to keep header + value together.
+                lone_header_start = None
+                cpt = current_part_tokens
                 
-                # Start new part
-                prefix = "".join([t[1] for t in open_tags])
-                current_part_tokens = [prefix, token]
-                current_length = len(prefix) + len(token)
+                # Find the last <b> tag in the current part tokens
+                last_b_idx = None
+                for idx in range(len(cpt) - 1, -1, -1):
+                    if cpt[idx].startswith('<b') and not cpt[idx].startswith('</'):
+                        last_b_idx = idx
+                        break
                 
-                open_tags_history = [open_tags[:]] # Status AFTER prefix
-                if is_start and tag_name: open_tags.append((tag_name, full_start_tag))
-                elif is_end and tag_name and open_tags and open_tags[-1][0] == tag_name: open_tags.pop()
-                open_tags_history.append(open_tags[:]) # Status AFTER token
+                if last_b_idx is not None and len(cpt) - last_b_idx <= 10:
+                    header_candidate = "".join(cpt[last_b_idx:])
+                    plain_header = re.sub(r'<[^>]+>', '', header_candidate).strip()
+                    if 2 <= len(plain_header) <= 60 and plain_header.endswith(':'):
+                        h_start = last_b_idx
+                        # Include preceding pure-whitespace token (like newline) in the move
+                        if h_start > 0 and cpt[h_start - 1].strip() == '':
+                            h_start -= 1
+                        if h_start > 0:
+                            lone_header_start = h_start
+
+                if lone_header_start is not None:
+                    # Move the header (and optional preceding newline) to the next part
+                    header_tokens = current_part_tokens[lone_header_start:]
+                    current_part_tokens = current_part_tokens[:lone_header_start]
+                    suffix = "".join([f"</{t[0]}>" for t in reversed(open_tags)])
+                    parts.append("".join(current_part_tokens).strip() + suffix)
+                    prefix = "".join([t[1] for t in open_tags])
+                    current_part_tokens = [prefix] + list(header_tokens) + [token]
+                    current_length = len(prefix) + sum(len(t) for t in header_tokens) + len(token)
+                    open_tags_history = [open_tags[:]] * len(current_part_tokens)
+                    if is_start and tag_name: open_tags.append((tag_name, full_start_tag))
+                    elif is_end and tag_name and open_tags and open_tags[-1][0] == tag_name: open_tags.pop()
+                else:
+                    suffix = "".join([f"</{t[0]}>" for t in reversed(open_tags)])
+                    parts.append("".join(current_part_tokens).strip() + suffix)
+
+                    # Start new part
+                    prefix = "".join([t[1] for t in open_tags])
+                    current_part_tokens = [prefix, token]
+                    current_length = len(prefix) + len(token)
+
+                    open_tags_history = [open_tags[:]] # Status AFTER prefix
+                    if is_start and tag_name: open_tags.append((tag_name, full_start_tag))
+                    elif is_end and tag_name and open_tags and open_tags[-1][0] == tag_name: open_tags.pop()
+                    open_tags_history.append(open_tags[:]) # Status AFTER token
 
     if current_part_tokens:
         suffix = "".join([f"</{t[0]}>" for t in reversed(open_tags)])
@@ -249,11 +285,19 @@ def split_text(text: str, max_length: int) -> List[str]:
     # Snap any orphaned colon at the start of a line back to the end of the previous line (attached)
     full_content = re.sub(r'\n+\s*:', ':', full_content)
     
-    # Ensure exactly one space after a colon if it is followed by non-newline text (ignoring HTML tag brackets to prevent breaking snap)
-    full_content = re.sub(r':(?=[^\s\n<])', ': ', full_content)
+    # Ensure exactly one space after a colon if it is followed by non-newline text
+    # Exclude URL protocols (https://, http://, magnet:) to avoid breaking links
+    full_content = re.sub(r'(?<!https)(?<!http)(?<!magnet):(?=[^\s\n<])', ': ', full_content)
     
     # Collapse multiple spaces/tabs after a colon into a single space
     full_content = re.sub(r':[ \t\u200b\xa0]{2,}', ': ', full_content)
+
+    # Safety: restore any colon damage inside href attributes (e.g. https: // -> https://)
+    full_content = re.sub(
+        r'href="([^"]*)"',
+        lambda m: 'href="' + m.group(1).replace(': //', '://').replace(': ?', ':?').replace(': #', ':#') + '"',
+        full_content
+    )
     
     # 2. Delete orphaned bullets (bullets with no text after them on the same line)
     # Using (?m) for multiple lines so `^•` matches cleanly.
@@ -263,25 +307,6 @@ def split_text(text: str, max_length: int) -> List[str]:
     # 2.1 Delete orphaned # symbols (sometimes left by GPT artifacts or split markers)
     full_content = re.sub(r'(?m)^[ \t]*#[ \t]*(?=\n|$)', '', full_content)
     
-    # 2.5 General bold capital header spacing rule:
-    # Process all bold capital words/phrases with a colon on every line
-    def handle_header_line(m):
-        header = m.group(1).strip()
-        after_text = m.group(2).strip()
-        
-        # Under user strict rule, ANY bold phrase starting with a capital letter followed by a colon
-        # must have an empty line before it and be alone on its line.
-        if after_text:
-            return f"\n\n{header}\n{after_text}"
-        else:
-            return f"\n\n{header}"
-
-    # Apply formatting for bold capital headers with colons
-    full_content = re.sub(
-        r'(?:\n|^)[ \t\u200b\xa0]*(<b>[A-ZА-ЯЁІЇЄҐ][^<]*?:</b>|<b>[A-ZА-ЯЁІЇЄҐ][^<]*?</b>:)[ \t\u200b\xa0]*(.*)',
-        handle_header_line,
-        full_content
-    )
     
     # Align blockquotes to prevent empty lines before/after blockquote in split parts
     full_content = re.sub(r'\s*<blockquote>\s*', '\n<blockquote>', full_content)
