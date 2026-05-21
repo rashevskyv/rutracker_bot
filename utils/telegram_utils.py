@@ -233,10 +233,27 @@ def split_text(text: str, max_length: int) -> List[str]:
     full_content = re.sub(r'(?:\s*###GAP###\s*)+', '\n\n', full_content)
     
     # --- Final strict formatting rules enforcement ---
-    # 1. Snap leading colons to the preceding word/tag, eating any whitespace/newlines
-    # Special handling: if colon follows a closing tag (like </b>), keep it attached
-    full_content = re.sub(r'(</[a-zA-Z0-9]+>)\s*:\s*', r'\1: ', full_content)  # Tag + colon
-    full_content = re.sub(r'(?<!>)\s+:', ':', full_content)  # Regular word + colon (but not after >)
+    # Ensure all colons are absolutely glued to the preceding word/tag (no space before colon, never detached)
+    # Move trailing spaces out of bold/strong tags first to clean the boundaries
+    full_content = re.sub(r'([\s\u200b\xa0]+)(</(?:b|strong)>)', r'\2\1', full_content)
+    
+    # Glue colon inside bold/strong tags and push trailing spaces out: <b>Word : </b> -> <b>Word:</b> 
+    full_content = re.sub(r'<(b|strong)>([^:<]+?)(?:[\s\u200b\xa0]*:[\s\u200b\xa0]*)</\1>', r'<\1>\2:</\1> ', full_content)
+    
+    # Clean spaces/newlines before colons outside/after tags: <b>Word</b>  : -> <b>Word</b>:
+    full_content = re.sub(r'(</(?:b|strong|i|em|u|ins|code|a)>)[\s\u200b\xa0\n]*:', r'\1:', full_content)
+    
+    # Clean spaces/newlines before colons in plain words (except inside URL protocols or magnet links):
+    full_content = re.sub(r'(?<!http)(?<!https)(?<!magnet)(\w)[\s\u200b\xa0\n]*:', r'\1:', full_content)
+    
+    # Snap any orphaned colon at the start of a line back to the end of the previous line (attached)
+    full_content = re.sub(r'\n+\s*:', ':', full_content)
+    
+    # Ensure exactly one space after a colon if it is followed by non-newline text (ignoring HTML tag brackets to prevent breaking snap)
+    full_content = re.sub(r':(?=[^\s\n<])', ': ', full_content)
+    
+    # Collapse multiple spaces/tabs after a colon into a single space
+    full_content = re.sub(r':[ \t\u200b\xa0]{2,}', ': ', full_content)
     
     # 2. Delete orphaned bullets (bullets with no text after them on the same line)
     # Using (?m) for multiple lines so `^•` matches cleanly.
@@ -246,24 +263,36 @@ def split_text(text: str, max_length: int) -> List[str]:
     # 2.1 Delete orphaned # symbols (sometimes left by GPT artifacts or split markers)
     full_content = re.sub(r'(?m)^[ \t]*#[ \t]*(?=\n|$)', '', full_content)
     
-    # 2.5 Dynamic header spacing: If a line has <= 4 words, contains b/strong/i/em/u, and ends with a colon, ensure an empty line before it.
-    lines = full_content.split('\n')
-    new_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if re.search(r':(?:\s*</[a-zA-Z0-9]+>)*\s*$', stripped):
-            text_content = re.sub(r'<[^>]+>', '', stripped).strip()
-            words = [w for w in text_content.replace(':', '').replace('###SPLIT_MARKER###', '').split() if w]
-            if len(words) <= 4 and re.search(r'<(?:b|strong|i|em|u)[^>]*>', stripped, re.IGNORECASE):
-                if new_lines and new_lines[-1].strip() != '' and new_lines[-1].strip() != '###SPLIT_MARKER###':
-                    new_lines.append('')
-        new_lines.append(line)
-    full_content = '\n'.join(new_lines)
+    # 2.5 General bold capital header spacing rule:
+    # Process all bold capital words/phrases with a colon on every line
+    def handle_header_line(m):
+        header = m.group(1).strip()
+        after_text = m.group(2).strip()
+        
+        # Under user strict rule, ANY bold phrase starting with a capital letter followed by a colon
+        # must have an empty line before it and be alone on its line.
+        if after_text:
+            return f"\n\n{header}\n{after_text}"
+        else:
+            return f"\n\n{header}"
+
+    # Apply formatting for bold capital headers with colons
+    full_content = re.sub(
+        r'(?:\n|^)[ \t\u200b\xa0]*(<b>[A-ZА-ЯЁІЇЄҐ][^<]*?:</b>|<b>[A-ZА-ЯЁІЇЄҐ][^<]*?</b>:)[ \t\u200b\xa0]*(.*)',
+        handle_header_line,
+        full_content
+    )
+    
+    # Align blockquotes to prevent empty lines before/after blockquote in split parts
+    full_content = re.sub(r'\s*<blockquote>\s*', '\n<blockquote>', full_content)
+    full_content = re.sub(r'\s*</blockquote>\s*', '</blockquote>\n', full_content)
+    full_content = re.sub(r'<blockquote>\s*', '<blockquote>', full_content)
+    full_content = re.sub(r'\s*</blockquote>', '</blockquote>', full_content)
     
     # 3. Ensure no excessive empty lines (replace 3+ newlines with exactly 2 newlines, leaving 1 empty line)
     full_content = re.sub(r'\n{3,}', '\n\n', full_content)
     
-    return [p.strip() for p in full_content.split('###SPLIT_MARKER###') if p.strip()]
+    return [p.strip().lstrip(':').strip() for p in full_content.split('###SPLIT_MARKER###') if p.strip()]
 
 # --- Image Downloading for Telegram ---
 

@@ -15,7 +15,7 @@ from core.settings_loader import get_session, RUTRACKER_COOKIES
 
 logger = logging.getLogger(__name__)
 
-async def fetch_page_content(url: str, retries: int = 6, delay: int = 5) -> Optional[BeautifulSoup]:
+async def fetch_page_content(url: str, retries: int = 10, delay: int = 3) -> Optional[BeautifulSoup]:
     """Fetch a RuTracker page using curl_cffi with Chrome TLS impersonation."""
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -40,7 +40,7 @@ async def fetch_page_content(url: str, retries: int = 6, delay: int = 5) -> Opti
                         logger.info(f"Retrying in {delay}s... ({attempt + 2}/{retries})")
                         await asyncio.sleep(delay)
                         continue
-                    raise ValueError(f"Failed to fetch page content (HTTP error {response.status_code})")
+                    raise ValueError(f"Failed to fetch page content (HTTP error {response.status_code} after {retries} attempts)")
                 soup = BeautifulSoup(response.content, "html.parser")
                 return soup
         except ValueError:
@@ -52,7 +52,7 @@ async def fetch_page_content(url: str, retries: int = 6, delay: int = 5) -> Opti
                 await asyncio.sleep(delay)
             else:
                 logger.error(f"Failed to fetch {url} after {retries} attempts.")
-                raise ValueError(f"Failed to fetch page content (timeout or connection error)")
+                raise ValueError(f"Failed to fetch page content (timeout or connection error after {retries} attempts)")
 
 # get_last_post_with_phrase remains the same
 async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:

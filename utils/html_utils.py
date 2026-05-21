@@ -58,11 +58,27 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # 5. Normalize whitespace
     cleaned_html = cleaned_html.replace('\r', '')
     
-    # Snap floating colons back to bold tags
-    cleaned_html = re.sub(r'\s*</(b|strong)>[\s\u200b\xa0]*:[\s\u200b\xa0]*', r'</\1>: ', cleaned_html)
+    # Ensure all colons are absolutely glued to the preceding word/tag (no space before colon, never detached)
+    # Move trailing spaces out of bold/strong tags first to clean the boundaries
+    cleaned_html = re.sub(r'([\s\u200b\xa0]+)(</(?:b|strong)>)', r'\2\1', cleaned_html)
     
-    # Also aggressively snap ANY colon that starts a line back to the previous text
-    cleaned_html = re.sub(r'\n+\s*:\s*', ': ', cleaned_html)
+    # Glue colon inside bold/strong tags and push trailing spaces out: <b>Word : </b> -> <b>Word:</b> 
+    cleaned_html = re.sub(r'<(b|strong)>([^:<]+?)(?:[\s\u200b\xa0]*:[\s\u200b\xa0]*)</\1>', r'<\1>\2:</\1> ', cleaned_html)
+    
+    # Clean spaces/newlines before colons outside/after tags: <b>Word</b>  : -> <b>Word</b>:
+    cleaned_html = re.sub(r'(</(?:b|strong|i|em|u|ins|code|a)>)[\s\u200b\xa0\n]*:', r'\1:', cleaned_html)
+    
+    # Clean spaces/newlines before colons in plain words (except inside URL protocols or magnet links):
+    cleaned_html = re.sub(r'(?<!http)(?<!https)(?<!magnet)(\w)[\s\u200b\xa0\n]*:', r'\1:', cleaned_html)
+    
+    # Snap any orphaned colon at the start of a line back to the end of the previous line (attached)
+    cleaned_html = re.sub(r'\n+\s*:', ':', cleaned_html)
+    
+    # Ensure exactly one space after a colon if it is followed by non-newline text (ignoring HTML tag brackets to prevent breaking snap)
+    cleaned_html = re.sub(r':(?=[^\s\n<])', ': ', cleaned_html)
+    
+    # Collapse multiple spaces/tabs after a colon into a single space
+    cleaned_html = re.sub(r':[ \t\u200b\xa0]{2,}', ': ', cleaned_html)
 
     # Convert horizontal bullet lists to properly separated vertical lists (e.g. "Item 1 • Item 2" -> "Item 1\n• Item 2")
     # We look for a bullet preceded by spaces that follows some text on the SAME line.
@@ -82,14 +98,127 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     cleaned_html = re.sub(r'\n{2,}', '\n\n', cleaned_html) # Max 1 empty line
     # Remove gaps between list items
     cleaned_html = re.sub(r'\n{2,}(\s*(?:•|\d+\.) )', r'\n\1', cleaned_html)
-    # Collapse blank lines between metadata fields (e.g. "Жанр:", "Год выпуска:", "Разработчик:")
-    # Any line starting with <b>...</b>: followed by a blank line and another <b> line → remove the blank line
-    # Apply repeatedly since each pass only collapses one layer
-    while True:
-        collapsed = re.sub(r'(\n<b>[^<]+</b>:[^\n]*)\n\n(<b>)', r'\1\n\2', cleaned_html)
-        if collapsed == cleaned_html:
-            break
-        cleaned_html = collapsed
+    
+    # Process all bold capital words/phrases with a colon on every line
+    def handle_header_line(m):
+        header = m.group(1).strip()
+        after_text = m.group(2).strip()
+        
+        # Under user strict rule, ANY bold phrase starting with a capital letter followed by a colon
+        # must have an empty line before it and be alone on its line.
+        if after_text:
+            return f"\n\n{header}\n{after_text}"
+        else:
+            return f"\n\n{header}"
+
+    # Apply formatting for bold capital headers with colons
+    cleaned_html = re.sub(
+        r'(?:\n|^)[ \t\u200b\xa0]*(<b>[A-ZА-ЯЁІЇЄҐ][^<]*?:</b>|<b>[A-ZА-ЯЁІЇЄҐ][^<]*?</b>:)[ \t\u200b\xa0]*(.*)',
+        handle_header_line,
+        cleaned_html
+    )
+
+    # Clean list markers and spaces that appear directly before bold capital headers (e.g. "• <b>Особливості</b>" -> "<b>Особливості</b>")
+    header_pattern = r'<b>[A-ZА-ЯЁІЇЄҐ][^<\n]*?</b>\s*:?'
+    cleaned_html = re.sub(
+        r'(?:\n|^)[•\-\* \t\u200b\xa0]+(' + header_pattern + r')',
+        r'\n\1',
+        cleaned_html,
+        flags=re.IGNORECASE
+    )
+
+    # Auto-wrap "Additional Info" sections in blockquote if they are not already wrapped.
+    additional_info_header = r'<b>(?:Дод\. інформаці|Додатков|Доп\.|Additional)[^<\n]*?</b>\s*:?'
+    
+    def wrap_additional_info_block(match):
+        header = match.group(1)
+        content = match.group(2).strip()
+        if not content:
+            return match.group(0)
+        # Strip leading colons, spaces, and newlines before checking blockquote
+        content_clean = re.sub(r'^[ \t\u200b\xa0:]+', '', content).strip()
+        if content_clean.startswith('<blockquote>'):
+            return f"\n{header}\n{content_clean}"
+        return f"\n{header}<blockquote>\n{content_clean}\n</blockquote>"
+
+    cleaned_html = re.sub(
+        r'(?:\n|^)(' + additional_info_header + r')\s*\n*([\s\S]+?)(?=\n*(?:' + header_pattern + r'|$))',
+        wrap_additional_info_block,
+        cleaned_html,
+        flags=re.IGNORECASE
+    )
+
+    # 4. Auto-add bullets to "Features" and "System Requirements" sections if they contain plain lines without bullets.
+    def add_bullets_to_section_content(content: str) -> str:
+        lines = content.split('\n')
+        # 1. Merge line fragments (broken lines starting with lowercase letters/punctuation, or <= 3 chars)
+        merged_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                merged_lines.append(line)
+                continue
+            
+            plain_text = re.sub(r'<[^>]+>', '', stripped).strip()
+            # If the current line starts with a lowercase letter or punctuation, or has <= 3 characters of plain text,
+            # and the previous line is not empty and is not a blockquote boundary, merge them.
+            if (merged_lines and 
+                merged_lines[-1].strip() and 
+                not merged_lines[-1].strip().startswith('<blockquote') and 
+                not merged_lines[-1].strip().startswith('</blockquote') and 
+                (re.match(r'^[a-zа-яёіїєґ\.,;!\?\)]', plain_text) or len(plain_text) <= 3)):
+                
+                prev = merged_lines[-1]
+                if prev.endswith('-'):
+                    merged_lines[-1] = prev[:-1] + line.lstrip()
+                else:
+                    merged_lines[-1] = prev + " " + line.lstrip()
+            else:
+                merged_lines.append(line)
+
+        processed_lines = []
+        for line in merged_lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith('<blockquote') or stripped.startswith('</blockquote'):
+                processed_lines.append(line)
+                continue
+            plain_text = re.sub(r'<[^>]+>', '', stripped).strip()
+            if not plain_text:
+                processed_lines.append(line)
+                continue
+            if plain_text.startswith(('•', '-', '*', '■', '▪', '◦', '○')) or re.match(r'^\d+\.', plain_text):
+                processed_lines.append(line)
+            else:
+                match_spaces = re.match(r'^(\s*)(.*)', line)
+                spaces = match_spaces.group(1)
+                remaining = match_spaces.group(2)
+                processed_lines.append(f"{spaces}• {remaining}")
+        return '\n'.join(processed_lines)
+
+    features_system_header = r'<b>(?:Особливост|Особенност|Features|Системн|Систем|System)[^<\n]*?</b>\s*:?'
+    
+    cleaned_html = re.sub(
+        r'(?:\n|^)(' + features_system_header + r')\s*\n*([\s\S]+?)(?=\n*(?:' + header_pattern + r'|$))',
+        lambda m: f"\n{m.group(1)}\n" + add_bullets_to_section_content(m.group(2)),
+        cleaned_html,
+        flags=re.IGNORECASE
+    )
+
+    # Clean up and align blockquotes (strict alignment to prevent empty lines at start/end of blockquote)
+    cleaned_html = re.sub(r'\s*<blockquote>\s*', '\n<blockquote>', cleaned_html)
+    cleaned_html = re.sub(r'\s*</blockquote>\s*', '</blockquote>\n', cleaned_html)
+    cleaned_html = re.sub(r'<blockquote>\s*', '<blockquote>', cleaned_html)
+    cleaned_html = re.sub(r'\s*</blockquote>', '</blockquote>', cleaned_html)
+    
+    # Flatten nested/duplicate blockquotes (e.g. <blockquote><blockquote> -> <blockquote>)
+    cleaned_html = re.sub(r'<blockquote>\s*<blockquote>', '<blockquote>', cleaned_html)
+    cleaned_html = re.sub(r'</blockquote>\s*</blockquote>', '</blockquote>', cleaned_html)
+    
+    # Strip double newlines inside blockquotes to maintain clean structure
+    cleaned_html = re.sub(r'(<blockquote>[\s\S]*?</blockquote>)', lambda m: re.sub(r'\n{2,}', '\n', m.group(1)), cleaned_html)
+
+    # Under the strict rule, each metadata field must have an empty line before it, so we do not collapse them.
+
     # Ensure game title headers (bold WITHOUT colon, e.g. "<b>Game Name</b>")
     # have a blank line after them before the metadata block starts
     cleaned_html = re.sub(r'(<b>[^<]+</b>)\n(<b>[^<]+</b>:)', r'\1\n\n\2', cleaned_html)
