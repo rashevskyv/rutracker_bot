@@ -225,6 +225,11 @@ def sanitize_html_for_telegram(html_str: str) -> str:
                     next_non_empty = parsed_lines[j]
                     break
             
+            # Skip empty line immediately after any header to prevent gaps after headers
+            if last_line_type in ('parameter', 'section', 'inline_with_gap'):
+                last_line_type = 'empty_after_header'
+                continue
+                
             if last_line_type == 'parameter' and next_non_empty and next_non_empty[0] == 'header' and next_non_empty[1] == 'parameter':
                 continue
                 
@@ -266,11 +271,21 @@ def sanitize_html_for_telegram(html_str: str) -> str:
                 
     cleaned_html = '\n'.join(processed_lines)
 
-    header_pattern = r'<b>[A-ZА-ЯЁІЇЄҐ][^<\n]*?</b>\s*:?'
+    # 1. Define section headers first
+    additional_info_header = r'<b>(?i:(?:Дод\. інформаці|Додатков|Доп\.|Additional))[^<\n]*?</b>[ \t\u200b\xa0]*:?'
+    features_system_header = r'<b>(?i:(?:Особливост|Особенност|Features|Системн|Систем|System))[^<\n]*?</b>[ \t\u200b\xa0]*:?'
 
-    # Auto-wrap "Additional Info" sections in blockquote if they are not already wrapped.
-    additional_info_header = r'<b>(?:Дод\. інформаці|Додатков|Доп\.|Additional)[^<\n]*?</b>\s*:?'
-    
+    # Match headers starting with capital letters:
+    # 1. Any bold capital word/phrase ending with a colon: <b>Header</b>:
+    # 2. Known section headers on a new line (even without a colon)
+    # This prevents matching bold words in the middle of sentences (like <b>atmosphere</b>) as headers.
+    header_pattern = (
+        r'(?:'
+        r'(?:<b>[A-ZА-ЯЁІЇЄҐ][^<\n]*?</b>[ \t\u200b\xa0]*:)|'
+        r'(?:\n[ \t\u200b\xa0]*(?:' + features_system_header + r'|' + additional_info_header + r'))'
+        r')'
+    )
+
     def wrap_additional_info_block(match):
         header = match.group(1)
         content = match.group(2).strip()
@@ -283,10 +298,9 @@ def sanitize_html_for_telegram(html_str: str) -> str:
         return f"\n{header}<blockquote>\n{content_clean}\n</blockquote>"
 
     cleaned_html = re.sub(
-        r'(?:\n|^)(' + additional_info_header + r')\s*\n*([\s\S]+?)(?=\n*(?:' + header_pattern + r'|$))',
+        r'(?:\n|^)(' + additional_info_header + r')[ \t\u200b\xa0]*\n*([\s\S]+?)(?=\n*(?:' + header_pattern + r'|$))',
         wrap_additional_info_block,
-        cleaned_html,
-        flags=re.IGNORECASE
+        cleaned_html
     )
 
     # 4. Auto-add bullets to "Features" and "System Requirements" sections if they contain plain lines without bullets.
@@ -336,13 +350,10 @@ def sanitize_html_for_telegram(html_str: str) -> str:
                 processed_lines.append(f"{spaces}• {remaining}")
         return '\n'.join(processed_lines)
 
-    features_system_header = r'<b>(?:Особливост|Особенност|Features|Системн|Систем|System)[^<\n]*?</b>\s*:?'
-    
     cleaned_html = re.sub(
-        r'(?:\n|^)(' + features_system_header + r')\s*\n*([\s\S]+?)(?=\n*(?:' + header_pattern + r'|$))',
-        lambda m: f"\n{m.group(1)}\n" + add_bullets_to_section_content(m.group(2)),
-        cleaned_html,
-        flags=re.IGNORECASE
+        r'(?:\n|^)(' + features_system_header + r')[ \t\u200b\xa0]*\n*([\s\S]+?)(?=\n*(?:' + header_pattern + r'|$))',
+        lambda m: f"\n{m.group(1)}\n" + add_bullets_to_section_content(m.group(2).strip()),
+        cleaned_html
     )
 
     # Clean up and align blockquotes (strict alignment to prevent empty lines at start/end of blockquote)
