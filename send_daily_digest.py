@@ -10,7 +10,7 @@ import json
 import os
 from datetime import datetime, timedelta
 
-from core.settings_loader import setup_logging, close_clients, LOG, IS_TEST_MODE
+from core.settings_loader import setup_logging, close_clients, LOG, IS_TEST_MODE, TEST_GROUPS
 from digest.daily import digest_manager
 from services.telegram_sender import send_message_to_admin
 from services.manual_releases import process_manual_releases
@@ -64,20 +64,27 @@ async def send_digest():
     from core.settings_loader import load_config, bot
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Test channel for stats
-    TEST_CHAT_ID = -1001960832921
-    TEST_TOPIC_ID = None
-
     if IS_TEST_MODE:
-        # TEST MODE: Send full digest only to test group
-        logger.info("TEST MODE: Sending full digest to test group only")
+        # TEST MODE: Send full digest to all test groups
+        logger.info("TEST MODE: Sending full digest to test groups only")
+        if not TEST_GROUPS:
+            logger.error("TEST_GROUPS is not configured.")
+            sys.exit(1)
         try:
-            await digest_manager.send_digest(
-                target_chat_id=TEST_CHAT_ID,
-                target_topic_id=TEST_TOPIC_ID,
-                since_time=last_run_time
-            )
-            logger.info("Test digest sent successfully")
+            for group in TEST_GROUPS:
+                chat_id = int(group['chat_id'])
+                topic_id = int(group['topic_id']) if group.get('topic_id') and str(group['topic_id']).strip() else None
+                group_lang = group.get('language', 'RU').upper()
+                translate_to_ua = group_lang == 'UA'
+                
+                logger.info(f"Sending test digest to {group.get('group_name', 'Unknown')} (chat_id: {chat_id}, topic_id: {topic_id}, translate: {translate_to_ua})")
+                await digest_manager.send_digest(
+                    target_chat_id=chat_id,
+                    target_topic_id=topic_id,
+                    since_time=last_run_time,
+                    translate_to_ua=translate_to_ua
+                )
+            logger.info("Test digests sent successfully")
         except Exception as e:
             logger.error(f"Failed to send test digest: {e}")
             import traceback

@@ -16,6 +16,14 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # Replace <br> tags with newlines before BeautifulSoup parsing to preserve line breaks
     html_str = re.sub(r'<(br|BR)\s*/?>', '\n', html_str)
     
+    # Split inline bold game titles/headers onto their own lines if they follow sentence endings (.!?)
+    # e.g., "Atmosphere 1.5.3. <b>Farm Tycoon</b>" -> "Atmosphere 1.5.3.\n<b>Farm Tycoon</b>"
+    html_str = re.sub(r'(?<=[\.!\?])[ \t]+(<(?:b|strong)>[A-ZА-ЯЁІЇЄҐ0-9][^<]*?</(?:b|strong)>)', r'\n\1', html_str)
+    
+    # Split adjacent tags where a bold title/header immediately follows another tag
+    # e.g., "<b>Ключевые игры из раздачи:</b> <b>Farming Simulator</b>" -> "<b>Ключевые игры из раздачи:</b>\n<b>Farming Simulator</b>"
+    html_str = re.sub(r'(</(?:b|strong|i|em|u|ins|s|strike|del|code)>)[ \t]+(<(?:b|strong)>[A-ZА-ЯЁІЇЄҐ0-9][^<]*?</(?:b|strong)>)', r'\1\n\2', html_str)
+    
     soup = BeautifulSoup(html_str, 'html.parser')
     
     # 1. Tags to completely remove (and their content)
@@ -194,6 +202,10 @@ def sanitize_html_for_telegram(html_str: str) -> str:
                         
                     if (next_stripped.startswith(('<blockquote>', '</blockquote>', '<pre>', '</pre>')) or 
                         next_stripped.startswith(('•', '-', '*', '■', '▪', '◦', '○'))):
+                        break
+
+                    # Stop merging if the next line starts with a bold tag, indicating a new item or game title
+                    if re.match(r'^[•\-\*\s]*<(?:b|strong)>', next_stripped):
                         break
                         
                     if combined_value:
