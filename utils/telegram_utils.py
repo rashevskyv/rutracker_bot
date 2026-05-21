@@ -4,7 +4,7 @@ import asyncio
 import re
 from io import BytesIO
 from html.parser import HTMLParser
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set
 import logging
 from core.settings_loader import get_session
 
@@ -48,6 +48,60 @@ def check_html_tags(text: str) -> List[str]:
 def close_tags(tags: List[str]) -> str:
     """Generates closing tags for a list of open tags in reverse order."""
     return "".join([f"</{tag}>" for tag in reversed(tags)])
+
+
+def fix_html_for_telegram(text: str) -> str:
+    """
+    Fixes HTML tag issues before sending to Telegram:
+    - Removes orphan closing tags (end tags without a matching start tag).
+      These are often introduced by GPT translation stripping open tags.
+    - Closes any unclosed open tags at the end of the text.
+    Only tracks Telegram-allowed inline tags to avoid false positives.
+    """
+    if not text:
+        return text
+
+    TRACKED: Set[str] = {'b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del',
+                          'a', 'code', 'pre', 'blockquote', 'tg-spoiler'}
+    SELF_CLOSING: Set[str] = {'br', 'hr', 'img'}
+
+    open_stack: List[str] = []
+    result: List[str] = []
+    last_pos = 0
+
+    tag_re = re.compile(r'(<(/?)([a-zA-Z][a-zA-Z0-9-]*)(?:[^>]*)>)')
+
+    for m in tag_re.finditer(text):
+        full_tag = m.group(1)
+        is_close = bool(m.group(2))
+        tag_name = m.group(3).lower()
+
+        result.append(text[last_pos:m.start()])
+        last_pos = m.end()
+
+        if tag_name in SELF_CLOSING or tag_name not in TRACKED:
+            result.append(full_tag)
+            continue
+
+        if is_close:
+            if tag_name in open_stack:
+                # Close intermediate unclosed tags first (handle misnested)
+                while open_stack and open_stack[-1] != tag_name:
+                    result.append(f'</{open_stack.pop()}>')
+                open_stack.pop()
+                result.append(full_tag)
+            # else: orphan closing tag — silently drop it
+        else:
+            open_stack.append(tag_name)
+            result.append(full_tag)
+
+    result.append(text[last_pos:])
+
+    # Close any remaining open tags
+    while open_stack:
+        result.append(f'</{open_stack.pop()}>')
+
+    return ''.join(result)
 
 
 # --- Text Splitting ---
