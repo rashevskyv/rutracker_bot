@@ -99,33 +99,174 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # Remove gaps between list items
     cleaned_html = re.sub(r'\n{2,}(\s*(?:•|\d+\.) )', r'\n\1', cleaned_html)
     
-    # Process all bold capital words/phrases with a colon on every line
-    def handle_header_line(m):
-        header = m.group(1).strip()
-        after_text = m.group(2).strip()
+    def classify_header(header_text: str) -> str:
+        # Remove HTML tags and colons, lowercase, and clean extra punctuation/spaces
+        clean = re.sub(r'<[^>]+>', '', header_text)
+        clean = clean.replace(':', '').strip().lower()
+        clean = re.sub(r'\s+', ' ', clean)
         
-        # Under user strict rule, ANY bold phrase starting with a capital letter followed by a colon
-        # must have an empty line before it and be alone on its line.
-        if after_text:
-            return f"\n\n{header}\n{after_text}"
+        sections = {
+            'особенности', 'особливості', 'features',
+            'системные требования', 'системні вимоги', 'system requirements',
+            'системные', 'системні',
+            'доп информация', 'додаткова інформація', 'additional info', 'доп. інформація', 'доп. информация',
+            'доп', 'додаткова', 'additional',
+            'скриншоты', 'screenshots',
+            'скачать', 'download'
+        }
+        
+        inline_with_gap = {
+            'описание', 'опис', 'description',
+            'обновлено', 'оновлено', 'updated'
+        }
+        
+        if clean in sections or any(clean.startswith(s) for s in sections):
+            return 'section'
+            
+        if clean in inline_with_gap or any(clean.startswith(iw) for iw in inline_with_gap):
+            return 'inline_with_gap'
+            
+        return 'parameter'
+
+    # Process all bold capital words/phrases with a colon line-by-line
+    lines = cleaned_html.split('\n')
+    
+    # Pre-merge split parameter lines (where header is on one line and value is on the next line(s))
+    merged_lines = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if not stripped:
+            merged_lines.append(line)
+            i += 1
+            continue
+            
+        header_match = re.match(
+            r'^[•\-\*\s]*(<b>[A-ZА-ЯЁІЇЄҐ][^<]*?:</b>|<b>[A-ZА-ЯЁІЇЄҐ][^<]*?</b>:)[ \t\u200b\xa0]*(.*)',
+            line
+        )
+        if header_match:
+            header_html = header_match.group(1).strip()
+            value_html = header_match.group(2).strip()
+            subtype = classify_header(header_html)
+            
+            # Merging applies only to 'parameter' and 'inline_with_gap' subtypes
+            if subtype in ('parameter', 'inline_with_gap'):
+                combined_value = value_html
+                j = i + 1
+                while j < len(lines):
+                    next_line = lines[j]
+                    next_stripped = next_line.strip()
+                    if not next_stripped:
+                        j += 1
+                        continue
+                    
+                    next_header_match = re.match(
+                        r'^[•\-\*\s]*(<b>[A-ZА-ЯЁІЇЄҐ][^<]*?:</b>|<b>[A-ZА-ЯЁІЇЄҐ][^<]*?</b>:)',
+                        next_line
+                    )
+                    if next_header_match:
+                        break
+                        
+                    if (next_stripped.startswith(('<blockquote>', '</blockquote>', '<pre>', '</pre>')) or 
+                        next_stripped.startswith(('•', '-', '*', '■', '▪', '◦', '○'))):
+                        break
+                        
+                    if combined_value:
+                        combined_value += " " + next_stripped
+                    else:
+                        combined_value = next_stripped
+                    j += 1
+                
+                if combined_value:
+                    merged_lines.append(f"{header_html} {combined_value}")
+                else:
+                    merged_lines.append(header_html)
+                i = j
+            else:
+                merged_lines.append(line)
+                i += 1
         else:
-            return f"\n\n{header}"
+            merged_lines.append(line)
+            i += 1
+            
+    lines = merged_lines
+    processed_lines = []
+    last_line_type = None
+    
+    # Pre-parse each line to classify its type
+    parsed_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            parsed_lines.append(('empty', '', '', ''))
+            continue
+            
+        # Match bold capital header (colon inside or outside) with optional bullets/spaces
+        header_match = re.match(
+            r'^[•\-\*\s]*(<b>[A-ZА-ЯЁІЇЄҐ][^<]*?:</b>|<b>[A-ZА-ЯЁІЇЄҐ][^<]*?</b>:)[ \t\u200b\xa0]*(.*)',
+            line
+        )
+        if header_match:
+            header_html = header_match.group(1).strip()
+            value_html = header_match.group(2).strip()
+            header_type = classify_header(header_html)
+            parsed_lines.append(('header', header_type, header_html, value_html))
+        else:
+            parsed_lines.append(('other', '', '', line))
+            
+    for i, (ltype, subtype, part1, part2) in enumerate(parsed_lines):
+        if ltype == 'empty':
+            # Skip empty lines between consecutive parameters to keep the block compact
+            next_non_empty = None
+            for j in range(i + 1, len(parsed_lines)):
+                if parsed_lines[j][0] != 'empty':
+                    next_non_empty = parsed_lines[j]
+                    break
+            
+            if last_line_type == 'parameter' and next_non_empty and next_non_empty[0] == 'header' and next_non_empty[1] == 'parameter':
+                continue
+                
+            processed_lines.append("")
+            
+        elif ltype == 'header':
+            if subtype == 'section':
+                if processed_lines and processed_lines[-1] != "":
+                    processed_lines.append("")
+                processed_lines.append(part1)
+                if part2:
+                    processed_lines.append(part2)
+                last_line_type = 'section'
+                
+            elif subtype == 'inline_with_gap':
+                if last_line_type != 'parameter' and processed_lines and processed_lines[-1] != "":
+                    processed_lines.append("")
+                if part2:
+                    processed_lines.append(f"{part1} {part2}")
+                else:
+                    processed_lines.append(part1)
+                last_line_type = 'inline_with_gap'
+                
+            elif subtype == 'parameter':
+                # Add gap when starting a parameters block from other content
+                if last_line_type != 'parameter' and processed_lines and processed_lines[-1] != "":
+                    processed_lines.append("")
+                if part2:
+                    processed_lines.append(f"{part1} {part2}")
+                else:
+                    processed_lines.append(part1)
+                last_line_type = 'parameter'
+                
+        else:  # ltype == 'other'
+            processed_lines.append(part2)
+            stripped = part2.strip()
+            if stripped != '<blockquote>' and stripped != '</blockquote>':
+                last_line_type = 'other'
+                
+    cleaned_html = '\n'.join(processed_lines)
 
-    # Apply formatting for bold capital headers with colons
-    cleaned_html = re.sub(
-        r'(?:\n|^)[ \t\u200b\xa0]*(<b>[A-ZА-ЯЁІЇЄҐ][^<]*?:</b>|<b>[A-ZА-ЯЁІЇЄҐ][^<]*?</b>:)[ \t\u200b\xa0]*(.*)',
-        handle_header_line,
-        cleaned_html
-    )
-
-    # Clean list markers and spaces that appear directly before bold capital headers (e.g. "• <b>Особливості</b>" -> "<b>Особливості</b>")
     header_pattern = r'<b>[A-ZА-ЯЁІЇЄҐ][^<\n]*?</b>\s*:?'
-    cleaned_html = re.sub(
-        r'(?:\n|^)[•\-\* \t\u200b\xa0]+(' + header_pattern + r')',
-        r'\n\1',
-        cleaned_html,
-        flags=re.IGNORECASE
-    )
 
     # Auto-wrap "Additional Info" sections in blockquote if they are not already wrapped.
     additional_info_header = r'<b>(?:Дод\. інформаці|Додатков|Доп\.|Additional)[^<\n]*?</b>\s*:?'
@@ -481,7 +622,7 @@ def make_tag(description: str, keyword: str) -> str:
     Handles multiple occurrences for multi-game posts.
     """
     tag_header_pattern = re.compile(
-        r"<b>" + re.escape(keyword) + r"</b>\s*:\s*(.*?)\s*(\n|<br|$)",
+        r"<b>" + re.escape(keyword) + r"(?:\s*:\s*)?</b>\s*:?\s*(.*?)\s*(\n|<br|$)",
         re.IGNORECASE | re.DOTALL
     )
 
@@ -506,9 +647,9 @@ def make_tag(description: str, keyword: str) -> str:
             if link_tag:
                 link_href = link_tag.get('href', '#')
                 link_text_escaped = html.escape(tag_text)
-                formatted_tag = f" #{clean_tag_text} (<a href=\"{link_href}\">{link_text_escaped}</a>)"
+                formatted_tag = f"#{clean_tag_text} (<a href=\"{link_href}\">{link_text_escaped}</a>)"
             else:
-                formatted_tag = f" #{clean_tag_text}"
+                formatted_tag = f"#{clean_tag_text}"
             formatted_tags.append(formatted_tag)
 
         if formatted_tags:

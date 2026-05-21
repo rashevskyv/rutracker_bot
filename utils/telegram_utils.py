@@ -263,25 +263,6 @@ def split_text(text: str, max_length: int) -> List[str]:
     # 2.1 Delete orphaned # symbols (sometimes left by GPT artifacts or split markers)
     full_content = re.sub(r'(?m)^[ \t]*#[ \t]*(?=\n|$)', '', full_content)
     
-    # 2.5 General bold capital header spacing rule:
-    # Process all bold capital words/phrases with a colon on every line
-    def handle_header_line(m):
-        header = m.group(1).strip()
-        after_text = m.group(2).strip()
-        
-        # Under user strict rule, ANY bold phrase starting with a capital letter followed by a colon
-        # must have an empty line before it and be alone on its line.
-        if after_text:
-            return f"\n\n{header}\n{after_text}"
-        else:
-            return f"\n\n{header}"
-
-    # Apply formatting for bold capital headers with colons
-    full_content = re.sub(
-        r'(?:\n|^)[ \t\u200b\xa0]*(<b>[A-ZА-ЯЁІЇЄҐ][^<]*?:</b>|<b>[A-ZА-ЯЁІЇЄҐ][^<]*?</b>:)[ \t\u200b\xa0]*(.*)',
-        handle_header_line,
-        full_content
-    )
     
     # Align blockquotes to prevent empty lines before/after blockquote in split parts
     full_content = re.sub(r'\s*<blockquote>\s*', '\n<blockquote>', full_content)
