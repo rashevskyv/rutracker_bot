@@ -238,9 +238,9 @@ async def main_loop():
                          # Build update_description directly from parser's raw update text
                          update_description = None
                          if is_updated and raw_update_text:
-                             # Strip the "<b>Обновлено:</b>" prefix (keeping the <a> link if present)
-                             update_text = re.sub(r'^<b>(<a[^>]+>Обновлено</a>):</b>\s*\n*', r'\1:\n', raw_update_text)
-                             update_text = re.sub(r'^<b>Обновлено:</b>\s*\n*', '', update_text)
+                             # Strip the "<b>Оновлено:</b>" / "<b>Обновлено:</b>" prefix (keeping the <a> link if present)
+                             update_text = re.sub(r'^<b>(<a[^>]+>(?:Оновлено|Обновлено)</a>):</b>\s*\n*', r'\1:\n', raw_update_text)
+                             update_text = re.sub(r'^<b>(?:Оновлено|Обновлено):</b>\s*\n*', '', update_text)
                              # Remove HTML tags EXCEPT <a> tags (keep links)
                              update_text = re.sub(r'<(?!/?a\b)[^>]+>', '', update_text)
 

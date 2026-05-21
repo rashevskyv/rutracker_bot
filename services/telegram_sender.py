@@ -398,7 +398,26 @@ async def send_to_telegram(title_for_caption: str,
                     prepared_text = base_message_text.replace("<blockquote>", "XBQSX")
                     prepared_text = prepared_text.replace("</blockquote>", "XBQEX")
 
+                    # Protect update header links from GPT (GPT tends to strip/alter <a> inside <b>).
+                    # Pattern: <b><a href="...">Оновлено:</a></b>
+                    protected_links: dict = {}
+                    link_counter = [0]
+                    def _protect_link(m):
+                        token = f'XUPDLNK{link_counter[0]}X'
+                        protected_links[token] = m.group(0)
+                        link_counter[0] += 1
+                        return token
+                    prepared_text = re.sub(
+                        r'<b><a href="[^"]*">[^<]*</a></b>',
+                        _protect_link,
+                        prepared_text
+                    )
+
                     translated_message_text = await translate_ru_to_ua(prepared_text)
+
+                    # Restore protected update header links
+                    for token, original_html in protected_links.items():
+                        translated_message_text = translated_message_text.replace(token, original_html)
                     
                     # Final safety: merge any consecutive blockquotes tightly (using the tokens)
                     translated_message_text = re.sub(r'XBQEX\s*XBQSX', 'XBQEXXBQSX', translated_message_text, flags=re.IGNORECASE)

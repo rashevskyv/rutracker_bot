@@ -74,11 +74,19 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # Snap any orphaned colon at the start of a line back to the end of the previous line (attached)
     cleaned_html = re.sub(r'\n+\s*:', ':', cleaned_html)
     
-    # Ensure exactly one space after a colon if it is followed by non-newline text (ignoring HTML tag brackets to prevent breaking snap)
-    cleaned_html = re.sub(r':(?=[^\s\n<])', ': ', cleaned_html)
+    # Ensure exactly one space after a colon if it is followed by non-newline text
+    # Exclude URL protocols (https://, http://, magnet:) to avoid breaking links
+    cleaned_html = re.sub(r'(?<!https)(?<!http)(?<!magnet):(?=[^\s\n<])', ': ', cleaned_html)
     
     # Collapse multiple spaces/tabs after a colon into a single space
     cleaned_html = re.sub(r':[ \t\u200b\xa0]{2,}', ': ', cleaned_html)
+
+    # Safety: restore any colon damage inside href attributes (e.g. https: // -> https://)
+    cleaned_html = re.sub(
+        r'href="([^"]*)"',
+        lambda m: 'href="' + m.group(1).replace(': //', '://').replace(': ?', ':?').replace(': #', ':#') + '"',
+        cleaned_html
+    )
 
     # Convert horizontal bullet lists to properly separated vertical lists (e.g. "Item 1 • Item 2" -> "Item 1\n• Item 2")
     # We look for a bullet preceded by spaces that follows some text on the SAME line.
@@ -98,6 +106,21 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     cleaned_html = re.sub(r'\n{2,}', '\n\n', cleaned_html) # Max 1 empty line
     # Remove gaps between list items
     cleaned_html = re.sub(r'\n{2,}(\s*(?:•|\d+\.) )', r'\n\1', cleaned_html)
+
+    # Split inline bold parameter headers onto their own lines.
+    # When GPT outputs multiple <b>Header:</b> on the same line, insert a newline before each.
+    # Pattern 1: <b>Header:</b>  (colon inside tag)
+    cleaned_html = re.sub(
+        r'(?<=\S)[ \t]+(<b>[А-ЯЁІЇЄҐA-Z][^<\n]*?:</b>)',
+        r'\n\1',
+        cleaned_html
+    )
+    # Pattern 2: <b>Header</b>:  (colon outside tag)
+    cleaned_html = re.sub(
+        r'(?<=\S)[ \t]+(<b>[А-ЯЁІЇЄҐA-Z][^<\n]*?</b>[ \t]*:)',
+        r'\n\1',
+        cleaned_html
+    )
     
     def classify_header(header_text: str) -> str:
         # Remove HTML tags and colons, lowercase, and clean extra punctuation/spaces
