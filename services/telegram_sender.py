@@ -3,7 +3,7 @@ from io import BytesIO
 
 from services.translation import translate_ru_to_ua
 from services.ai_validator import summarize_description_with_ai
-from core.settings_loader import GROUPS, ERROR_TG, bot, TOKEN
+from core.settings_loader import GROUPS, ERROR_TG, bot, TOKEN, IS_TEST_MODE, TEST_GROUPS
 import re
 import html
 import asyncio
@@ -18,6 +18,7 @@ import shutil
 # --- Import functions moved to telegram_utils ---
 from utils.telegram_utils import (
     split_text, download_cover_image_tg, download_trailer_thumbnail_tg,
+    fix_html_for_telegram,
     MAX_CAPTION_LENGTH, MAX_MESSAGE_LENGTH,
 )
 from utils.html_utils import convert_markdown_to_html
@@ -56,6 +57,7 @@ async def _send_strategy_separate(
         cover_image_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
         caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else None
+        caption_for_photo = fix_html_for_telegram(caption_for_photo) if caption_for_photo else caption_for_photo
         remaining_text = "\n\n".join(caption_parts[1:])
         # Merge fragmented blockquotes tightly — no gaps between them
         remaining_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', remaining_text, flags=re.IGNORECASE)
@@ -73,6 +75,7 @@ async def _send_strategy_separate(
         trailer_thumbnail_file.seek(0)
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
         caption_for_photo = convert_markdown_to_html(caption_parts[0]) if caption_parts else None
+        caption_for_photo = fix_html_for_telegram(caption_for_photo) if caption_for_photo else caption_for_photo
         remaining_text = "\n\n".join(caption_parts[1:])
         # Merge fragmented blockquotes tightly — no gaps between them
         remaining_text = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', remaining_text, flags=re.IGNORECASE)
@@ -94,6 +97,7 @@ async def _send_strategy_separate(
                 formatted_part = convert_markdown_to_html(part)
                 # Merge fragmented blockquotes tightly
                 formatted_part = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', formatted_part, flags=re.IGNORECASE)
+                formatted_part = fix_html_for_telegram(formatted_part)
                 logger.debug(f"TG Strategy 1 - Sending Part {i+1} (len {len(formatted_part)}): {formatted_part[:300]}...")
                 if log_file:
                     with open(log_file, "a", encoding="utf-8") as f:
@@ -195,6 +199,7 @@ async def _send_strategy_grouped(
         caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
         if caption_parts:
             caption_for_group = convert_markdown_to_html(caption_parts[0])
+            caption_for_group = fix_html_for_telegram(caption_for_group)
             remaining_text_group = "\n".join(caption_parts[1:])
             media_group_to_send[0].caption = caption_for_group
             media_group_to_send[0].parse_mode = "HTML"
@@ -229,6 +234,7 @@ async def _send_strategy_grouped(
                  formatted_part = convert_markdown_to_html(part)
                  # Merge fragmented blockquotes tightly
                  formatted_part = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', formatted_part, flags=re.IGNORECASE)
+                 formatted_part = fix_html_for_telegram(formatted_part)
                  logger.debug(f"TG Strategy 2 - Sending Part {i+1} (len {len(formatted_part)}): {formatted_part[:300]}...")
                  if log_file:
                      with open(log_file, "a", encoding="utf-8") as f:
@@ -261,8 +267,10 @@ async def send_to_telegram(title_for_caption: str,
     if not bot:
         logger.error("ERROR in send_to_telegram: Bot is not initialized.")
         return
-    if not GROUPS:
-        logger.warning("No target groups configured.")
+
+    target_groups = TEST_GROUPS if IS_TEST_MODE else GROUPS
+    if not target_groups:
+        logger.warning(f"No target groups configured (IS_TEST_MODE: {IS_TEST_MODE}).")
         return
 
     if local_screenshot_paths is None:
@@ -357,7 +365,7 @@ async def send_to_telegram(title_for_caption: str,
     success_count = 0
     
     # Iterate through each configured group
-    for group in GROUPS:
+    for group in target_groups:
         chat_id = group.get('chat_id')
         topic_id = None
         group_name = group.get('group_name', 'Unknown Group')
@@ -482,7 +490,7 @@ async def send_to_telegram(title_for_caption: str,
         # Pause between groups
         await asyncio.sleep(2)
 
-    if success_count == 0 and GROUPS:
+    if success_count == 0 and target_groups:
         raise Exception("Failed to send message to any of the configured target groups.")
 
     # --- Final Cleanup: Close the main BytesIO objects after processing all groups ---
