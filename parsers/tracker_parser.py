@@ -15,7 +15,7 @@ from core.settings_loader import get_session, RUTRACKER_COOKIES
 
 logger = logging.getLogger(__name__)
 
-async def fetch_page_content(url: str, retries: int = 10, delay: int = 3) -> Optional[BeautifulSoup]:
+async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Optional[BeautifulSoup]:
     """Fetch a RuTracker page using curl_cffi with Chrome TLS impersonation."""
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
