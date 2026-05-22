@@ -21,6 +21,10 @@ LAST_RUN_FILE = os.path.join("data", "last_homebrew_digest_run.json")
 HB_STATS_FILE = os.path.join("data", "hb_collect_stats.json")
 SWUK_STATS_FILE = os.path.join("data", "swuk_collect_stats.json")
 
+# Fallback test channel for stats if TEST_GROUPS not set
+DEFAULT_TEST_CHAT_ID = -1001960832921
+
+
 
 def build_stats_text() -> str:
     """Build a per-source stats block from the last collector run files."""
@@ -233,6 +237,13 @@ async def send_digest():
                 homebrew_digest_manager.clear_old_entries(cleanup_time)
                 logger.info(f"Cleared homebrew entries older than {cleanup_time}")
 
+            # Determine stats chat details from TEST_GROUPS
+            stats_chat_id = DEFAULT_TEST_CHAT_ID
+            stats_topic_id = None
+            if TEST_GROUPS:
+                stats_chat_id = int(TEST_GROUPS[0]['chat_id'])
+                stats_topic_id = int(TEST_GROUPS[0]['topic_id']) if TEST_GROUPS[0].get('topic_id') and str(TEST_GROUPS[0]['topic_id']).strip() else None
+
             # Send short stats to test channel
             stats_message = (
                 f"📊 <b>Homebrew дайджест відправлено</b>\n\n"
@@ -243,8 +254,8 @@ async def send_digest():
                 f"{build_stats_text()}"
             )
             await bot.send_message(
-                chat_id=TEST_CHAT_ID,
-                message_thread_id=TEST_TOPIC_ID,
+                chat_id=stats_chat_id,
+                message_thread_id=stats_topic_id,
                 text=stats_message,
                 parse_mode='HTML'
             )
