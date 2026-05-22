@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 LAST_RUN_FILE = os.path.join("data", "last_digest_run.json")
 
+# Fallback test channel for stats if TEST_GROUPS not set
+DEFAULT_TEST_CHAT_ID = -1001960832921
+
+
 
 def get_last_run_time() -> datetime:
     """Get the last digest send time from file"""
@@ -180,6 +184,13 @@ async def send_digest():
                 digest_manager.clear_old_entries(cleanup_time)
                 logger.info(f"Cleared digest entries older than {cleanup_time}")
 
+            # Determine stats chat details from TEST_GROUPS
+            stats_chat_id = DEFAULT_TEST_CHAT_ID
+            stats_topic_id = None
+            if TEST_GROUPS:
+                stats_chat_id = int(TEST_GROUPS[0]['chat_id'])
+                stats_topic_id = int(TEST_GROUPS[0]['topic_id']) if TEST_GROUPS[0].get('topic_id') and str(TEST_GROUPS[0]['topic_id']).strip() else None
+
             # Send short stats to test channel
             stats_message = (
                 f"📊 <b>Дайджест відправлено</b>\n\n"
@@ -189,8 +200,8 @@ async def send_digest():
                 f"Груп: {sent_count}/{len(target_groups)}"
             )
             await bot.send_message(
-                chat_id=TEST_CHAT_ID,
-                message_thread_id=TEST_TOPIC_ID,
+                chat_id=stats_chat_id,
+                message_thread_id=stats_topic_id,
                 text=stats_message,
                 parse_mode='HTML'
             )
