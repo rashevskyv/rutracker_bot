@@ -2388,21 +2388,21 @@
   },
   {
     "category": "PC/Mobile",
-    "app_name": "Dusk",
+    "app_name": "DuskLight",
     "api_url": "https://api.github.com/repos/TwilitRealm/dusk",
     "description": "Порт The Legend of Zelda: Twilight Princess на базі декомпіляції оригінальної версії для GameCube/Wii. Підтримує HD-роздільну здатність, інтерполяцію до 60 FPS, широкоформатний режим, збереження в будь-який момент та моди.",
     "prefix": " [Windows/Linux/macOS/Android]"
   },
   {
     "category": "Switch",
-    "app_name": "Dusk",
+    "app_name": "DuskLight-NX",
     "api_url": "https://api.github.com/repos/givethesourceplox/dusk",
     "description": "Реімплементація The Legend of Zelda: Twilight Princess для Nintendo Switch.",
     "prefix": ""
   },
   {
     "category": "Switch",
-    "app_name": "Dusk",
+    "app_name": "UnleashedRecomp-NX",
     "api_url": "https://api.github.com/repos/givethesourceplox/UnleashedRecomp-NX",
     "description": "Реімплементація Sonic Unlished з XBOX360 для Nintendo Switch.",
     "prefix": "",
