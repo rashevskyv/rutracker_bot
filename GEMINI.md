@@ -85,7 +85,7 @@ Strategies are tried in order. First non-None result wins.
 ### Daily digest (`digest/daily.py`)
 - Key: `url` + `is_updated` flag
 - Same URL + same type → **update** entry.
-- Same URL + different type (new → updated) → **keep both**
+- Same URL + different type (new → updated) → **only keep the 'new' (added) entry** in the formatted digest if both occur in the same digest period, to prevent duplicates.
 - **Timestamp Preservation**: Like the homebrew digest, it preserves the original discovery `timestamp` if the title and update status haven't changed.
 
 ### Homebrew digest (`digest/homebrew.py`)
@@ -167,3 +167,15 @@ This ensures the digest window is between two successful **sends** (posts to Tel
 - **HTML truncation in update_description**: `main.py` limits `update_description` to 200 chars with HTML-safe truncation (strips broken `<a>` tags).
 - **None update_description**: Falls back to "добавлен апдейт" in `digest/daily.py` formatter.
 - **Unclosed session warning**: May appear from `telebot` internal session — safe to ignore.
+
+## Manual Releases
+
+### Processing Limit
+To prevent flooding channels with too many new releases at once when a bulk set of links is added, processing of new manual releases is limited to at most **5 unprocessed releases** per execution (which runs daily). The remaining releases are kept with `"processed": false` in `data/manual_releases.json` and are processed on subsequent runs.
+
+### Skip Updates for Unprocessed Manual Releases
+If a manual release for an app is pending (has `"processed": false` in `data/manual_releases.json`), the automated homebrew collectors (`collect_homebrew_updates.py`) will **skip** adding any updates for that app to the digest. Instead, they will only update their internal state files (`hb_state.json`, `udb_state.json`, etc.) with the new version. This prevents:
+1. Posting update news for apps that have not yet been announced as new in the channel.
+2. Posting duplicate update news after the manual release is processed (since state is updated beforehand).
+Once the manual release's `"processed"` status becomes `true`, normal update tracking resumes.
+
