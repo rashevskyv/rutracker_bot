@@ -22,7 +22,7 @@ class HomebrewDigest(BaseDigest):
         super().__init__(data_file, digest_name="homebrew digest")
 
     def add_entry(self, app_name: str, version: str, release_url: str, description: str,
-                  platform: str = "3DS/DS(i)/Switch", timestamp: Optional[datetime] = None,
+                  platform: str = "Switch", timestamp: Optional[datetime] = None,
                   release_date: Optional[datetime] = None, is_new: bool = False):
         """
         Add a new homebrew entry to the digest
@@ -103,10 +103,15 @@ class HomebrewDigest(BaseDigest):
         # Group entries by platform
         platforms: Dict[str, List[Dict]] = {}
         for entry in entries:
-            platform = entry.get('platform', '3DS/DS(i)/Switch')
-            if platform not in platforms:
-                platforms[platform] = []
-            platforms[platform].append(entry)
+            platform_str = entry.get('platform', 'Switch')
+            sub_platforms = [p.strip() for p in platform_str.split('/') if p.strip()]
+            for p in sub_platforms:
+                if p == 'DS':
+                    p = 'DS(i)'
+                if p not in platforms:
+                    platforms[p] = []
+                if entry not in platforms[p]:
+                    platforms[p].append(entry)
 
         message_parts = ["#homebrew_digest:"]
         message_parts.append("")  # Empty line

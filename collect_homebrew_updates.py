@@ -86,6 +86,28 @@ class HomebrewUpdatesCollector:
         self._vitadb_state: Dict[str, Dict] = {}       # vitadb_state.json
         self._descriptions: Dict[str, str] = {}        # hb_descriptions.json (shared cache)
 
+        # Load unprocessed manual releases to skip update tracking for them
+        self.unprocessed_manual_names = set()
+        try:
+            from services.manual_releases import load_manual_releases
+            self.unprocessed_manual_names = {
+                e.get('app_name', '').lower() for e in load_manual_releases()
+                if not e.get('processed')
+            }
+        except Exception as e:
+            logger.error(f"Error pre-loading unprocessed manual releases: {e}")
+
+    def is_unprocessed_manual(self, name: str) -> bool:
+        """Check if name is in unprocessed manual releases (flexible matching)"""
+        if not name:
+            return False
+        n_clean = name.lower().replace('-', ' ').replace('_', ' ').strip()
+        for m_name in self.unprocessed_manual_names:
+            m_clean = m_name.lower().replace('-', ' ').replace('_', ' ').strip()
+            if n_clean == m_clean or n_clean.startswith(m_clean) or m_clean.startswith(n_clean):
+                return True
+        return False
+
     @property
     def session(self) -> aiohttp.ClientSession:
         """Use the shared aiohttp session from settings_loader."""
@@ -505,6 +527,8 @@ class HomebrewUpdatesCollector:
 
         # Check if entry is marked as new
         is_new = entry.get('new', False)
+        if is_new and api_url in self._state:
+            is_new = False
 
         # Determine source (GitHub or GitLab)
         update_info = None
@@ -561,6 +585,15 @@ class HomebrewUpdatesCollector:
         if not update_info:
             return False
 
+        if self.is_unprocessed_manual(app_name):
+            logger.info(f"Skipping updates post for {app_name} — pending manual release. Updating state only.")
+            self._state[api_url] = {
+                'comm_date': update_info['date'],
+                'tag_name': update_info['tag_name'],
+                'html_url': update_info['html_url']
+            }
+            return False
+
         # Found an update or new app!
         if not is_new:
             logger.info(f"✓ Update found: {app_name} {update_info['tag_name']}")
@@ -591,10 +624,10 @@ class HomebrewUpdatesCollector:
             version=update_info['tag_name'],
             release_url=update_info['html_url'],
             description=description,
-            platform=entry['category'],
+            platform=entry['platform'],
             timestamp=datetime.now(),
             release_date=update_date,
-            is_new=entry.get('new', False)
+            is_new=is_new
         )
 
         # Update dynamic state
@@ -620,7 +653,7 @@ class HomebrewUpdatesCollector:
         # Build a lookup: github_slug -> local list_hb entry (for description priority)
         local_by_slug: Dict[str, Dict] = {}
         for entry in local_entries:
-            if entry.get('category', '') in UDB_CATEGORIES:
+            if entry.get('platform', '') in UDB_CATEGORIES:
                 slug = self._extract_github_slug(entry.get('api_url', ''))
                 if slug:
                     local_by_slug[slug] = entry
@@ -697,6 +730,14 @@ class HomebrewUpdatesCollector:
 
             # Found an update!
             app_title = udb_app.get('title', udb_slug)
+            if self.is_unprocessed_manual(app_title):
+                logger.info(f"Skipping UDB update for {app_title} — pending manual release. Updating state only.")
+                self._udb_state[udb_slug] = {
+                    'version': current_version,
+                    'updated': current_updated,
+                    'release_url': udb_app.get('download_page') or github_url or ''
+                }
+                continue
             logger.info(f"UDB update: {app_title} {current_version} (was {saved_version})")
 
             # Resolve local entry for this UDB app
@@ -727,7 +768,7 @@ class HomebrewUpdatesCollector:
             # Determine category for digest
             # Use local entry category if available, otherwise derive from UDB systems
             if local_entry:
-                platform = local_entry.get('category', '3DS')
+                platform = local_entry.get('platform', '3DS')
             else:
                 platform = '/'.join(systems).replace('DS', 'DS(i)')
 
@@ -784,10 +825,10 @@ class HomebrewUpdatesCollector:
         # Initialize default stats
         self.source_stats[f'{platform} (FTU)'] = {'checked': 0, 'found': 0}
 
-        # Build lookup: github_slug -> local list_hb entry (for description/category)
+        # Build lookup: github_slug -> local list_hb entry (for description/platform)
         local_by_gh_slug: Dict[str, Dict] = {}
         for entry in local_entries:
-            if entry.get('category', '') in list_categories:
+            if entry.get('platform', '') in list_categories:
                 gh_slug = self._extract_github_slug(entry.get('api_url', ''))
                 if gh_slug:
                     local_by_gh_slug[gh_slug.lower()] = entry
@@ -795,7 +836,7 @@ class HomebrewUpdatesCollector:
         # Also match via the web GitHub URL in fortheusers 'url' field
         local_by_gh_slug_web: Dict[str, Dict] = {}
         for entry in local_entries:
-            if entry.get('category', '') in list_categories:
+            if entry.get('platform', '') in list_categories:
                 gh_slug = self._extract_github_slug(entry.get('api_url', ''))
                 if gh_slug:
                     local_by_gh_slug_web[gh_slug.lower()] = entry
@@ -862,6 +903,13 @@ class HomebrewUpdatesCollector:
 
             # Found update!
             app_title = pkg.get('title', name)
+            if self.is_unprocessed_manual(app_title):
+                logger.info(f"Skipping FTU update for {app_title} — pending manual release. Updating state only.")
+                self._fortheusers_state[state_key] = {
+                    'version': current_version,
+                    'updated': current_updated,
+                }
+                continue
             logger.info(f"ForTheUsers [{platform}] update: {app_title} {current_version} (was {saved_version})")
 
             # Resolve local entry
@@ -895,7 +943,7 @@ class HomebrewUpdatesCollector:
             release_url = pkg_url or ''
 
             # Platform from local entry if available
-            display_platform = local_entry.get('category', platform) if local_entry else platform
+            display_platform = local_entry.get('platform', platform) if local_entry else platform
 
             # Final description with notes
             final_description = description
@@ -950,10 +998,10 @@ class HomebrewUpdatesCollector:
         # Initialize default stats
         self.source_stats[platform_name] = {'checked': 0, 'found': 0}
 
-        # Build local lookup: github_slug -> list_hb entry (Vita category)
+        # Build local lookup: github_slug -> list_hb entry (Vita platform)
         local_by_gh_slug: Dict[str, Dict] = {}
         for entry in local_entries:
-            if entry.get('category', '') in VITA_CATEGORIES:
+            if entry.get('platform', '') in VITA_CATEGORIES:
                 gh_slug = self._extract_github_slug(entry.get('api_url', ''))
                 if gh_slug:
                     local_by_gh_slug[gh_slug.lower()] = entry
@@ -1024,6 +1072,13 @@ class HomebrewUpdatesCollector:
 
             # Found an update!
             app_name = pkg.get('name', f"App {pkg_id}")
+            if self.is_unprocessed_manual(app_name):
+                logger.info(f"Skipping VitaDB update for {app_name} — pending manual release. Updating state only.")
+                self._vitadb_state[state_key] = {
+                    'version': current_version,
+                    'date': current_date,
+                }
+                continue
             logger.info(
                 f"VitaDB [{platform_name}] update: {app_name} {current_version} (was {saved_version})"
             )
@@ -1149,7 +1204,7 @@ class HomebrewUpdatesCollector:
         udb_skipped = 0
         filtered_entries = []
         for entry in entries:
-            if entry.get('category', '') in all_covered_categories:
+            if entry.get('platform', '') in all_covered_categories:
                 gh_slug = self._extract_github_slug(entry.get('api_url', ''))
                 if gh_slug and gh_slug.lower() in covered_github_slugs:
                     udb_skipped += 1

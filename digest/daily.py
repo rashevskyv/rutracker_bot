@@ -94,9 +94,13 @@ class DailyDigest(BaseDigest):
             else:
                 new_entries.append(entry)
 
+        # Filter out updated entries if they were also added as new in the same digest
+        new_urls = {e.get("url") for e in new_entries if e.get("url")}
+        filtered_updated = [e for e in updated_entries if e.get("url") not in new_urls]
+
         return {
             "new": new_entries,
-            "updated": updated_entries
+            "updated": filtered_updated
         }
 
     def format_digest_message(self, since_time: datetime) -> Optional[str]:
