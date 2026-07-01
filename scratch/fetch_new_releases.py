@@ -150,8 +150,9 @@ async def main():
     session = get_session()
     
     repos_to_fetch = [
-        ("souldbminerr", "0ad-switch", "0ad Switch (0 A.D.)"),
-        ("boraeskicioglu", "stt16bit_nx", "Stt16bit Nx (Sonic Triple Trouble 16-bit)")
+        ("NaGaa95", "lswtfa_nx", "Lswtfa Nx (LEGO Star Wars: The Force Awakens)"),
+        ("NaGaa95", "gtasa_nx", "Gtasa Nx (GTA: San Andreas)"),
+        ("NaGaa95", "lbbg_nx", "Lbbg Nx (LEGO Batman 3: Beyond Gotham)")
     ]
     
     generated_entries = []
