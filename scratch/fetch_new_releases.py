@@ -150,9 +150,7 @@ async def main():
     session = get_session()
     
     repos_to_fetch = [
-        ("NaGaa95", "lswtfa_nx", "Lswtfa Nx (LEGO Star Wars: The Force Awakens)"),
-        ("NaGaa95", "gtasa_nx", "Gtasa Nx (GTA: San Andreas)"),
-        ("NaGaa95", "lbbg_nx", "Lbbg Nx (LEGO Batman 3: Beyond Gotham)")
+        ("ChaykaDed", "silent-hill-decomp-nx", "Silent Hill Decomp Nx (Silent Hill)")
     ]
     
     generated_entries = []
