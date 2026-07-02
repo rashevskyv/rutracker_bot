@@ -680,5 +680,16 @@
     "description": "Порт гри LEGO Batman: Beyond Gotham для Switch, щоб ви могли грати в неї на цій платформі.",
     "date": "2026-07-01T07:31:21+00:00",
     "processed": false
+  },
+  {
+    "type": "homebrew",
+    "app_name": "Silent Hill Decomp Nx (Silent Hill)",
+    "version": "v1.0.0",
+    "release_url": "https://github.com/ChaykaDed/silent-hill-decomp-nx/releases/tag/v1.0.0",
+    "platform": "Switch",
+    "is_new": true,
+    "description": "Порт Nintendo Switch у стані розробки на основі наявної декомпіляції Silent Hill 1.",
+    "date": "2026-06-30T20:27:36+00:00",
+    "processed": false
   }
 ]
