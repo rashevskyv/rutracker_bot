@@ -691,5 +691,16 @@
     "description": "Порт Nintendo Switch у стані розробки на основі наявної декомпіляції Silent Hill 1.",
     "date": "2026-06-30T20:27:36+00:00",
     "processed": true
+  },
+  {
+    "type": "homebrew",
+    "app_name": "Ffd NX (Final Fantasy Dimensions)",
+    "version": "1.0.0",
+    "release_url": "https://github.com/NaGaa95/ffd_nx/releases/tag/1.0.0",
+    "platform": "Switch",
+    "is_new": true,
+    "description": "Порт гри Final Fantasy Dimensions для Nintendo Switch.",
+    "date": "2026-06-29T03:01:54+00:00",
+    "processed": false
   }
 ]
