@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.23] - 2026-07-03
+
+### Added
+- **Manual Release**: Added Ffd NX (Final Fantasy Dimensions port for Nintendo Switch) to the manual releases queue.
+
 ## [v0.6.22] - 2026-07-03
 
 ### Fixed
