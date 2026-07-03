@@ -165,7 +165,11 @@ async def translate_short_description(text: str, model: str = "gpt-5.4-nano") ->
         f"4. Example: instead of 'port that loads an ARMv7 binary into memory...', "
         f"write 'Порт гри Beat Hazard 2 для PS Vita.'\n"
         f"5. Keep English brand names, game titles, and technical terms untranslated.\n"
-        f"6. Use natural, readable Ukrainian. End with a period.\n\n"
+        f"6. Use natural, readable Ukrainian. End with a period.\n"
+        f"7. STRICT: Do NOT add obvious, redundant, or wordy explanations like 'який дозволяє грати...', "
+        f"'який дає змогу...', 'для консолі...', 'це порт...', 'щоб ви могли грати...'. "
+        f"Keep it as concise and direct as possible. Example: 'Порт гри Adventures of Mana для Nintendo Switch.' "
+        f"instead of 'Порт гри Adventures of Mana для Switch, який дозволяє вам грати в цю гру на консолі.'\n\n"
         f"**App description:**\n{text}\n\n**One-sentence Ukrainian summary:**"
     )
 
