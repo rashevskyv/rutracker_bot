@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.22] - 2026-07-03
+
+### Fixed
+- **Description Verbosity**: Cleaned up the manual releases registry file (`data/manual_releases.json`) by removing redundant, wordy phrases like "який дає змогу грати...", "який дозволяє...", and "щоб ви могли грати...".
+- **GPT Description Translation Rules**: Added strict prompt instructions to the short description translation service in `services/translation.py` to prevent the AI from generating verbose or obvious explanations in future automated updates, keeping game/app descriptions concise and direct (e.g. "Порт гри X для Nintendo Switch.").
+
 ## [v0.6.21] - 2026-07-03
 
 ### Fixed

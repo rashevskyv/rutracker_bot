@@ -83,7 +83,7 @@
     "release_url": "https://github.com/souldbminerr/sandboxels-nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Sandboxels switch port — це порт гри Sandboxels для Nintendo Switch, який дає змогу грати у пісочницю з експериментами та створенням різних взаємодій.",
+    "description": "Порт гри Sandboxels для Nintendo Switch.",
     "date": "2026-06-25T23:31:33+00:00",
     "processed": true
   },
@@ -94,7 +94,7 @@
     "release_url": "https://github.com/souldbminerr/spidermonkey-NX",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт Spidermonkey NX, який дає змогу користувачам запускати та використовувати цей проєкт на своєму пристрої.",
+    "description": "Порт Spidermonkey NX для Nintendo Switch.",
     "date": "2026-06-25T23:18:13+00:00",
     "processed": true
   },
@@ -105,7 +105,7 @@
     "release_url": "https://github.com/souldbminerr/ChatNX/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "AI Chat for Switch — це чат із віртуальним помічником на базі AI, який допомагає користувачеві вести розмови та отримувати відповіді.",
+    "description": "Чат із AI-помічником для Nintendo Switch.",
     "date": "2026-06-23T20:49:29+00:00",
     "processed": true
   },
@@ -116,7 +116,7 @@
     "release_url": "https://github.com/NaGaa95/aom_nx",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт гри Adventures of Mana для Switch, який дозволяє вам грати в цю гру на вашій консолі.",
+    "description": "Порт гри Adventures of Mana для Nintendo Switch.",
     "date": "2026-06-28T11:40:12+00:00",
     "processed": true
   },
@@ -127,7 +127,7 @@
     "release_url": "https://github.com/NaGaa95/bully_nx",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт гри Bully для Nintendo Switch, який дає змогу грати в Bully на цій платформі.",
+    "description": "Порт гри Bully для Nintendo Switch.",
     "date": "2026-06-16T01:45:54+00:00",
     "processed": true
   },
@@ -138,7 +138,7 @@
     "release_url": "https://github.com/NaGaa95/cr3_nx/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри Chaos Rings III для Switch, який дає змогу грати в цю гру на вашій консолі.",
+    "description": "Порт гри Chaos Rings III для Nintendo Switch.",
     "date": "2026-06-28T05:24:25+00:00",
     "processed": true
   },
@@ -149,7 +149,7 @@
     "release_url": "https://github.com/NaGaa95/ct_nx/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри Chrono Trigger для Switch, який дозволяє вам грати в цю гру на консолі Switch.",
+    "description": "Порт гри Chrono Trigger для Nintendo Switch.",
     "date": "2026-06-25T23:25:57+00:00",
     "processed": true
   },
@@ -160,7 +160,7 @@
     "release_url": "https://github.com/NaGaa95/ff3_3d_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт Final Fantasy III 3D Remake для Switch, який дає змогу грати в цю гру на консолі.",
+    "description": "Порт Final Fantasy III 3D Remake для Nintendo Switch.",
     "date": "2026-06-24T03:41:29+00:00",
     "processed": true
   },
@@ -171,7 +171,7 @@
     "release_url": "https://github.com/NaGaa95/ff4tay_nx/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт Final Fantasy IV: The After Years для Switch, який дає змогу грати в цю гру на консолі.",
+    "description": "Порт Final Fantasy IV: The After Years для Nintendo Switch.",
     "date": "2026-06-19T00:21:21+00:00",
     "processed": true
   },
@@ -182,7 +182,7 @@
     "release_url": "https://github.com/NaGaa95/ff4_3d_nx/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт Final Fantasy IV 3D Remake для Switch, який дає змогу грати в цю гру на консолі.",
+    "description": "Порт Final Fantasy IV 3D Remake для Nintendo Switch.",
     "date": "2026-06-19T03:37:18+00:00",
     "processed": true
   },
@@ -193,7 +193,7 @@
     "release_url": "https://github.com/NaGaa95/ffd_nx",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт гри Final Fantasy Dimensions для Switch, який дає змогу грати в неї на цій платформі.",
+    "description": "Порт гри Final Fantasy Dimensions для Nintendo Switch.",
     "date": "2026-06-28T11:39:27+00:00",
     "processed": true
   },
@@ -204,7 +204,7 @@
     "release_url": "https://github.com/NaGaa95/freespace2_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Вихідний код Freespace та Freespace 2 із доданою підтримкою Pandora, що дозволяє користувачам запускати гру на цьому пристрої.",
+    "description": "Порт Freespace та Freespace 2 для Nintendo Switch.",
     "date": "2026-06-28T11:36:32+00:00",
     "processed": true
   },
@@ -215,7 +215,7 @@
     "release_url": "https://github.com/NaGaa95/gtactw_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "GTA: CTW для Switch — гра, що дає змогу поринути у відкритий світ GTA та виконувати місії.",
+    "description": "Порт GTA: Chinatown Wars для Nintendo Switch.",
     "date": "2026-06-11T01:09:11+00:00",
     "processed": true
   },
@@ -226,7 +226,7 @@
     "release_url": "https://github.com/NaGaa95/gtalcs_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт гри GTA Liberty City Stories для Switch, який дає змогу грати в цю гру на консолі Switch.",
+    "description": "Порт гри GTA Liberty City Stories для Nintendo Switch.",
     "date": "2026-06-24T20:45:08+00:00",
     "processed": true
   },
@@ -237,7 +237,7 @@
     "release_url": "https://github.com/NaGaa95/hl2_nx/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри Half Life 2 для Switch, який дає змогу гравцям грати в цю гру на консолі.",
+    "description": "Порт гри Half Life 2 для Nintendo Switch.",
     "date": "2026-06-25T08:59:09+00:00",
     "processed": true
   },
@@ -248,7 +248,7 @@
     "release_url": "https://github.com/NaGaa95/L4T-Megascript",
     "platform": "Switch",
     "is_new": true,
-    "description": "All-in-one інсталятор і оновлювач для популярних програм на L4T Ubuntu/Fedora, який не потребує попередніх знань Linux.",
+    "description": "Інсталятор та оновлювач програм для L4T Ubuntu/Fedora.",
     "date": "2026-06-10T00:21:39+00:00",
     "processed": true
   },
@@ -259,7 +259,7 @@
     "release_url": "https://github.com/NaGaa95/layton2_nx/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри Professor Layton: Pandora's Box HD для Switch.",
+    "description": "Порт гри Professor Layton: Pandora's Box HD для Nintendo Switch.",
     "date": "2026-06-18T02:12:27+00:00",
     "processed": true
   },
@@ -270,7 +270,7 @@
     "release_url": "https://github.com/NaGaa95/layton3_nx/releases/tag/1.0.2",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри Professor Layton: Lost Hope HD для Switch, який дозволяє вам грати в цю гру на консолі.",
+    "description": "Порт гри Professor Layton: Lost Hope HD для Nintendo Switch.",
     "date": "2026-06-18T02:11:19+00:00",
     "processed": true
   },
@@ -281,7 +281,7 @@
     "release_url": "https://github.com/NaGaa95/layton_nx/releases/tag/1.0.3",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри Professor Layton: Curious Village HD для Switch, який дозволяє грати в цю гру на консолі.",
+    "description": "Порт гри Professor Layton: Curious Village HD для Nintendo Switch.",
     "date": "2026-06-18T02:10:38+00:00",
     "processed": true
   },
@@ -292,7 +292,7 @@
     "release_url": "https://github.com/NaGaa95/lswtcs_nx/releases/tag/1.0.2",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри Lego Star Wars: The Complete Saga Android, який дає змогу запускати гру на Switch.",
+    "description": "Порт гри Lego Star Wars: The Complete Saga Android.",
     "date": "2026-06-28T05:16:26+00:00",
     "processed": true
   },
@@ -303,7 +303,7 @@
     "release_url": "https://github.com/NaGaa95/lswtfa_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт LEGO Star Wars: The Force Awakens для Switch, який дає змогу грати в цю гру на консолі.",
+    "description": "Порт LEGO Star Wars: The Force Awakens для Nintendo Switch.",
     "date": "2026-06-25T06:02:44+00:00",
     "processed": true
   },
@@ -336,7 +336,7 @@
     "release_url": "https://github.com/NaGaa95/sotn_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт гри Castlevania Symphony of the Night для Switch, який дозволяє грати в неї на цій консолі.",
+    "description": "Порт гри Castlevania Symphony of the Night для Nintendo Switch.",
     "date": "2026-06-28T06:29:45+00:00",
     "processed": true
   },
@@ -347,7 +347,7 @@
     "release_url": "https://github.com/NaGaa95/swordigo_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт гри Swordigo для Switch, який дає змогу грати в цю гру на консолі Switch.",
+    "description": "Порт гри Swordigo для Nintendo Switch.",
     "date": "2026-06-14T04:34:31+00:00",
     "processed": true
   },
@@ -358,7 +358,7 @@
     "release_url": "https://github.com/NaGaa95/tf2_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт Team Fortress 2 ReClassic для Switch, який дає змогу грати в цю гру на консолі.",
+    "description": "Порт Team Fortress 2 ReClassic для Nintendo Switch.",
     "date": "2026-06-26T20:16:53+00:00",
     "processed": true
   },
@@ -369,7 +369,7 @@
     "release_url": "https://github.com/NaGaa95/vcmi_nx/releases/tag/1.8.0",
     "platform": "Switch",
     "is_new": false,
-    "description": "Відкритий кодовий рушій для Heroes of Might and Magic III, який допомагає запускати та підтримувати гру.",
+    "description": "Відкритий кодовий рушій для Heroes of Might and Magic III.",
     "date": "2026-06-21T00:16:21+00:00",
     "processed": true
   },
@@ -391,7 +391,7 @@
     "release_url": "https://github.com/ticohq/tico-gambatte/releases/tag/1.0.3",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico — це форк Gambatte, який дозволяє користувачам грати в ігри Game Boy.",
+    "description": "tico — це форк Gambatte.",
     "date": "2026-06-02T11:14:35+00:00",
     "processed": true
   },
@@ -402,7 +402,7 @@
     "release_url": "https://github.com/ticohq/tico-mgba/releases/tag/1.0.3",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico — це форк mGBA, який дозволяє вам грати в ігри Game Boy Advance на вашому пристрої.",
+    "description": "tico — це форк mGBA.",
     "date": "2026-06-02T12:30:49+00:00",
     "processed": true
   },
@@ -413,7 +413,7 @@
     "release_url": "https://github.com/ticohq/tico-fceumm/releases/tag/1.0.3",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico — це фірмова версія FCEUmm, яка дозволяє запускати ігри для NES на вашому пристрої.",
+    "description": "tico — це фірмова версія FCEUmm.",
     "date": "2026-06-02T11:23:59+00:00",
     "processed": true
   },
@@ -424,7 +424,7 @@
     "release_url": "https://github.com/ticohq/tico-snes9x/releases/tag/1.0.3",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico — це форк snes9x, який дозволяє користувачам запускати SNES-ігри на своїй платформі.",
+    "description": "tico — це форк snes9x.",
     "date": "2026-06-02T10:56:21+00:00",
     "processed": true
   },
@@ -435,7 +435,7 @@
     "release_url": "https://github.com/ticohq/tico-genesisplusgx/releases/tag/1.0.3",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico fork of Genesis Plus GX — це емулятор, який дозволяє запускати ігри для Sega Genesis/Mega Drive на вашому пристрої.",
+    "description": "tico fork of Genesis Plus GX — це емулятор.",
     "date": "2026-06-02T12:57:04+00:00",
     "processed": true
   },
@@ -446,7 +446,7 @@
     "release_url": "https://github.com/ticohq/tico-swanstation/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico — це форк swanstation, який дає змогу запускати та грати в ігри.",
+    "description": "tico — це форк swanstation.",
     "date": "2026-04-03T21:07:59+00:00",
     "processed": true
   },
@@ -457,7 +457,7 @@
     "release_url": "https://github.com/ticohq/tico-ppsspp/releases/tag/2.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico — це форк PPSSPP, який дозволяє запускати PSP-ігри на вашому пристрої.",
+    "description": "tico — це форк PPSSPP.",
     "date": "2026-06-02T00:49:00+00:00",
     "processed": true
   },
@@ -468,7 +468,7 @@
     "release_url": "https://github.com/ticohq/tico-melonds",
     "platform": "Switch",
     "is_new": true,
-    "description": "tico — це форк melonDS, який дозволяє користуватися емулятором Nintendo DS для запуску ігор на вашому пристрої.",
+    "description": "tico — це форк melonDS.",
     "date": "2026-03-21T00:48:31+00:00",
     "processed": true
   },
@@ -479,7 +479,7 @@
     "release_url": "https://github.com/ticohq/tico-yabasanshiro/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico — це форк yabasanshiro, який дозволяє запускати емуляцію для користувача.",
+    "description": "tico — це форк yabasanshiro.",
     "date": "2026-04-07T02:40:04+00:00",
     "processed": true
   },
@@ -490,7 +490,7 @@
     "release_url": "https://github.com/ticohq/tico-fbneo/releases/tag/1.0.3",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico fork of FBNeo — це емулятор, який дозволяє запускати ігри з аркадної платформи на вашому пристрої.",
+    "description": "tico fork of FBNeo — це емулятор.",
     "date": "2026-06-02T13:30:12+00:00",
     "processed": true
   },
@@ -501,7 +501,7 @@
     "release_url": "https://github.com/ticohq/tico-mupen64plus/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "tico — це форк mupen64plus, який дозволяє запускати ігри Nintendo 64 на вашому пристрої.",
+    "description": "tico — це форк mupen64plus.",
     "date": "2026-04-04T07:15:05+00:00",
     "processed": true
   },
@@ -512,7 +512,7 @@
     "release_url": "https://github.com/ticohq/tico-flycast/releases/tag/2.0.0",
     "platform": "Switch",
     "is_new": false,
-    "description": "tico — це форк flycast, який дозволяє вам грати в ігри, створені для відповідних платформ.",
+    "description": "tico — це форк flycast.",
     "date": "2026-06-14T05:27:09+00:00",
     "processed": true
   },
@@ -523,7 +523,7 @@
     "release_url": "https://github.com/ticohq/tico-tresdeesse",
     "platform": "Switch",
     "is_new": true,
-    "description": "Відкритий проєкт емулятора Nintendo 3DS, заснований на Citra, який дозволяє запускати ігри 3DS на вашому пристрої.",
+    "description": "Відкритий проєкт емулятора Nintendo 3DS, заснований на Citra.",
     "date": "2026-05-04T16:40:37+00:00",
     "processed": true
   },
@@ -534,7 +534,7 @@
     "release_url": "https://github.com/ticohq/tico-dolphin",
     "platform": "Switch",
     "is_new": true,
-    "description": "tico — це форк Dolphin, який дозволяє запускати ігри та програми для GameCube і Wii.",
+    "description": "tico — це форк Dolphin.",
     "date": "2026-05-08T17:54:08+00:00",
     "processed": true
   },
@@ -545,7 +545,7 @@
     "release_url": "https://github.com/HayatoG/ARMSX2-NX/releases/tag/test-silence-logs",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри ARMSX2 для Nintendo Switch, який дозволяє вам грати в цю гру на консолі.",
+    "description": "Порт гри ARMSX2 для Nintendo Switch.",
     "date": "2026-06-26T00:19:38+00:00",
     "processed": true
   },
@@ -556,7 +556,7 @@
     "release_url": "https://github.com/HayatoG/dusklight/releases/tag/switch-v1.4.2-20260624",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт Dusklight Switch, який дає змогу грати в Twilight Princess завдяки роботі над decomp на Tegra X1.",
+    "description": "Порт Dusklight Switch.",
     "date": "2026-06-24T22:13:02+00:00",
     "processed": true
   },
@@ -578,7 +578,7 @@
     "release_url": "https://github.com/HayatoG/SwitchU/releases/tag/v1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "SwitchU — це homebrew для Nintendo Switch, яке дозволяє запускати користувацькі програми на консолі.",
+    "description": "SwitchU — це homebrew для Nintendo Switch.",
     "date": "2026-04-02T23:44:23+00:00",
     "processed": true
   },
@@ -600,7 +600,7 @@
     "release_url": "https://github.com/Jonathan8520/FlashNX/releases/tag/v1.4.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Домашній Flash-плеєр для Nintendo Switch, який дозволяє запускати ваші .swf ігри з SD-карти.",
+    "description": "Домашній Flash-плеєр для Nintendo Switch.",
     "date": "2026-06-27T23:48:41+00:00",
     "processed": true
   },
@@ -622,7 +622,7 @@
     "release_url": "https://github.com/NaGaa95/coi_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт гри Castle of Illusion для Switch, який дозволяє вам грати в цю гру на консолі.",
+    "description": "Порт гри Castle of Illusion для Nintendo Switch.",
     "date": "2026-06-30T07:59:34+00:00",
     "processed": true
   },
@@ -633,7 +633,7 @@
     "release_url": "https://github.com/souldbminerr/0ad-switch/releases/tag/r28-nx1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт гри 0AD для Switch, який дає змогу грати в неї на Nintendo Switch.",
+    "description": "Порт гри 0AD для Nintendo Switch.",
     "date": "2026-06-30T22:55:12+00:00",
     "processed": true
   },
@@ -644,7 +644,7 @@
     "release_url": "https://github.com/boraeskicioglu/stt16bit_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Обгортка та порт Android-версії Sonic Triple Trouble 16-bit для Nintendo Switch, щоб ви могли грати в цю гру на консолі.",
+    "description": "Порт Sonic Triple Trouble 16-bit для Nintendo Switch.",
     "date": "2026-06-29T17:08:09+00:00",
     "processed": true
   },
@@ -655,7 +655,7 @@
     "release_url": "https://github.com/NaGaa95/lswtfa_nx/releases/tag/1.0.1",
     "platform": "Switch",
     "is_new": false,
-    "description": "Порт LEGO Star Wars: The Force Awakens для Switch, який дає змогу гравцям насолоджуватися грою на цій платформі.",
+    "description": "Порт LEGO Star Wars: The Force Awakens для Nintendo Switch.",
     "date": "2026-07-01T02:00:16+00:00",
     "processed": true
   },
@@ -666,7 +666,7 @@
     "release_url": "https://github.com/NaGaa95/gtasa_nx",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт GTA San Andreas для Switch, який дає змогу грати в цю гру на консолі Switch.",
+    "description": "Порт GTA San Andreas для Nintendo Switch.",
     "date": "2026-07-01T07:50:43+00:00",
     "processed": true
   },
@@ -677,7 +677,7 @@
     "release_url": "https://github.com/NaGaa95/lbbg_nx/releases/tag/1.0.0",
     "platform": "Switch",
     "is_new": true,
-    "description": "Порт гри LEGO Batman: Beyond Gotham для Switch, щоб ви могли грати в неї на цій платформі.",
+    "description": "Порт гри LEGO Batman: Beyond Gotham для Nintendo Switch.",
     "date": "2026-07-01T07:31:21+00:00",
     "processed": true
   },
