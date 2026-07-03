@@ -1,0 +1,461 @@
+{
+  "specified": [
+    {
+      "owner": "souldbminerr",
+      "repo": "sandboxels-nx",
+      "name": "sandboxels-nx",
+      "description": "Sandboxels switch port",
+      "html_url": "https://github.com/souldbminerr/sandboxels-nx",
+      "updated_at": "2026-06-25T23:29:34Z",
+      "pushed_at": "2026-06-25T23:31:33Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/souldbminerr/sandboxels-nx/releases/tag/1.0.0",
+        "published_at": "2026-06-25T23:31:33Z",
+        "body": ""
+      }
+    },
+    {
+      "owner": "souldbminerr",
+      "repo": "spidermonkey-NX",
+      "name": "spidermonkey-NX",
+      "description": "Spidermonkey NX port",
+      "html_url": "https://github.com/souldbminerr/spidermonkey-NX",
+      "updated_at": "2026-06-25T23:18:17Z",
+      "pushed_at": "2026-06-25T23:18:13Z",
+      "latest_release": null
+    },
+    {
+      "owner": "souldbminerr",
+      "repo": "ChatNX",
+      "name": "ChatNX",
+      "description": "AI Chat for Switch",
+      "html_url": "https://github.com/souldbminerr/ChatNX",
+      "updated_at": "2026-06-23T22:45:29Z",
+      "pushed_at": "2026-06-23T22:45:25Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/souldbminerr/ChatNX/releases/tag/1.0.0",
+        "published_at": "2026-06-23T20:49:29Z",
+        "body": "place models in /switch/chatnx/\r\nreccomended models\r\nhttps://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf (2tok/s at 2601CPU, smarter model)\r\nhttps://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-F16.gguf (8tok/s at 2601CPU, dumb model)\r\n\r\ncpu OC is heavily reccomended!"
+      }
+    }
+  ],
+  "nagaa": [
+    {
+      "owner": "NaGaa95",
+      "repo": "aom_nx",
+      "name": "aom_nx",
+      "description": "Port of Adventures of Mana for Switch.",
+      "html_url": "https://github.com/NaGaa95/aom_nx",
+      "updated_at": "2026-06-28T15:37:33Z",
+      "pushed_at": "2026-06-28T11:40:12Z",
+      "latest_release": null
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "Atmosphere-Pro",
+      "name": "Atmosphere-Pro",
+      "description": "Atmosphère is a work-in-progress customized firmware for the Nintendo Switch.",
+      "html_url": "https://github.com/NaGaa95/Atmosphere-Pro",
+      "updated_at": "2026-06-07T04:15:46Z",
+      "pushed_at": "2026-06-17T05:21:54Z",
+      "latest_release": {
+        "tag_name": "v1.11.2",
+        "html_url": "https://github.com/NaGaa95/Atmosphere-Pro/releases/tag/v1.11.2",
+        "published_at": "2026-06-17T05:21:55Z",
+        "body": "This is an UNOFFICIAL, UNSUPPORT Atmosphere fork. Do not report any issues with this to Atmosphere maintainers\r\n\r\n- Support for booting from eMMC\r\n  - Fusee will check for a FAT32 filesystem on eMMC BOOT1 (at 1MB offset), eMMC BOOT1 (at 0MB offset), and eMMC GPP partition, any SD card partition. It will pick the first one it finds that does not have a .no_boot_storage file in the root directory\r\n- Support for emuSD\r\n  - Allows redirecting all SD accesses in HOS to a separate file or partition on the SD card or eMMC. Note: HOS will crash, if no physical SD card is inserted\r\n  - emuSD configuration is read from /emusd/emusd.ini with the following format:\r\n```\r\n[emusd]\r\nenabled=[1 for SD card | 4 for eMMC]\r\nsector=[start sector of emuSD partition]\r\npath=[path to emusd file]\r\n```\r\n- For eMMC file based emuSD, the file is read from the first available FAT32 partition on eMMC\r\n- Support for emuMMC on eMMC\r\n  - Allows creating file or partition based emuMMC on the eMMC\r\n  - emuMMC configuration is read from /emummc/emummc.ini with the following format:\r\n```\r\n[emummc]\r\nenabled=[1 for SD card | 4 for eMMC]\r\nsector=[start sector of emuMMC partition]\r\npath=[path to emuMMC file]\r\nnintendo_path=[path to Nintendo folder]\r\nid=[emuMMC id]\r\n```\r\n- For eMMC file based emuMMC, the file is read from the first available FAT32 partition on eMMC"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "bully_nx",
+      "name": "bully_nx",
+      "description": "Nintendo Switch port of https://github.com/TheOfficialFloW/bully_vita",
+      "html_url": "https://github.com/NaGaa95/bully_nx",
+      "updated_at": "2026-06-21T06:44:05Z",
+      "pushed_at": "2026-06-16T01:45:54Z",
+      "latest_release": null
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "cr3_nx",
+      "name": "cr3_nx",
+      "description": "Port of Chaos Rings III for Switch.",
+      "html_url": "https://github.com/NaGaa95/cr3_nx",
+      "updated_at": "2026-06-28T05:20:34Z",
+      "pushed_at": "2026-06-28T05:24:25Z",
+      "latest_release": {
+        "tag_name": "1.0.1",
+        "html_url": "https://github.com/NaGaa95/cr3_nx/releases/tag/1.0.1",
+        "published_at": "2026-06-28T05:24:25Z",
+        "body": "## v1.0.1\r\n\r\nFixed audio issue\r\nFixed a slowdown issue that could occur after long play sessions\r\nFixed a crash issue that could occur after long play session"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "ct_nx",
+      "name": "ct_nx",
+      "description": "Port of Chrono Trigger for Switch.",
+      "html_url": "https://github.com/NaGaa95/ct_nx",
+      "updated_at": "2026-06-28T17:24:29Z",
+      "pushed_at": "2026-06-25T23:25:57Z",
+      "latest_release": {
+        "tag_name": "1.0.1",
+        "html_url": "https://github.com/NaGaa95/ct_nx/releases/tag/1.0.1",
+        "published_at": "2026-06-25T23:25:57Z",
+        "body": "## v1.0.1\r\n\r\n- Fix battle escape pthread timeout crash"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "EOS-Pro",
+      "name": "EOS-Pro",
+      "description": "Nintendo Switch - Overclocking Suite for Atmosphere",
+      "html_url": "https://github.com/NaGaa95/EOS-Pro",
+      "updated_at": "2026-06-21T13:35:52Z",
+      "pushed_at": "2026-06-17T06:12:09Z",
+      "latest_release": {
+        "tag_name": "1.8.3+",
+        "html_url": "https://github.com/NaGaa95/EOS-Pro/releases/tag/1.8.3%2B",
+        "published_at": "2026-06-17T06:10:52Z",
+        "body": "Compatible with Atmosphere 1.11.2\r\n\r\nInstallation : \r\nDownload `EOS-Pro.7z` and extract it to the root of your SD card.\r\nIn `bootloader/hekate_ipl.ini` add `kip1=atmosphere/kips/loader.kip` right under `pkg3=` line.\r\nConfigure your desired OC settings in EOS-Pro Toolkit and reboot to apply the changes.\r\n\r\nCan also use the [NX-Pro Pack](https://github.com/NaGaa95/NX-Pro-Pack) for AIO setup.\r\n\r\nNotice :\r\nUse it only with a NAND backup.\r\nUnstable settings can lead to NAND corruption."
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "ff3_3d_nx",
+      "name": "ff3_3d_nx",
+      "description": "Port of Final Fantasy III 3D Remake for Switch.",
+      "html_url": "https://github.com/NaGaa95/ff3_3d_nx",
+      "updated_at": "2026-06-27T03:29:00Z",
+      "pushed_at": "2026-06-24T03:41:29Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/ff3_3d_nx/releases/tag/1.0.0",
+        "published_at": "2026-06-24T03:41:29Z",
+        "body": "## v1.0.0\r\n\r\n- Initial release\r\n- Support v2.0.6"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "ff4tay_nx",
+      "name": "ff4tay_nx",
+      "description": "Port of Final Fantasy IV: The After Years for Switch.",
+      "html_url": "https://github.com/NaGaa95/ff4tay_nx",
+      "updated_at": "2026-06-27T03:29:03Z",
+      "pushed_at": "2026-06-19T03:07:35Z",
+      "latest_release": {
+        "tag_name": "1.0.1",
+        "html_url": "https://github.com/NaGaa95/ff4tay_nx/releases/tag/1.0.1",
+        "published_at": "2026-06-19T00:21:21Z",
+        "body": "## v1.0.1\r\n\r\n- Added optional restored intro movie playback from the PC version.\r\n  - Place opening.mkv in `/switch/ff4tay/`\r\n- Fixed controller mapping:\r\n  - Plus now opens the pause menu.\r\n  - Minus now opens the map.\r\n- Fixed battle character/enemy black rendering issue"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "ff4_3d_nx",
+      "name": "ff4_3d_nx",
+      "description": "Port of Final Fantasy IV 3D Remake for Switch.",
+      "html_url": "https://github.com/NaGaa95/ff4_3d_nx",
+      "updated_at": "2026-06-27T03:29:01Z",
+      "pushed_at": "2026-06-19T03:37:18Z",
+      "latest_release": {
+        "tag_name": "1.0.1",
+        "html_url": "https://github.com/NaGaa95/ff4_3d_nx/releases/tag/1.0.1",
+        "published_at": "2026-06-19T03:37:18Z",
+        "body": "## v1.0.1\r\n\r\n- Fix bright character rendering\r\n- Renamed config file to config.txt"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "ffd_nx",
+      "name": "ffd_nx",
+      "description": "Port of Final Fantasy Dimensions for Switch.",
+      "html_url": "https://github.com/NaGaa95/ffd_nx",
+      "updated_at": "2026-06-28T11:40:32Z",
+      "pushed_at": "2026-06-28T11:39:27Z",
+      "latest_release": null
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "freespace2_nx",
+      "name": "freespace2_nx",
+      "description": "Freespace & Freespace 2 sources code (from Icculus) with added support for Pandora (ARM cpu and GLES rendering). Status: Working",
+      "html_url": "https://github.com/NaGaa95/freespace2_nx",
+      "updated_at": "2026-06-28T11:28:16Z",
+      "pushed_at": "2026-06-28T11:36:32Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/freespace2_nx/releases/tag/1.0.0",
+        "published_at": "2026-06-28T11:36:32Z",
+        "body": "## v1.0.0\r\n\r\n- Initial release\r\n\r\n\r\nINSTALL\r\n-------\r\n\r\nCreate the folder  sdmc:/switch/freespace2/  on your SD card and put the .nro\r\nand all of your game data together in it:\r\n\r\n    sdmc:/switch/freespace2/\r\n        freespace2.nro          <- this release\r\n        root_fs2.vp             \\\r\n        sparky_fs2.vp            |  your FreeSpace 2 data\r\n        sparky_hi_fs2.vp        |  (every *.vp file)\r\n        ... (all other *.vp)    /\r\n        Data/\r\n            Movies/             <- cutscenes (*.mve), optional\r\n\r\n\r\nCONFIGURATION\r\n-------------\r\n\r\nOn first launch a config.txt is created next to the .nro :\r\n\r\n    rumble = 1              (HD rumble: 1 = on, 0 = off)\r\n    gyro = 0               (motion aiming while flying: 1 = on, 0 = off)\r\n    gyro_sensitivity = 50   (gyro strength: 0-100)\r\n\r\nCONTROLS\r\n--------\r\n\r\n    Left stick    Fly (pitch / roll)\r\n    Right stick   Throttle / rudder       (menus: move cursor)\r\n    A / ZR        Fire primary            (menus: select)\r\n    B / ZL        Fire secondary          (menus: back)\r\n    R             Afterburner\r\n    X             Launch countermeasure\r\n    Y             Target ship in reticle\r\n    L             Target nearest enemy\r\n    D-pad         Arrow keys\r\n    +  (Plus)     Pause / in-mission menu\r\n    -  (Minus)    On-screen keyboard (e.g. to enter a pilot name)"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "gtactw_nx",
+      "name": "gtactw_nx",
+      "description": "GTA: CTW for Switch",
+      "html_url": "https://github.com/NaGaa95/gtactw_nx",
+      "updated_at": "2026-06-28T10:04:58Z",
+      "pushed_at": "2026-06-26T05:46:35Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/gtactw_nx/releases/tag/1.0.0",
+        "published_at": "2026-06-11T01:09:11Z",
+        "body": "## v1.0.0\r\n\r\n- Initial release\r\n- Support GTA CTW v4.4.243 ONLY"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "gtalcs_nx",
+      "name": "gtalcs_nx",
+      "description": "Port of GTA Liberty City Stories for Switch.",
+      "html_url": "https://github.com/NaGaa95/gtalcs_nx",
+      "updated_at": "2026-06-28T18:02:32Z",
+      "pushed_at": "2026-06-28T12:25:29Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/gtalcs_nx/releases/tag/1.0.0",
+        "published_at": "2026-06-24T20:45:08Z",
+        "body": "## v1.0.0\r\n\r\n- Initial release\r\n- Support GTA LCS v2.4.379 ONLY"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "hekate-pro",
+      "name": "hekate-pro",
+      "description": "hekate - A GUI based Nintendo Switch Bootloader",
+      "html_url": "https://github.com/NaGaa95/hekate-pro",
+      "updated_at": "2026-06-08T15:19:03Z",
+      "pushed_at": "2026-06-18T00:23:14Z",
+      "latest_release": {
+        "tag_name": "v6.5.2",
+        "html_url": "https://github.com/NaGaa95/hekate-pro/releases/tag/v6.5.2",
+        "published_at": "2026-03-28T04:55:04Z",
+        "body": "UNOFFICIAL HEKATE FORK. Do not report any issues with this to the Hekate maintainers.\r\n\r\n#### UPDATE 09/04 :\r\n- New update to fix a few issues, emuSD is now working again\r\n\r\n## Features\r\n- Support for emuMMC on eMMC\r\n  *  Allows creating file or partition based emuMMC on the eMMC.\r\n- Support for formatting the eMMC and resizing HOS USER partition\r\n- Support for creating and installing Android and Linux on eMMC\r\n- Support for emuSD\r\n  * Allows redirecting all SD accesses in HOS to a separate file or partition on the SD card or eMMC. \r\nNote: HOS will crash, if no physical SD card is inserted\r\n- Support for mounting file and partition based emuMMC and emuSD\r\n- Support for arbitrary size emuMMC, file and partition based\r\n- Support for booting without SD card\r\n  * Hekate will check if there is a FAT32 filesystem on eMMC BOOT1 (at 1MB offset), eMMC BOOT1 (at 0MB offset), in any partition on the eMMC GPP or SD card. \r\nIf there is no .no_boot_storage file present in the root folder, it will use that FAT32 partition to boot.\r\n- 1250 VDD2 / 1300 VDD2Q Voltage Allowed on L4T / Android\r\n\r\n## Added in 6.5.2 :\r\n- Super5 OLED Support\r\n  * Panel ID must be added into Android / L4T `boot.scr`\r\n  * Can be downloaded here [Android](https://github.com/NaGaa95/LineageOS-OC-nx_tab/releases) / [Ubuntu-Noble](https://github.com/NaGaa95/L4T-OC-Kernel/releases)\r\n- Kingston eMMC ID added\r\n- memory_mode_auto support removed for newer memmode implementation\r\n\r\n\r\nRecommended to use with [Atmosphere-Pro](https://github.com/NaGaa95/Atmosphere-Pro/releases) to access all features."
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "hl2_nx",
+      "name": "hl2_nx",
+      "description": "Port of Half Life 2 for Switch.",
+      "html_url": "https://github.com/NaGaa95/hl2_nx",
+      "updated_at": "2026-06-27T07:16:49Z",
+      "pushed_at": "2026-06-25T08:59:09Z",
+      "latest_release": {
+        "tag_name": "1.0.1",
+        "html_url": "https://github.com/NaGaa95/hl2_nx/releases/tag/1.0.1",
+        "published_at": "2026-06-25T08:59:09Z",
+        "body": "## v1.0.1\r\n\r\n- Added support for episodic libclient.so / libserver.so from the Android episodic APK in lib/episodic/\r\n  - Fix Episode One / Two softlock caused by loading default HL2 DLLs\r\n- Added HL2 Picker frontend with box art selection for HL2, Episode One, and Episode Two (Thanks to @Masagrator)\r\n- Added install/data detection in the picker\r\n  - Only HL2 steam_legacy branch is supported \r\n  - 20th Anniversary update IS NOT COMPATIBLE\r\n- Added Options menu in the picker\r\n\r\n\r\n<img width=\"1280\" height=\"720\" alt=\"2026062511040500-58053604AA34D390412A97239F58311A\" src=\"https://github.com/user-attachments/assets/1b39a6f1-34eb-4df1-a67f-09fed4077c78\" />\r\n\r\n"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "L4T-Megascript",
+      "name": "L4T-Megascript",
+      "description": "All-in-one installer and updater for popular programs on L4T Ubuntu/Fedora with no prior knowledge of Linux needed",
+      "html_url": "https://github.com/NaGaa95/L4T-Megascript",
+      "updated_at": "2026-06-10T00:21:48Z",
+      "pushed_at": "2026-06-10T00:21:39Z",
+      "latest_release": null
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "layton2_nx",
+      "name": "layton2_nx",
+      "description": "Port of Professor Layton: Pandora's Box HD for Switch.",
+      "html_url": "https://github.com/NaGaa95/layton2_nx",
+      "updated_at": "2026-06-18T02:07:52Z",
+      "pushed_at": "2026-06-18T02:12:26Z",
+      "latest_release": {
+        "tag_name": "1.0.1",
+        "html_url": "https://github.com/NaGaa95/layton2_nx/releases/tag/1.0.1",
+        "published_at": "2026-06-18T02:12:27Z",
+        "body": "- Fix numeric puzzle keyboard input\r\n- Fix Inverted stick input"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "layton3_nx",
+      "name": "layton3_nx",
+      "description": "Port of Professor Layton: Lost Hope HD for Switch",
+      "html_url": "https://github.com/NaGaa95/layton3_nx",
+      "updated_at": "2026-06-18T02:08:00Z",
+      "pushed_at": "2026-06-18T02:11:19Z",
+      "latest_release": {
+        "tag_name": "1.0.2",
+        "html_url": "https://github.com/NaGaa95/layton3_nx/releases/tag/1.0.2",
+        "published_at": "2026-06-18T02:11:19Z",
+        "body": "- Fix numeric puzzle keyboard input\r\n- Fix Inverted stick input"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "layton_nx",
+      "name": "layton_nx",
+      "description": "Port of Professor Layton: Curious Village HD for Switch.",
+      "html_url": "https://github.com/NaGaa95/layton_nx",
+      "updated_at": "2026-06-18T02:07:43Z",
+      "pushed_at": "2026-06-18T02:10:38Z",
+      "latest_release": {
+        "tag_name": "1.0.3",
+        "html_url": "https://github.com/NaGaa95/layton_nx/releases/tag/1.0.3",
+        "published_at": "2026-06-18T02:10:38Z",
+        "body": "- Fix numeric puzzle keyboard input\r\n- Fix Inverted stick input"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "lswtcs_nx",
+      "name": "lswtcs_nx",
+      "description": "Loader of Lego Star Wars: The Complete Saga Android that allows to run it on a Switch.",
+      "html_url": "https://github.com/NaGaa95/lswtcs_nx",
+      "updated_at": "2026-06-28T21:28:31Z",
+      "pushed_at": "2026-06-28T05:16:26Z",
+      "latest_release": {
+        "tag_name": "1.0.2",
+        "html_url": "https://github.com/NaGaa95/lswtcs_nx/releases/tag/1.0.2",
+        "published_at": "2026-06-28T05:16:26Z",
+        "body": "## v1.0.2\r\n\r\n- Fix crash issues"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "lswtfa_nx",
+      "name": "lswtfa_nx",
+      "description": "Port of LEGO Star Wars: The Force Awakens for Switch.",
+      "html_url": "https://github.com/NaGaa95/lswtfa_nx",
+      "updated_at": "2026-06-26T12:53:00Z",
+      "pushed_at": "2026-06-25T06:02:44Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/lswtfa_nx/releases/tag/1.0.0",
+        "published_at": "2026-06-25T06:02:44Z",
+        "body": "## v1.0.0\r\n\r\n- Initial release\r\n- Support Lego Star Wars TFA v2.2.1.06 ONLY"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "max_nx_v2.1.131",
+      "name": "max_nx_v2.1.131",
+      "description": "Nintendo Switch port of https://github.com/fgsfdsfgs/max_vita",
+      "html_url": "https://github.com/NaGaa95/max_nx_v2.1.131",
+      "updated_at": "2026-06-28T21:36:18Z",
+      "pushed_at": "2026-06-12T21:43:31Z",
+      "latest_release": {
+        "tag_name": "1.0.1",
+        "html_url": "https://github.com/NaGaa95/max_nx_v2.1.131/releases/tag/1.0.1",
+        "published_at": "2026-06-10T22:46:53Z",
+        "body": "## v1.0.1\r\n\r\n- Support for the new Max Payne Mobile update (v2.1.131)\r\n- Video playback support\r\n- Touchscreen support\r\n  - can be disabled with `touchscreen 0` in config.txt\r\n  - The on-screen touch HUD now hides while using a controller and\r\n  reappears when you touch the screen\r\n- CPU boost during loading screens (boot, new game, chapter changes,\r\n  loading saves) for faster load times\r\n- `show_fps 1` to enable FPS counter"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "NX-Pro-Pack",
+      "name": "NX-Pro-Pack",
+      "description": "Complete Homebrew / Tools - distribution for Switch",
+      "html_url": "https://github.com/NaGaa95/NX-Pro-Pack",
+      "updated_at": "2026-06-18T22:10:29Z",
+      "pushed_at": "2026-06-18T22:10:24Z",
+      "latest_release": {
+        "tag_name": "1.2",
+        "html_url": "https://github.com/NaGaa95/NX-Pro-Pack/releases/tag/1.2",
+        "published_at": "2026-04-14T01:45:05Z",
+        "body": "Updated : \r\nAtmosphere-Pro 1.11.2\r\nhekate-pro 6.5.3\r\nLockpick_RCM_Pro 2.0.3\r\nUltrahand 2.4.5\r\nSysmodules Overlay 1.5.2\r\nMissionControl 0.15.2\r\nEOS Pro 1.8.3+\r\nMoonlight 1.5.0\r\nTico 0.7.3\r\nChiaki (Deko3D)\r\n\r\nAdded : \r\nmax_nx (Max Payne Port)\r\nhl2_nx (Half Life 2 Port)\r\n"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "openmohaa_nx",
+      "name": "openmohaa_nx",
+      "description": "Open re-implementation of Medal of Honor: Allied Assault including Spearhead and Breakthrough expansions with modern features and bugfixes from ioquake3 with cross-platform support",
+      "html_url": "https://github.com/NaGaa95/openmohaa_nx",
+      "updated_at": "2026-06-28T07:18:39Z",
+      "pushed_at": "2026-06-26T15:49:05Z",
+      "latest_release": {
+        "tag_name": "0.83.0.2",
+        "html_url": "https://github.com/NaGaa95/openmohaa_nx/releases/tag/0.83.0.2",
+        "published_at": "2026-06-26T15:49:06Z",
+        "body": "## v0.83.0 - R2\r\n\r\n- Fix mission transitions and cgame state\r\n- Reduced Joystick sensitivity \r\n\r\n1. Copy `openmohaa.nro` to your SD card\r\n   `sdmc:/switch/openmohaa/openmohaa.nro`\r\n2. Copy the game data from your **legitimately owned** MOHAA install onto the SD\r\n   card next to it:\r\n\r\n   ```\r\n   sdmc:/switch/openmohaa/main/pak0.pk3 … pakN.pk3      (Allied Assault, required)\r\n   sdmc:/switch/openmohaa/mainta/…                       (Spearhead, optional)\r\n   sdmc:/switch/openmohaa/maintt/…                       (Breakthrough, optional)\r\n   ```"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "sotn_nx",
+      "name": "sotn_nx",
+      "description": "Port of Castlevania Symphony of the Night for Switch.",
+      "html_url": "https://github.com/NaGaa95/sotn_nx",
+      "updated_at": "2026-06-28T17:25:23Z",
+      "pushed_at": "2026-06-28T11:52:40Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/sotn_nx/releases/tag/1.0.0",
+        "published_at": "2026-06-28T06:29:45Z",
+        "body": "## v1.0.0\r\n\r\n- Initial release"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "swordigo_nx",
+      "name": "swordigo_nx",
+      "description": "Port of Swordigo for Switch.",
+      "html_url": "https://github.com/NaGaa95/swordigo_nx",
+      "updated_at": "2026-06-21T06:44:20Z",
+      "pushed_at": "2026-06-14T05:12:53Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/swordigo_nx/releases/tag/1.0.0",
+        "published_at": "2026-06-14T04:34:31Z",
+        "body": "Initial Release"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "TegraBurn-NX",
+      "name": "TegraBurn-NX",
+      "description": "Nintendo Switch benchmark and stability-testing homebrew",
+      "html_url": "https://github.com/NaGaa95/TegraBurn-NX",
+      "updated_at": "2026-06-15T23:36:16Z",
+      "pushed_at": "2026-06-04T23:09:48Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/TegraBurn-NX/releases/tag/1.0.0",
+        "published_at": "2026-06-04T23:09:48Z",
+        "body": ""
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "tf2_nx",
+      "name": "tf2_nx",
+      "description": "Port of Team Fortress 2 ReClassic for Switch.",
+      "html_url": "https://github.com/NaGaa95/tf2_nx",
+      "updated_at": "2026-06-26T20:10:53Z",
+      "pushed_at": "2026-06-26T20:16:53Z",
+      "latest_release": {
+        "tag_name": "1.0.0",
+        "html_url": "https://github.com/NaGaa95/tf2_nx/releases/tag/1.0.0",
+        "published_at": "2026-06-26T20:16:53Z",
+        "body": "## v1.0.0\r\n\r\n- Initial release\r\n- Support TF2 Legacy v1.0.0\r\n- LAN mode works (Switch / Android)\r\n- Internet mode not tested\r\n- CPU OC recommended"
+      }
+    },
+    {
+      "owner": "NaGaa95",
+      "repo": "vcmi_nx",
+      "name": "vcmi_nx",
+      "description": "Open-source engine for Heroes of Might and Magic III",
+      "html_url": "https://github.com/NaGaa95/vcmi_nx",
+      "updated_at": "2026-06-26T08:37:50Z",
+      "pushed_at": "2026-06-22T06:35:22Z",
+      "latest_release": {
+        "tag_name": "1.8.0",
+        "html_url": "https://github.com/NaGaa95/vcmi_nx/releases/tag/1.8.0",
+        "published_at": "2026-06-21T00:16:21Z",
+        "body": "## How to Install\r\n\r\n1. Copy `vcmiclient.nro` to `sdmc:/switch/vcmi/vcmiclient.nro`\r\n2. Copy your **legally-owned Heroes III** data onto the SD card:\r\n   ```\r\n   sdmc:/switch/vcmi/Data/   (H3 .lod archives etc.)\r\n   sdmc:/switch/vcmi/Maps/\r\n   sdmc:/switch/vcmi/Mp3/\r\n   ```\r\n   Shadow of Death or Complete is required (Restoration of Erathia alone is not supported).\r\n3. Saves and config are written under `sdmc:/switch/vcmi/`."
+      }
+    }
+  ]
+}
