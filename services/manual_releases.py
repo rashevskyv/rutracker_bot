@@ -72,6 +72,10 @@ def process_manual_releases() -> int:
         if entry.get('processed'):
             continue
 
+        if processed >= 5:
+            logger.info("Reached limit of 5 manual releases per run. Stopping manual releases processing.")
+            break
+
         entry_type = entry.get('type', '').lower()
         timestamp = _parse_timestamp(entry)
 
