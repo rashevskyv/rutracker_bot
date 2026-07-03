@@ -1325,6 +1325,7 @@ class HomebrewUpdatesCollector:
 async def main():
     """Main entry point"""
     import argparse
+    from datetime import datetime, timedelta
 
     parser = argparse.ArgumentParser(description='Collect homebrew updates')
     parser.add_argument('--list', default=DEFAULT_LIST_PATH,
@@ -1339,6 +1340,22 @@ async def main():
     parser.add_argument('--gitlab-token', help='GitLab API token')
 
     args = parser.parse_args()
+
+    # Cooldown check: prevent running more than once every 20 hours unless forced or test mode
+    LAST_RUN_FILE = os.path.join("data", "last_hb_collect_run.json")
+    current_time = datetime.now()
+    is_forced = os.environ.get('FORCE_TASK') == 'run_collect_homebrew'
+    if not args.test and not is_forced:
+        if os.path.exists(LAST_RUN_FILE):
+            try:
+                with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    last_run_time = datetime.fromisoformat(data['last_run_time'])
+                if current_time - last_run_time < timedelta(hours=20):
+                    logger.info(f"Homebrew collection was already run recently (last run: {last_run_time}). Skipping.")
+                    return
+            except Exception as e:
+                logger.warning(f"Error reading last collect run time: {e}")
 
     # Load tokens from environment, command line, or settings (in that order)
     import os
@@ -1374,6 +1391,16 @@ async def main():
     # Clean up shared session
     from core.settings_loader import close_clients
     await close_clients()
+
+    # Save last run time
+    if not args.test:
+        try:
+            os.makedirs("data", exist_ok=True)
+            with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'last_run_time': current_time.isoformat()}, f, indent=2)
+            logger.info(f"Saved homebrew collect timestamp: {current_time}")
+        except Exception as e:
+            logger.error(f"Error saving last collect run time: {e}")
 
 
 if __name__ == "__main__":

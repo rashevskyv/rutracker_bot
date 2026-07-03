@@ -94,7 +94,7 @@ def process_manual_releases() -> int:
                     update_description=entry.get('description') or entry.get('update_description'),
                     genres=entry.get('genres', []),
                     trailer_url=entry.get('trailer_url'),
-                    timestamp=timestamp
+                    timestamp=None  # Default to now so it is included in the next digest
                 )
                 logger.info(f"Manual release added to daily digest: {title}")
                 entry['processed'] = True
@@ -108,10 +108,10 @@ def process_manual_releases() -> int:
                     description=entry.get('description', ''),
                     platform=entry.get('platform', 'Switch'),
                     is_new=entry.get('is_new', False),
-                    timestamp=timestamp, # Use original entry date as discovery time
+                    timestamp=None,  # Default to now so it is included in the next digest
                     release_date=timestamp
                 )
-                logger.info(f"Manual release added to homebrew digest: {entry.get('app_name')} with timestamp {timestamp}")
+                logger.info(f"Manual release added to homebrew digest: {entry.get('app_name')} with release date {timestamp}")
                 entry['processed'] = True
                 processed += 1
 

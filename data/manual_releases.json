@@ -635,7 +635,7 @@
     "is_new": false,
     "description": "Порт гри 0AD для Switch, який дає змогу грати в неї на Nintendo Switch.",
     "date": "2026-06-30T22:55:12+00:00",
-    "processed": false
+    "processed": true
   },
   {
     "type": "homebrew",
@@ -646,7 +646,7 @@
     "is_new": true,
     "description": "Обгортка та порт Android-версії Sonic Triple Trouble 16-bit для Nintendo Switch, щоб ви могли грати в цю гру на консолі.",
     "date": "2026-06-29T17:08:09+00:00",
-    "processed": false
+    "processed": true
   },
   {
     "type": "homebrew",
@@ -657,7 +657,7 @@
     "is_new": false,
     "description": "Порт LEGO Star Wars: The Force Awakens для Switch, який дає змогу гравцям насолоджуватися грою на цій платформі.",
     "date": "2026-07-01T02:00:16+00:00",
-    "processed": false
+    "processed": true
   },
   {
     "type": "homebrew",
@@ -668,7 +668,7 @@
     "is_new": true,
     "description": "Порт GTA San Andreas для Switch, який дає змогу грати в цю гру на консолі Switch.",
     "date": "2026-07-01T07:50:43+00:00",
-    "processed": false
+    "processed": true
   },
   {
     "type": "homebrew",
@@ -679,7 +679,7 @@
     "is_new": true,
     "description": "Порт гри LEGO Batman: Beyond Gotham для Switch, щоб ви могли грати в неї на цій платформі.",
     "date": "2026-07-01T07:31:21+00:00",
-    "processed": false
+    "processed": true
   },
   {
     "type": "homebrew",
@@ -690,6 +690,6 @@
     "is_new": true,
     "description": "Порт Nintendo Switch у стані розробки на основі наявної декомпіляції Silent Hill 1.",
     "date": "2026-06-30T20:27:36+00:00",
-    "processed": false
+    "processed": true
   }
 ]
