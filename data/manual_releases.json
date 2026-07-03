@@ -702,5 +702,16 @@
     "description": "Порт гри Final Fantasy Dimensions для Nintendo Switch.",
     "date": "2026-06-29T03:01:54+00:00",
     "processed": false
+  },
+  {
+    "type": "homebrew",
+    "app_name": "LainNX",
+    "version": "v0.4.4-nx.3",
+    "release_url": "https://github.com/amydevs/lainNX/releases/tag/v0.4.4-nx.3",
+    "platform": "Switch",
+    "is_new": false,
+    "description": "WebGL-реалізація гри Serial Experiments Lain для PSX на Nintendo Switch.",
+    "date": "2026-07-03T09:39:30+00:00",
+    "processed": false
   }
 ]
