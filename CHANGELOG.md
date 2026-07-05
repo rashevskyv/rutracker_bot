@@ -2,6 +2,17 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.27] - 2026-07-05
+
+### Added
+- **Gist Config Fallback**: Updated `sync_gist_state.py` to load `GIST_ID` and `GIST_TOKEN` from `local_settings.json` or `settings.json` if they are not defined in the environment variables, simplifying local synchronization.
+
+## [v0.6.26] - 2026-07-05
+
+### Fixed
+- **Gist Sync Integration for Manual Releases**: Removed `data/manual_releases.json` from git tracking and added it to `.gitignore` to avoid git pull conflicts on the production server. The file is now fully managed and synchronized via GitHub Gist.
+- **Git line endings normalization**: Created `.gitattributes` to enforce Unix-style line endings (`LF`) for all JSON, Python, YAML, and Shell files, preventing false modifications caused by CRLF/LF line-ending mismatches.
+
 ## [v0.6.25] - 2026-07-05
 
 ### Added
