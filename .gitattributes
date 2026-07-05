@@ -1,0 +1,8 @@
+# Force Unix line endings (LF) for all repository source files
+*.json text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf

@@ -15,6 +15,8 @@ on:
           - run_daily_digest
           - run_homebrew_digest
           - run_collect_homebrew
+          - run_swuk_digest
+          - run_collect_swuk
         default: 'none'
 
 jobs:
@@ -59,27 +61,40 @@ jobs:
           FORCE_TASK: ${{ github.event.inputs.force_task }}
         run: |
           CURRENT_HOUR=$(date -u +%H)
-          CURRENT_MIN=$(date -u +%M)
           if [ "$FORCE_TASK" = "run_collect_homebrew" ]; then
             echo "Manually forced run_collect_homebrew..."
             python collect_homebrew_updates.py
-          elif [ "$CURRENT_HOUR" = "05" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+          elif [ "$CURRENT_HOUR" = "05" ]; then
             echo "Time is 08:00 Kyiv time (05:00 UTC), running homebrew collector..."
             python collect_homebrew_updates.py
           else
             echo "Skipping homebrew collector (not scheduled and not forced)"
           fi
           
+      - name: Run Collect Swuk Updates (if time matches or forced)
+        env:
+          FORCE_TASK: ${{ github.event.inputs.force_task }}
+        run: |
+          CURRENT_HOUR=$(date -u +%H)
+          if [ "$FORCE_TASK" = "run_collect_swuk" ]; then
+            echo "Manually forced run_collect_swuk..."
+            python collect_swuk_updates.py
+          elif [ "$CURRENT_HOUR" = "05" ]; then
+            echo "Time is 08:00 Kyiv time (05:00 UTC), running swuk collector..."
+            python collect_swuk_updates.py
+          else
+            echo "Skipping swuk collector (not scheduled and not forced)"
+          fi
+
       - name: Run Send Daily Digest (if time matches or forced)
         env:
           FORCE_TASK: ${{ github.event.inputs.force_task }}
         run: |
           CURRENT_HOUR=$(date -u +%H)
-          CURRENT_MIN=$(date -u +%M)
           if [ "$FORCE_TASK" = "run_daily_digest" ]; then
             echo "Manually forced run_daily_digest..."
             python send_daily_digest.py
-          elif [ "$CURRENT_HOUR" = "06" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+          elif [ "$CURRENT_HOUR" = "06" ]; then
             echo "Time is 09:00 Kyiv time (06:00 UTC), running daily digest..."
             python send_daily_digest.py
           else
@@ -91,17 +106,31 @@ jobs:
           FORCE_TASK: ${{ github.event.inputs.force_task }}
         run: |
           CURRENT_HOUR=$(date -u +%H)
-          CURRENT_MIN=$(date -u +%M)
           if [ "$FORCE_TASK" = "run_homebrew_digest" ]; then
             echo "Manually forced run_homebrew_digest..."
             python send_homebrew_digest.py
-          elif [ "$CURRENT_HOUR" = "06" ] && [ "$CURRENT_MIN" -lt "15" ]; then
+          elif [ "$CURRENT_HOUR" = "06" ]; then
             echo "Time is 09:00 Kyiv time (06:00 UTC), running homebrew digest..."
             python send_homebrew_digest.py
           else
             echo "Skipping homebrew digest (not scheduled and not forced)"
           fi
           
+      - name: Run Send Swuk Digest (if time matches or forced)
+        env:
+          FORCE_TASK: ${{ github.event.inputs.force_task }}
+        run: |
+          CURRENT_HOUR=$(date -u +%H)
+          if [ "$FORCE_TASK" = "run_swuk_digest" ]; then
+            echo "Manually forced run_swuk_digest..."
+            python send_swuk_digest.py
+          elif [ "$CURRENT_HOUR" = "06" ]; then
+            echo "Time is 09:00 Kyiv time (06:00 UTC), running swuk digest..."
+            python send_swuk_digest.py
+          else
+            echo "Skipping swuk digest (not scheduled and not forced)"
+          fi
+
       - name: Upload state to Gist
         if: always() # Ensure state is saved even if bot fails
         env:
@@ -116,5 +145,4 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Only add if files exist
           [ -f data/list_hb.json ] && git add data/list_hb.json
-          [ -f data/manual_releases.json ] && git add data/manual_releases.json
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update json registries" && git push)

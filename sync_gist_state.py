@@ -18,7 +18,8 @@ FILES_TO_SYNC = [
     "homebrew_digest_data.json",
     "last_entry.txt",
     "last_digest_run.json",
-    "last_homebrew_digest_run.json"
+    "last_homebrew_digest_run.json",
+    "manual_releases.json"
 ]
 
 DATA_DIR = "data"
@@ -111,7 +112,15 @@ def main():
     token = os.environ.get("GIST_TOKEN")
     
     if not gist_id or not token:
-        logger.error("GIST_ID and GIST_TOKEN environment variables must be set.")
+        try:
+            from core.settings_loader import settings
+            gist_id = gist_id or settings.get("GIST_ID")
+            token = token or settings.get("GIST_TOKEN")
+        except Exception as e:
+            logger.debug(f"Could not load Gist settings from config: {e}")
+            
+    if not gist_id or not token:
+        logger.error("GIST_ID and GIST_TOKEN must be set as environment variables or in config/local_settings.json.")
         exit(1)
         
     if args.action == "download":

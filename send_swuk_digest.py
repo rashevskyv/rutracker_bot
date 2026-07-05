@@ -52,6 +52,13 @@ async def send_digest():
     last_run_time = get_last_run_time()
     current_time = datetime.now()
 
+    # Cooldown check: prevent running more than once every 20 hours unless forced
+    is_forced = os.environ.get('FORCE_TASK') == 'run_swuk_digest'
+    if not IS_TEST_MODE and not is_forced:
+        if current_time - last_run_time < timedelta(hours=20):
+            logger.info(f"Swuk digest was already sent recently (last run: {last_run_time}). Skipping.")
+            return
+
     logger.info(f"Swuk digest period: {last_run_time} to {current_time}")
 
     entries = swuk_digest_manager.get_entries_since(last_run_time)

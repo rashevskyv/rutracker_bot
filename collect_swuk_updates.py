@@ -199,9 +199,37 @@ async def collect_swuk_updates():
 
 async def main():
     """Entry point."""
+    from datetime import datetime, timedelta
+    
+    LAST_RUN_FILE = os.path.join("data", "last_swuk_collect_run.json")
+    current_time = datetime.now()
+    is_forced = os.environ.get('FORCE_TASK') == 'run_collect_swuk'
+    
+    if not is_forced:
+        if os.path.exists(LAST_RUN_FILE):
+            try:
+                with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    last_run_time = datetime.fromisoformat(data['last_run_time'])
+                if current_time - last_run_time < timedelta(hours=20):
+                    logger.info(f"Swuk collection was already run recently (last run: {last_run_time}). Skipping.")
+                    return
+            except Exception as e:
+                logger.warning(f"Error reading last collect run time: {e}")
+
     from core.settings_loader import close_clients
     try:
         await collect_swuk_updates()
+        
+        # Save last run time
+        try:
+            os.makedirs("data", exist_ok=True)
+            with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'last_run_time': current_time.isoformat()}, f, indent=2)
+            logger.info(f"Saved swuk collect timestamp: {current_time}")
+        except Exception as e:
+            logger.error(f"Error saving last collect run time: {e}")
+            
     finally:
         await close_clients()
 
