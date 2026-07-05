@@ -115,8 +115,8 @@ def main():
     if not gist_id or not token:
         try:
             from core.settings_loader import settings
-            gist_id = gist_id or settings.get("GIST_ID")
-            token = token or settings.get("GIST_TOKEN")
+            gist_id = gist_id or settings.get("GIST_ID") or "46128fc489e0fd60e226ff26dc638e97"
+            token = token or settings.get("GIST_TOKEN") or settings.get("GITHUB_TOKEN")
         except Exception as e:
             logger.debug(f"Could not load Gist settings from config: {e}")
             

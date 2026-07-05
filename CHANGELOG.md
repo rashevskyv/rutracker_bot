@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.30] - 2026-07-05
+
+### Added
+- **Automatic Gist Auto-Detection**: Configured `sync_gist_state.py` to automatically detect Gist ID (`46128fc489e0fd60e226ff26dc638e97`) and local `GITHUB_TOKEN` from settings, allowing seamless one-command local state uploading (`python sync_gist_state.py upload`).
+
 ## [v0.6.29] - 2026-07-05
 
 ### Added
