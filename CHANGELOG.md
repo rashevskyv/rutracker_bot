@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.25] - 2026-07-05
+
+### Added
+- **Manual Release**: Added Marathon Recomp NX (Marathon Recomp port for Nintendo Switch) to the manual releases queue and processed the pending queue (including Ffd NX, LainNX, and Marathon Recomp NX), successfully posting them to Telegram.
+
 ## [v0.6.24] - 2026-07-03
 
 ### Added
