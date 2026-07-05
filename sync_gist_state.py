@@ -19,7 +19,8 @@ FILES_TO_SYNC = [
     "last_entry.txt",
     "last_digest_run.json",
     "last_homebrew_digest_run.json",
-    "manual_releases.json"
+    "manual_releases.json",
+    "list_hb.json"
 ]
 
 DATA_DIR = "data"
