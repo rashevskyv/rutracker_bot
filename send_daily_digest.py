@@ -203,6 +203,7 @@ async def send_digest():
                 f"📊 <b>Дайджест відправлено</b>\n\n"
                 f"Нових ігор: {new_count}\n"
                 f"Оновлень: {updated_count}\n"
+                f"Ручних релізів: {manual_count}\n"
                 f"Всього: {total_count}\n"
                 f"Груп: {sent_count}/{len(target_groups)}"
             )

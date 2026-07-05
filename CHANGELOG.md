@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.29] - 2026-07-05
+
+### Added
+- **Manual Releases Stats Reporting**: Added processed manual release counts (`Ручних релізів: X`) to the daily and homebrew digest stats reports sent to test/admin Telegram channels.
+
 ## [v0.6.28] - 2026-07-05
 
 ### Fixed

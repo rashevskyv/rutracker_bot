@@ -26,9 +26,13 @@ DEFAULT_TEST_CHAT_ID = -1001960832921
 
 
 
-def build_stats_text() -> str:
+def build_stats_text(manual_count: int = 0) -> str:
     """Build a per-source stats block from the last collector run files."""
     lines = ["\n\n📋 <b>Статистика збору:</b>"]
+
+    # Manual releases
+    emoji_manual = "📌" if manual_count > 0 else "➖"
+    lines.append(f"{emoji_manual} Ручні релізи: додано {manual_count}")
 
     # Homebrew sources
     try:
@@ -135,7 +139,7 @@ async def send_digest():
                 # Send stats report to each test channel
                 stats_message = (
                     f"📊 <b>Тест-дайджест відправлено</b>"
-                    f"{build_stats_text()}"
+                    f"{build_stats_text(manual_count)}"
                 )
                 await bot.send_message(
                     chat_id=chat_id,
@@ -256,9 +260,10 @@ async def send_digest():
                 f"📊 <b>Homebrew дайджест відправлено</b>\n\n"
                 f"Нових додатків: {new_count}\n"
                 f"Оновлень: {update_count}\n"
+                f"Ручних релізів: {manual_count}\n"
                 f"Всього: {total_count}\n"
                 f"Груп: {sent_count}/{len(target_groups)}"
-                f"{build_stats_text()}"
+                f"{build_stats_text(manual_count)}"
             )
             await bot.send_message(
                 chat_id=stats_chat_id,
