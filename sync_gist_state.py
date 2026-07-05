@@ -18,7 +18,8 @@ FILES_TO_SYNC = [
     "homebrew_digest_data.json",
     "last_entry.txt",
     "last_digest_run.json",
-    "last_homebrew_digest_run.json"
+    "last_homebrew_digest_run.json",
+    "manual_releases.json"
 ]
 
 DATA_DIR = "data"

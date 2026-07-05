@@ -145,5 +145,4 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Only add if files exist
           [ -f data/list_hb.json ] && git add data/list_hb.json
-          [ -f data/manual_releases.json ] && git add data/manual_releases.json
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update json registries" && git push)
