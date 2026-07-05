@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.28] - 2026-07-05
+
+### Fixed
+- **Gist Sync Integration for Homebrew Registry**: Removed `data/list_hb.json` from git tracking and added it to `.gitignore`. Homebrew registry state is now fully synchronized via Gist alongside `manual_releases.json`, eliminating runtime git conflicts and auto-commit overheads in GitHub Actions.
+
 ## [v0.6.27] - 2026-07-05
 
 ### Added
