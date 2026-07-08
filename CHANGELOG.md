@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.32] - 2026-07-08
+
+### Fixed
+- **HTML Sanitization for Telegram**: Updated `fix_html_for_telegram` in `utils/telegram_utils.py` to escape any HTML tags that are not allowed by Telegram (such as `<input>`, `<textarea>`, `<canvas>`), rather than passing them through as-is. Also added conversion of `<br>` tags to actual newlines `\n`.
+- **Digest HTML Safety**: Integrated `fix_html_for_telegram` into `BaseDigest.send_digest` in `digest/base.py` to sanitize all digest messages and split parts before sending them, preventing Telegram API from rejecting messages with `Bad Request: can't parse entities` error due to raw tags in release names or update notes.
+
 ## [v0.6.31] - 2026-07-08
 
 ### Fixed
