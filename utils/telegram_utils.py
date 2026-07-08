@@ -63,7 +63,6 @@ def fix_html_for_telegram(text: str) -> str:
 
     TRACKED: Set[str] = {'b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del',
                           'a', 'code', 'pre', 'blockquote', 'tg-spoiler'}
-    SELF_CLOSING: Set[str] = {'br', 'hr', 'img'}
 
     open_stack: List[str] = []
     result: List[str] = []
@@ -79,8 +78,13 @@ def fix_html_for_telegram(text: str) -> str:
         result.append(text[last_pos:m.start()])
         last_pos = m.end()
 
-        if tag_name in SELF_CLOSING or tag_name not in TRACKED:
-            result.append(full_tag)
+        if tag_name == 'br':
+            result.append('\n')
+            continue
+
+        if tag_name not in TRACKED:
+            import html
+            result.append(html.escape(full_tag))
             continue
 
         if is_close:

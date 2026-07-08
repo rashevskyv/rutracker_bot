@@ -189,6 +189,10 @@ class BaseDigest:
         message = re.sub(r'(?:\s*###GAP###\s*)+', '\n\n', message)
         message = re.sub(r'###\s*-?\s*', '', message)  # Remove stray ### markers
 
+        # Clean HTML before sending to Telegram
+        from utils.telegram_utils import fix_html_for_telegram
+        message = fix_html_for_telegram(message)
+
         try:
             # Telegram max message length is 4096 chars
             if len(message) <= 4096:
@@ -205,10 +209,11 @@ class BaseDigest:
                 parts = self._split_digest_message(message, 4096)
                 logger.info(f"{self.digest_name}: message too long ({len(message)} chars), splitting into {len(parts)} parts")
                 for i, part in enumerate(parts):
+                    clean_part = fix_html_for_telegram(part)
                     await bot.send_message(
                         chat_id=target_chat_id,
                         message_thread_id=target_topic_id,
-                        text=part,
+                        text=clean_part,
                         parse_mode='HTML',
                         disable_web_page_preview=True
                     )
