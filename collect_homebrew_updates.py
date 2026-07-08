@@ -1358,8 +1358,6 @@ async def main():
                 logger.warning(f"Error reading last collect run time: {e}")
 
     # Load tokens from environment, command line, or settings (in that order)
-    import os
-
     github_token = args.github_token or os.environ.get('GITHUB_TOKEN')
     gitlab_token = args.gitlab_token or os.environ.get('GITLAB_TOKEN')
 
