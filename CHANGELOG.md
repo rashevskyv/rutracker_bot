@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.31] - 2026-07-08
+
+### Fixed
+- **Homebrew Collector UnboundLocalError**: Removed redundant local `import os` inside the `main()` function of `collect_homebrew_updates.py` to prevent shadowing the global `os` module, which was causing an `UnboundLocalError` on startup and preventing the homebrew update checker from running.
+
 ## [v0.6.30] - 2026-07-05
 
 ### Added
