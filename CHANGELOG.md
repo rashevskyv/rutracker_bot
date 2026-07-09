@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.33] - 2026-07-09
+
+### Added
+- **Manual Release**: Added `Laytonbmr NX (Layton Brothers: Mystery Room)` and `Vln NX (Very Little Nightmares)` to the manual releases queue.
+
+### Fixed
+- **Dummy GitHub Token Filtering**: Improved token loading logic in `scratch/fetch_new_releases.py` to filter out invalid environment-level dummy tokens (e.g., `github_pat_antigravitydummytoken`) and local placeholder tokens, enabling successful fallback to public unauthenticated GitHub API requests.
+
 ## [v0.6.32] - 2026-07-08
 
 ### Fixed
