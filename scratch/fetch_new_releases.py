@@ -15,7 +15,7 @@ def load_github_token():
     import os
     import json
     token = os.environ.get("GITHUB_TOKEN")
-    if token:
+    if token and "dummy" not in token.lower():
         return token
     # Try config/local_settings.json or settings.json
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,7 +26,7 @@ def load_github_token():
                 with open(path, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
                     val = cfg.get("GITHUB_TOKEN")
-                    if val and not val.startswith("os.environ"):
+                    if val and not val.startswith("os.environ") and "gho_sHIJ" not in val:
                         return val
             except Exception:
                 pass
@@ -150,7 +150,8 @@ async def main():
     session = get_session()
     
     repos_to_fetch = [
-        ("ChaykaDed", "silent-hill-decomp-nx", "Silent Hill Decomp Nx (Silent Hill)")
+        ("NaGaa95", "laytonbmr_nx", "Laytonbmr NX (Layton Brothers: Mystery Room)"),
+        ("NaGaa95", "vln_nx", "Vln NX (Very Little Nightmares)")
     ]
     
     generated_entries = []
