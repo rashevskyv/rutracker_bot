@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.34] - 2026-07-13
+
+### Added
+- **Manual Releases**: Added 7 new Switch ports by `delsonazevedo` to the manual releases queue (`Zelda: Link's Awakening DX HD`, `Celeste 64`, `BattleShip`, `Starship`, `Castlevania: ReVamped - Open Source Edition`, `Crazy Taxi NX`, and `OpenBOR`).
+- **Author Tagging**: Updated names of existing Zelda and Castlevania manual releases in the registry to include their author names (e.g., `ZeldaMC`, `Black Dragon Studio`, `NaGaa95`, `HayatoG`, `delsonazevedo`) for better identification of duplicate/different versions.
+
 ## [v0.6.33] - 2026-07-09
 
 ### Added
