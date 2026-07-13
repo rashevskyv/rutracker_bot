@@ -1,0 +1,100 @@
+[
+  [
+    "Zelda-LA-DX-HD-Updated",
+    {
+      "type": "homebrew",
+      "app_name": "Zelda: Link's Awakening DX HD",
+      "version": "1.7.3",
+      "release_url": "https://github.com/delsonazevedo/Zelda-LA-DX-HD-Updated/releases/tag/1.7.3",
+      "platform": "Switch",
+      "is_new": false,
+      "description": "Порт гри TLoZ: LADXHD для Nintendo Switch, оновлений через patcher.",
+      "date": "2026-04-25T22:36:38+00:00",
+      "processed": false
+    }
+  ],
+  [
+    "Celeste64-Switch",
+    {
+      "type": "homebrew",
+      "app_name": "Celeste 64",
+      "version": "1.1.1",
+      "release_url": "https://github.com/delsonazevedo/Celeste64-Switch/releases/tag/1.1.1",
+      "platform": "Switch",
+      "is_new": false,
+      "description": "Гра від розробників Celeste, створена приблизно за два тижні.",
+      "date": "2026-06-13T02:16:55+00:00",
+      "processed": false
+    }
+  ],
+  [
+    "BattleShip-Switch",
+    {
+      "type": "homebrew",
+      "app_name": "BattleShip",
+      "version": "1.3",
+      "release_url": "https://github.com/delsonazevedo/BattleShip-Switch/releases/tag/1.3",
+      "platform": "Switch",
+      "is_new": false,
+      "description": "Порт гри smashin' для Nintendo Switch.",
+      "date": "2026-06-13T02:46:28+00:00",
+      "processed": false
+    }
+  ],
+  [
+    "Starship",
+    {
+      "type": "homebrew",
+      "app_name": "Starship",
+      "version": "2.0.0",
+      "release_url": "https://github.com/delsonazevedo/Starship/releases/tag/2.0.0",
+      "platform": "Switch",
+      "is_new": false,
+      "description": "Порт гри SF64 для PC з розширеним шрифтом тексту.",
+      "date": "2026-06-14T16:42:11+00:00",
+      "processed": false
+    }
+  ],
+  [
+    "Castlevania-ReVamped-Open-Source-Edition-Switch",
+    {
+      "type": "homebrew",
+      "app_name": "Castlevania: ReVamped - Open Source Edition",
+      "version": "v1.0.0",
+      "release_url": "https://github.com/delsonazevedo/Castlevania-ReVamped-Open-Source-Edition-Switch",
+      "platform": "Switch",
+      "is_new": true,
+      "description": "Відкритий вихідний код Castlevania ReVamped для Nintendo Switch.",
+      "date": "2026-06-20T01:44:44+00:00",
+      "processed": false
+    }
+  ],
+  [
+    "crazytaxy_nx",
+    {
+      "type": "homebrew",
+      "app_name": "Crazy Taxi NX",
+      "version": "1.0.0",
+      "release_url": "https://github.com/delsonazevedo/crazytaxy_nx/releases/tag/1.0.0",
+      "platform": "Switch",
+      "is_new": true,
+      "description": "Порт гри Crazy Taxi Classic Android для Nintendo Switch.",
+      "date": "2026-07-01T11:57:00+00:00",
+      "processed": false
+    }
+  ],
+  [
+    "openbor",
+    {
+      "type": "homebrew",
+      "app_name": "OpenBOR",
+      "version": "v3.0.7141",
+      "release_url": "https://github.com/delsonazevedo/openbor/releases/tag/v3.0.7141",
+      "platform": "Switch",
+      "is_new": false,
+      "description": "OpenBOR — це 2D side-scrolling рушій для beat em' ups, шутерів та інших ігор.",
+      "date": "2026-02-06T22:43:53+00:00",
+      "processed": false
+    }
+  ]
+]
