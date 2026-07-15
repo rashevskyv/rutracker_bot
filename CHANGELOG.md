@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.38] - 2026-07-15
+
+### Fixed
+- **Documentation**: Finalized and marked off development tasks in `task.md`.
+
 ## [v0.6.37] - 2026-07-15
 
 ### Added
