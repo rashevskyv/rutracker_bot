@@ -198,12 +198,21 @@ async def send_digest():
                 stats_chat_id = int(TEST_GROUPS[0]['chat_id'])
                 stats_topic_id = int(TEST_GROUPS[0]['topic_id']) if TEST_GROUPS[0].get('topic_id') and str(TEST_GROUPS[0]['topic_id']).strip() else None
 
+            # Count pending manual releases
+            pending_count = 0
+            try:
+                from services.manual_releases import load_manual_releases
+                all_manual = load_manual_releases()
+                pending_count = sum(1 for e in all_manual if not e.get('processed', False))
+            except Exception as e:
+                logger.error(f"Error counting pending manual releases for stats: {e}")
+
             # Send short stats to test channel
             stats_message = (
                 f"📊 <b>Дайджест відправлено</b>\n\n"
                 f"Нових ігор: {new_count}\n"
                 f"Оновлень: {updated_count}\n"
-                f"Ручних релізів: {manual_count}\n"
+                f"Ручних релізів: {manual_count} (в черзі: {pending_count})\n"
                 f"Всього: {total_count}\n"
                 f"Груп: {sent_count}/{len(target_groups)}"
             )
