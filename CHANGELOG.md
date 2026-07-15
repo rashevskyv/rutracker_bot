@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.41] - 2026-07-15
+
+### Added
+- **NaGaa95 Repository Collector**: Added `collect_nagaa_releases.py` and `run_nagaa_collector.bat`. This script automatically monitors user `NaGaa95`'s repositories, checks if they are Nintendo Switch-related using your local Gemini API (`http://localhost:8081/v1`), translates and generates descriptions in Ukrainian, and adds them to `manual_releases.json` with safe Gist synchronization.
+
 ## [v0.6.40] - 2026-07-15
 
 ### Fixed
