@@ -2,6 +2,17 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.36] - 2026-07-15
+
+### Fixed
+- **HTML Description Truncation**: Replaced the character-slice HTML cleaning logic in `main.py` with a robust regex pattern (`r'<[^>]*$'`) that cleans any partial/incomplete HTML tags (e.g. `<a`, `</`, or `<`) at the very end of truncated update descriptions. It also correctly closes any open `<a>` tags by appending `</a>` if they remain unclosed after truncation. This prevents raw `<` characters from breaking the Telegram HTML parser and resolves the daily digest `Unsupported start tag ""` API errors.
+
+## [v0.6.35] - 2026-07-14
+
+### Added
+- **Manual Releases Pending Count**: Updated the stats block format in both Daily and Homebrew digests to display the number of pending (unprocessed) manual releases in the queue (e.g., `Ручні релізи: додано 0 (в черзі: 12)`). This helps to easily monitor the state of the queue directly from Telegram.
+- **Automated Gist Sync in run_checker**: Added automatic Gist state download (`python sync_gist_state.py download`) before running commands and state upload (`python sync_gist_state.py upload`) after commands inside `config/run_checker.sh.example`. This ensures that the local state on production servers is always in sync with GitHub Gist, preventing state mismatch and resolving the issue where manual releases were not processed on the remote server.
+
 ## [v0.6.34] - 2026-07-13
 
 ### Added

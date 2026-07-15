@@ -246,14 +246,13 @@ async def main_loop():
 
                              update_description = update_text[:200]  # Limit length
                              # Fix broken HTML tags from truncation
-                             # Remove any incomplete <a ...> tag at the end
-                             update_description = re.sub(r'<a\s+[^>]*$', '', update_description)
-                             # Remove any <a> without closing </a>
+                             # Remove any incomplete HTML tag at the very end (like `<a` or `</` or `<`)
+                             update_description = re.sub(r'<[^>]*$', '', update_description)
+                             # Close any unclosed <a> tag at the end to keep HTML tags balanced
                              open_tags = len(re.findall(r'<a\s', update_description))
                              close_tags = len(re.findall(r'</a>', update_description))
                              if open_tags > close_tags:
-                                 # Remove the last unclosed <a>...</a> tag pair attempt
-                                 update_description = re.sub(r'<a\s+[^>]*>[^<]*$', '', update_description)
+                                 update_description += '</a>'
                              update_description = update_description.strip() or None
 
                          # Add to daily digest (skip in test mode to avoid duplicates)

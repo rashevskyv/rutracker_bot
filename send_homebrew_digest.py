@@ -30,9 +30,18 @@ def build_stats_text(manual_count: int = 0) -> str:
     """Build a per-source stats block from the last collector run files."""
     lines = ["\n\n📋 <b>Статистика збору:</b>"]
 
+    # Count pending manual releases
+    pending_count = 0
+    try:
+        from services.manual_releases import load_manual_releases
+        all_manual = load_manual_releases()
+        pending_count = sum(1 for e in all_manual if not e.get('processed', False))
+    except Exception as e:
+        logger.error(f"Error counting pending manual releases for stats: {e}")
+
     # Manual releases
-    emoji_manual = "📌" if manual_count > 0 else "➖"
-    lines.append(f"{emoji_manual} Ручні релізи: додано {manual_count}")
+    emoji_manual = "📌" if (manual_count > 0 or pending_count > 0) else "➖"
+    lines.append(f"{emoji_manual} Ручні релізи: додано {manual_count} (в черзі: {pending_count})")
 
     # Homebrew sources
     try:

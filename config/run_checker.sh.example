@@ -49,6 +49,15 @@ fi
 # Parse command
 COMMAND="${1:-rt}"
 
+# Download state from Gist for operational commands
+case "$COMMAND" in
+    rt|rutracker|hb|homebrew|digest|daily-digest|hb-digest|homebrew-digest|swuk|switch-ua|swuk-digest|switch-ua-digest|all)
+        echo "=== Downloading state from Gist ==="
+        python sync_gist_state.py download
+        ;;
+esac
+
+# Execute the actual command
 case "$COMMAND" in
     rt|rutracker)
         echo "=== Running RuTracker checker ==="
@@ -116,4 +125,15 @@ case "$COMMAND" in
         ;;
 esac
 
-exit 0
+# Save exit code of the executed command
+EXIT_CODE=$?
+
+# Upload state to Gist for operational commands
+case "$COMMAND" in
+    rt|rutracker|hb|homebrew|digest|daily-digest|hb-digest|homebrew-digest|swuk|switch-ua|swuk-digest|switch-ua-digest|all)
+        echo "=== Uploading state to Gist ==="
+        python sync_gist_state.py upload
+        ;;
+esac
+
+exit $EXIT_CODE
