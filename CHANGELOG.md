@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.39] - 2026-07-15
+
+### Fixed
+- **Manual Releases Separation**: Modified `process_manual_releases` to support filtering by type (`game` or `homebrew`). Updated `send_daily_digest.py` and `send_homebrew_digest.py` to only process manual releases of their respective types. This prevents the two digests from blocking each other and ensures that up to 5 releases of each type are correctly processed per run.
+
 ## [v0.6.38] - 2026-07-15
 
 ### Fixed

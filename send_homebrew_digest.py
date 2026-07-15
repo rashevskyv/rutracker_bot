@@ -116,7 +116,7 @@ async def send_digest():
     logger.info(f"Homebrew digest period: {last_run_time} to {current_time}")
 
     # Process manual releases before sending digest
-    manual_count = process_manual_releases()
+    manual_count = process_manual_releases(release_type='homebrew')
     if manual_count > 0:
         logger.info(f"Added {manual_count} manual releases to digest")
 

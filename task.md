@@ -22,7 +22,14 @@
 
 - [x] Реалізувати логіку злиття JSON-файлів у `sync_gist_state.py`
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.37
-- [x] Закомітити та завантажити зміни до GitHub
 - [x] Оновити `walkthrough.md`
+
+## Розділення обробки ручних релізів (v0.6.39)
+
+- [x] Додати параметр `release_type` у `process_manual_releases` у `services/manual_releases.py`
+- [x] Вказати відповідний тип при виклику у `send_daily_digest.py` та `send_homebrew_digest.py`
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.39
+- [/] Закомітити та завантажити зміни до GitHub
+- [ ] Оновити `walkthrough.md` та виконати безпечну синхронізацію Gist із новими ручними релізами
 
 
