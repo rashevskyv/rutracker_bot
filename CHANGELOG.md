@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.40] - 2026-07-15
+
+### Fixed
+- **Documentation**: Finalized and checked off checklist tasks for manual release split implementation.
+
 ## [v0.6.39] - 2026-07-15
 
 ### Fixed

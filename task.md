@@ -29,7 +29,7 @@
 - [x] Додати параметр `release_type` у `process_manual_releases` у `services/manual_releases.py`
 - [x] Вказати відповідний тип при виклику у `send_daily_digest.py` та `send_homebrew_digest.py`
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.39
-- [/] Закомітити та завантажити зміни до GitHub
-- [ ] Оновити `walkthrough.md` та виконати безпечну синхронізацію Gist із новими ручними релізами
+- [x] Закомітити та завантажити зміни до GitHub
+- [x] Оновити `walkthrough.md` та виконати безпечну синхронізацію Gist із новими ручними релізами
 
 
