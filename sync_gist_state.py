@@ -196,8 +196,8 @@ def upload_state(gist_id: str, token: str):
                 if filename.endswith('.json'):
                     final_content = merge_json_files(filename, local_content, gist_content)
                 else:
-                    # For non-JSON files, prefer Gist version (from the server)
-                    final_content = gist_content
+                    # For non-JSON files (like last_entry.txt), prefer local version to update the server
+                    final_content = local_content
                 
                 # Write the merged content back to the local file to keep it synced
                 with open(filepath, "w", encoding="utf-8") as f:

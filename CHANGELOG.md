@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.42] - 2026-07-15
+
+### Fixed
+- **Gist Sync for Non-JSON Files**: Fixed a bug in `sync_gist_state.py` upload logic where non-JSON files (specifically `last_entry.txt`) were being overwritten by the Gist (server) version instead of using the updated local version. This caused `last_entry.txt` to get stuck on an outdated link, leading the bot to process the entire feed as new and re-post previously sent game updates.
+
 ## [v0.6.41] - 2026-07-15
 
 ### Added
