@@ -51,13 +51,16 @@ def _parse_timestamp(entry: Dict) -> datetime:
     return datetime.now()
 
 
-def process_manual_releases() -> int:
+def process_manual_releases(release_type: str = None) -> int:
     """
     Process all manual releases and add them to appropriate digests.
 
     Supports two field naming conventions:
       Game:     title/app_name, url/release_url, size, language, genres, etc.
       Homebrew: app_name, version, release_url, description, platform, is_new
+
+    Args:
+        release_type: 'game' or 'homebrew' to process only that type. If None, processes all.
 
     Returns:
         Number of entries processed successfully
@@ -72,8 +75,12 @@ def process_manual_releases() -> int:
         if entry.get('processed'):
             continue
 
+        entry_type = entry.get('type', '').lower()
+        if release_type and entry_type != release_type:
+            continue
+
         if processed >= 5:
-            logger.info("Reached limit of 5 manual releases per run. Stopping manual releases processing.")
+            logger.info(f"Reached limit of 5 manual releases per run ({release_type or 'all'}). Stopping manual releases processing.")
             break
 
         entry_type = entry.get('type', '').lower()
