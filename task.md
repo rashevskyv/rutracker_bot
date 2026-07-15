@@ -42,4 +42,10 @@
 - [x] Закомітити та завантажити зміни до GitHub
 - [x] Оновити `walkthrough.md`
 
+## Виправлення застрягання last_entry.txt (v0.6.42)
 
+- [x] Виправити логіку обробки не-JSON файлів при `upload` у `sync_gist_state.py`
+- [x] Оновити локальний `data/last_entry.txt` найновішим лінком із `posted_links.json`
+- [x] Запустити `python sync_gist_state.py upload` та переконатися, що в Gist записано коректне посилання
+- [x] Додати інформацію про зміни до `CHANGELOG.md` та оновити `walkthrough.md`
+- [x] Закомітити зміни локально з версією v0.6.42
