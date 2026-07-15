@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.37] - 2026-07-15
+
+### Added
+- **Safe Gist Sync Merging**: Updated `sync_gist_state.py` upload logic. Before updating the Gist, it now downloads the current Gist data and performs a field-level and entry-level merge of JSON state files (like `manual_releases.json`, `posted_links.json`, `daily_digest_data.json`, `hb_state.json`) rather than blindly overwriting. This prevents local upload commands from erasing changes made on the production server or by direct Gist edits.
+
 ## [v0.6.36] - 2026-07-15
 
 ### Fixed

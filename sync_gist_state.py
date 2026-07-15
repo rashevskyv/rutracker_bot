@@ -63,20 +63,152 @@ def download_state(gist_id: str, token: str):
         logger.error(f"Error downloading state: {e}")
         raise
 
+def merge_json_files(filename: str, local_content: str, gist_content: str) -> str:
+    """Safely merges local and Gist contents for JSON files to prevent data loss."""
+    try:
+        local_data = json.loads(local_content)
+        gist_data = json.loads(gist_content)
+    except Exception as e:
+        logger.error(f"Error parsing JSON for merge ({filename}): {e}. Keeping local version.")
+        return local_content
+
+    if filename == "manual_releases.json":
+        if not isinstance(local_data, list): local_data = []
+        if not isinstance(gist_data, list): gist_data = []
+        
+        # Helper to get a unique key for manual release
+        def get_release_key(e):
+            url = e.get('url') or e.get('release_url') or ""
+            name = e.get('title') or e.get('app_name') or ""
+            version = e.get('version') or ""
+            return (url.strip(), name.strip().lower(), version.strip().lower())
+
+        gist_by_key = {get_release_key(e): e for e in gist_data}
+        merged_list = list(gist_data)  # Start with gist list to preserve server order
+        
+        for local_entry in local_data:
+            key = get_release_key(local_entry)
+            if key not in gist_by_key:
+                merged_list.append(local_entry)
+            else:
+                gist_entry = gist_by_key[key]
+                # If either has been marked processed, preserve the processed status
+                if local_entry.get('processed') or gist_entry.get('processed'):
+                    gist_entry['processed'] = True
+                # Merge other fields
+                for k, v in local_entry.items():
+                    if k not in gist_entry or gist_entry[k] is None:
+                        gist_entry[k] = v
+        return json.dumps(merged_list, ensure_ascii=False, indent=2)
+
+    elif filename == "posted_links.json":
+        if not isinstance(local_data, dict): local_data = {}
+        if not isinstance(gist_data, dict): gist_data = {}
+        merged_dict = dict(gist_data)
+        for k, v in local_data.items():
+            if k not in merged_dict or v > merged_dict[k]:
+                merged_dict[k] = v
+        return json.dumps(merged_dict, ensure_ascii=False, indent=2)
+
+    elif filename in ("daily_digest_data.json", "homebrew_digest_data.json"):
+        if not isinstance(local_data, dict) or "entries" not in local_data: local_data = {"entries": []}
+        if not isinstance(gist_data, dict) or "entries" not in gist_data: gist_data = {"entries": []}
+        
+        def get_entry_key(e):
+            if filename == "daily_digest_data.json":
+                return (e.get('url', '').strip(), e.get('is_updated', False))
+            else:
+                return e.get('release_url', '').strip() or (e.get('app_name', '').strip().lower(), e.get('version', '').strip().lower())
+        
+        gist_by_key = {get_entry_key(e): e for e in gist_data["entries"]}
+        merged_entries = list(gist_data["entries"])
+        
+        for local_entry in local_data["entries"]:
+            key = get_entry_key(local_entry)
+            if key not in gist_by_key:
+                merged_entries.append(local_entry)
+            else:
+                gist_entry = gist_by_key[key]
+                local_time = local_entry.get('timestamp', '')
+                gist_time = gist_entry.get('timestamp', '')
+                if local_time > gist_time:
+                    idx = merged_entries.index(gist_entry)
+                    merged_entries[idx] = local_entry
+        return json.dumps({"entries": merged_entries}, ensure_ascii=False, indent=2)
+
+    elif filename in ("last_digest_run.json", "last_homebrew_digest_run.json"):
+        if not isinstance(local_data, dict): local_data = {}
+        if not isinstance(gist_data, dict): gist_data = {}
+        local_time = local_data.get("last_digest_time", "")
+        gist_time = gist_data.get("last_digest_time", "")
+        if local_time > gist_time:
+            return json.dumps(local_data, ensure_ascii=False, indent=2)
+        else:
+            return json.dumps(gist_data, ensure_ascii=False, indent=2)
+
+    elif filename == "hb_state.json":
+        if not isinstance(local_data, dict): local_data = {}
+        if not isinstance(gist_data, dict): gist_data = {}
+        merged_state = dict(gist_data)
+        for k, v in local_data.items():
+            if k not in merged_state:
+                merged_state[k] = v
+            else:
+                gist_v = merged_state[k]
+                local_ver = v.get("version", "")
+                gist_ver = gist_v.get("version", "")
+                local_upd = v.get("updated") or v.get("date", "")
+                gist_upd = gist_v.get("updated") or gist_v.get("date", "")
+                if local_upd > gist_upd or local_ver > gist_ver:
+                    merged_state[k] = v
+        return json.dumps(merged_state, ensure_ascii=False, indent=2)
+
+    return gist_content if gist_content.strip() else local_content
+
+
 def upload_state(gist_id: str, token: str):
     logger.info(f"Uploading state to Gist {gist_id}...")
+    
+    # 1. Download current Gist content first to perform a safe merge
+    gist_files = {}
+    try:
+        url = f"https://api.github.com/gists/{gist_id}"
+        req = urllib.request.Request(url, headers=get_gist_headers(token))
+        with urllib.request.urlopen(req) as response:
+            gist_data = json.loads(response.read().decode())
+            gist_files = gist_data.get("files", {})
+        logger.info("Successfully fetched current Gist state for merging.")
+    except Exception as e:
+        logger.warning(f"Could not download Gist content before upload, skipping merge: {e}")
     
     files_payload = {}
     for filename in FILES_TO_SYNC:
         filepath = os.path.join(DATA_DIR, filename)
         if os.path.exists(filepath):
             with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-                if content.strip():
-                    files_payload[filename] = {"content": content}
+                local_content = f.read()
+                
+            gist_file = gist_files.get(filename, {})
+            gist_content = gist_file.get("content", "")
+            
+            # Merge logic if both Gist and local have content
+            if gist_content.strip() and gist_content.strip() not in ("empty", "{}") and local_content.strip():
+                if filename.endswith('.json'):
+                    final_content = merge_json_files(filename, local_content, gist_content)
                 else:
-                    # Gist doesn't accept completely empty files, provide placeholder
-                    files_payload[filename] = {"content": "{}" if filename.endswith('.json') else "empty"}
+                    # For non-JSON files, prefer Gist version (from the server)
+                    final_content = gist_content
+                
+                # Write the merged content back to the local file to keep it synced
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(final_content)
+            else:
+                final_content = local_content
+                
+            if final_content.strip():
+                files_payload[filename] = {"content": final_content}
+            else:
+                files_payload[filename] = {"content": "{}" if filename.endswith('.json') else "empty"}
             logger.info(f"Prepared {filename} for upload.")
         else:
             logger.warning(f"File {filename} not found locally, skipping.")
