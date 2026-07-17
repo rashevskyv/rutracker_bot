@@ -229,7 +229,8 @@ def main():
             "release_url": release_url,
             "description": ai_res.get("description") or f"Порт гри для Nintendo Switch.",
             "is_new": True,
-            "date": pub_date
+            "date": pub_date,
+            "processed": False
         }
 
         manual_releases.append(new_entry)
