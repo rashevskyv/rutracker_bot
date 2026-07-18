@@ -60,3 +60,12 @@
 - [x] Оновити `walkthrough.md` та `plan.md`
 - [x] Закомітити зміни та додати git-тег v0.6.43
 
+## Додавання нового ручного релізу (v0.6.44)
+
+- [x] Завантажити найновіший стан бази даних з Gist за допомогою `python sync_gist_state.py download`
+- [x] Додати новий запис для `th06-switch` (автор Swiizyu) у файл `data/manual_releases.json` з прапорцем `"processed": false`
+- [x] Завантажити оновлену базу даних в Gist за допомогою `python sync_gist_state.py upload`
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.44
+- [x] Оновити `walkthrough.md` та `plan.md`
+- [x] Закомітити зміни та додати git-тег v0.6.44
+
