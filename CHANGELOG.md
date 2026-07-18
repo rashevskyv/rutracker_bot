@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.44] - 2026-07-18
+
+### Added
+- **Manual Release**: Added native Nintendo Switch homebrew port of `th06-switch` (Touhou 6: Embodiment of Scarlet Devil) by Swiizyu to the manual releases list.
+
 ## [v0.6.43] - 2026-07-17
 
 ### Fixed
