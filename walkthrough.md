@@ -1,18 +1,22 @@
-# Результати виконання — Додавання нових ручних релізів (v0.6.45)
+# Результати виконання — Рефакторинг колектора репозиторіїв та додавання автора ChanseyIsTheBest (v0.6.46)
 
-Усі заплановані дії з додавання 3 нових ручних релізів від автора `ChanseyIsTheBest` було успішно виконано локально, а оновлені файли завантажено на GitHub та Gist.
+Усі заплановані дії з рефакторингу колектора репозиторіїв, додавання автора `ChanseyIsTheBest` та перейменування скриптів було успішно виконано локально, а оновлені файли завантажено на GitHub та Gist.
 
-## Зміни, що були внесені (v0.6.45)
+## Зміни, що були внесені (v0.6.46)
 
-### 1. Актуалізація ручних релізів
-- Успішно запущено `python sync_gist_state.py download` для синхронізації локального середовища з хмарою Gist.
-- Додано 3 нові ручні релізи:
-  * **Zookeeper DX NX (ChanseyIsTheBest)** (версія: `release2`) — порт гри ZOOKEEPER DX для Nintendo Switch.
-  * **Bad Piggies NX (ChanseyIsTheBest)** (версія: `release2`) — порт гри Bad Piggies для Nintendo Switch.
-  * **PvZ Fusion EN NX (ChanseyIsTheBest)** (версія: `1.0.0`) — порт англійської версії гри Plants vs Zombies Fusion 3.61 для Nintendo Switch.
-  * Усі нові релізи додано у файл `data/manual_releases.json` із прапорцем `"processed": false`.
-- Оновлений файл бази даних успішно вивантажено у хмару Gist за допомогою команди `python sync_gist_state.py upload`.
+### 1. Рефакторинг колектора та batch-файлу
+- Файл `collect_nagaa_releases.py` було перейменовано на `collect_custom_releases.py` та розширено підтримку списку авторів:
+  * `NaGaa95`
+  * `ChanseyIsTheBest`
+- Файл `run_nagaa_collector.bat` перейменовано на `run_custom_collector.bat` з оновленою назвою та викликом `python collect_custom_releases.py`.
+- Запущено `collect_custom_releases.py`, який автоматично знайшов та витягнув 5 нових Switch-портів автора `ChanseyIsTheBest`:
+  * **Angrybirdsclassic (ChanseyIsTheBest)** (`release1`)
+  * **Colorsheep (ChanseyIsTheBest)** (`release1`)
+  * **Burgershop (ChanseyIsTheBest)** (`release1`)
+  * **Btd5 (ChanseyIsTheBest)** (`release1`)
+  * **Burgershop2 (ChanseyIsTheBest)** (`release1`)
+- Оновлений файл `data/manual_releases.json` із новими записами та `"processed": false` було успішно синхронізовано з хмарою Gist.
 
 ### 2. Версіонування та документація
-- Версію програми оновлено до `v0.6.45` у файлах `CHANGELOG.md`, `task.md` та `plan.md`.
+- Версію програми оновлено до `v0.6.46` у файлах `CHANGELOG.md`, `task.md` та `plan.md`.
 - Суть змін детально задокументована у цьому файлі `walkthrough.md`.

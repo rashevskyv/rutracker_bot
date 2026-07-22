@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.46] - 2026-07-22
+
+### Added
+- **Multi-Author Repository Collector**: Refactored `collect_nagaa_releases.py` into `collect_custom_releases.py` and renamed batch script to `run_custom_collector.bat`. Added support for tracking multiple GitHub authors (`NaGaa95`, `ChanseyIsTheBest`).
+- **Manual Releases**: Automatically collected 5 new Switch ports by `ChanseyIsTheBest` (`Colorsheep`, `Angry Birds Classic`, `Burger Shop`, `Burger Shop 2`, `Bloons TD 5`) into `manual_releases.json` and synchronized state with Gist.
+
 ## [v0.6.45] - 2026-07-22
 
 ### Added
