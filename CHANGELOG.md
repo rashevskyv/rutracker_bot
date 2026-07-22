@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.45] - 2026-07-22
+
+### Added
+- **Manual Releases**: Added 3 new homebrew ports by `ChanseyIsTheBest` to the manual releases registry:
+  - `Zookeeper DX NX` (release2) — ZOOKEEPER DX port for Nintendo Switch.
+  - `Bad Piggies NX` (release2) — Bad Piggies port for Nintendo Switch.
+  - `PvZ Fusion EN NX` (1.0.0) — English Plants vs Zombies Fusion 3.61 port for Nintendo Switch.
+- **Gist State Synchronization**: Synchronized latest database state from Gist and uploaded updated `manual_releases.json`.
+
 ## [v0.6.44] - 2026-07-18
 
 ### Added
