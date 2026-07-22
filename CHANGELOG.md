@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.47] - 2026-07-22
+
+### Fixed
+- **Homebrew Collector Update Tracking for Manual Releases**: Updated `load_homebrew_list` in `collect_homebrew_updates.py` to automatically include all processed homebrew entries from `manual_releases.json` (`processed: true`) into the update checking pipeline. Previously, processed manual releases were never checked for subsequent GitHub/GitLab updates. Now, when an existing manual release app receives a new release/tag on GitHub, the collector detects the update, sets `is_new: false` (marking it as an update, not a new release), posts the update note, and updates both `hb_state.json` and `manual_releases.json`.
+
 ## [v0.6.46] - 2026-07-22
 
 ### Added

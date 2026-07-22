@@ -242,19 +242,17 @@ class HomebrewUpdatesCollector:
             logger.error(f"Error saving VitaDB state: {e}")
 
     def load_homebrew_list(self) -> List[Dict]:
-        """Load static registry and merge with dynamic state"""
+        """Load static registry and merge with dynamic state and processed manual releases"""
         logger.info(f"Loading homebrew registry from {self.list_path}")
 
-        if not self.list_path.exists():
-            logger.error(f"Registry file not found: {self.list_path}")
-            return []
-
-        try:
-            with open(self.list_path, 'r', encoding='utf-8') as f:
-                entries = json.load(f)
-        except Exception as e:
-            logger.error(f"Error loading homebrew registry: {e}")
-            return []
+        entries = []
+        if self.list_path.exists():
+            try:
+                with open(self.list_path, 'r', encoding='utf-8') as f:
+                    entries = json.load(f)
+            except Exception as e:
+                logger.error(f"Error loading homebrew registry: {e}")
+                entries = []
 
         # Load and merge dynamic state
         self._state = self.load_state()
@@ -272,7 +270,84 @@ class HomebrewUpdatesCollector:
                 entry.setdefault('tag_name', '')
                 entry.setdefault('html_url', '')
 
-        logger.info(f"Loaded {len(entries)} homebrew entries (merged with state)")
+        # Load processed manual releases to also check them for future updates
+        try:
+            from services.manual_releases import load_manual_releases
+            manual_releases = load_manual_releases()
+
+            existing_api_urls = {
+                e.get('api_url', '').lower().rstrip('/')
+                for e in entries if e.get('api_url')
+            }
+            existing_names = {
+                e.get('app_name', '').lower().replace('-', ' ').replace('_', ' ').strip()
+                for e in entries if e.get('app_name')
+            }
+
+            manual_added = 0
+            for m in manual_releases:
+                if m.get('type', '').lower() != 'homebrew':
+                    continue
+                if not m.get('processed'):
+                    continue
+
+                rel_url = m.get('release_url') or m.get('url') or ''
+                api_url = m.get('api_url', '')
+                if not api_url and 'github.com' in rel_url:
+                    gh_slug = self._extract_github_slug(rel_url)
+                    if gh_slug:
+                        api_url = f"https://api.github.com/repos/{gh_slug}"
+
+                if not api_url:
+                    continue
+
+                api_url_clean = api_url.lower().rstrip('/')
+                if api_url_clean in existing_api_urls:
+                    continue
+
+                app_name = m.get('app_name') or m.get('title') or 'Unknown'
+                app_name_clean = app_name.lower().replace('-', ' ').replace('_', ' ').strip()
+                if app_name_clean in existing_names:
+                    continue
+
+                comm_date = m.get('date', '2024-01-01T00:00:00Z')
+                tag_name = m.get('version', '')
+
+                if api_url in self._state:
+                    state_data = self._state[api_url]
+                    comm_date = state_data.get('comm_date', comm_date)
+                    tag_name = state_data.get('tag_name', tag_name)
+                    rel_url = state_data.get('html_url', rel_url)
+                else:
+                    self._state[api_url] = {
+                        'comm_date': comm_date,
+                        'tag_name': tag_name,
+                        'html_url': rel_url
+                    }
+
+                manual_entry = {
+                    'app_name': app_name,
+                    'api_url': api_url,
+                    'platform': m.get('platform', 'Switch'),
+                    'description': m.get('description', ''),
+                    'new': False,
+                    'comm_date': comm_date,
+                    'tag_name': tag_name,
+                    'html_url': rel_url,
+                    'from_manual': True
+                }
+
+                entries.append(manual_entry)
+                existing_api_urls.add(api_url_clean)
+                existing_names.add(app_name_clean)
+                manual_added += 1
+
+            if manual_added > 0:
+                logger.info(f"Loaded {manual_added} processed manual release entries into update check list")
+        except Exception as e:
+            logger.error(f"Error loading processed manual releases into collector: {e}")
+
+        logger.info(f"Loaded {len(entries)} total homebrew entries (merged with state & manual releases)")
         return entries
 
     @staticmethod
@@ -636,6 +711,28 @@ class HomebrewUpdatesCollector:
             'tag_name': update_info['tag_name'],
             'html_url': update_info['html_url']
         }
+
+        if entry.get('from_manual'):
+            try:
+                from services.manual_releases import load_manual_releases, MANUAL_RELEASES_FILE
+                m_entries = load_manual_releases()
+                updated_m = False
+                target_slug = self._extract_github_slug(api_url)
+                for me in m_entries:
+                    m_rel_url = me.get('release_url') or me.get('url') or ''
+                    m_slug = self._extract_github_slug(m_rel_url)
+                    if (target_slug and m_slug and target_slug.lower() == m_slug.lower()) or (api_url in m_rel_url):
+                        me['version'] = update_info['tag_name']
+                        me['release_url'] = update_info['html_url']
+                        me['date'] = update_info['date']
+                        updated_m = True
+                        break
+                if updated_m:
+                    with open(MANUAL_RELEASES_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(m_entries, f, ensure_ascii=False, indent=2)
+                    logger.info(f"Updated manual_releases.json entry for {app_name} to version {update_info['tag_name']}")
+            except Exception as e:
+                logger.error(f"Error updating manual_releases.json for {app_name}: {e}")
 
         return True
 
