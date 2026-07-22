@@ -77,3 +77,13 @@
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.45
 - [x] Оновити `walkthrough.md` та `plan.md`
 - [x] Закомітити зміни та додати git-тег v0.6.45
+
+## Рефакторинг колектора та додавання автора ChanseyIsTheBest (v0.6.46)
+
+- [x] Перейменувати `collect_nagaa_releases.py` в `collect_custom_releases.py` та додати підтримку декількох авторів (`NaGaa95`, `ChanseyIsTheBest`)
+- [x] Перейменувати `run_nagaa_collector.bat` в `run_custom_collector.bat` та оновити скрипт запуску
+- [x] Запустити новий колектор та перевірити автозбір 5 нових релізів `ChanseyIsTheBest` (`Colorsheep`, `Angry Birds Classic`, `Burger Shop`, `Burger Shop 2`, `Bloons TD 5`)
+- [x] Завантажити оновлений `manual_releases.json` у Gist
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.46
+- [x] Оновити `walkthrough.md` та `plan.md`
+- [x] Закомітити зміни та додати git-тег v0.6.46
