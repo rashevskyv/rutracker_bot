@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.53] - 2026-07-23
+
+### Fixed
+- **Conditional Gist Upload Optimization**: Restored conditional `run_gist_sync("upload")` inside `if total_added_count > 0:` in `collect_custom_releases.py`. Since the script starts with `run_gist_sync("download")`, performing an upload when no new releases were generated is unnecessary and avoids superfluous Gist API calls.
+
 ## [v0.6.52] - 2026-07-23
 
 ### Fixed

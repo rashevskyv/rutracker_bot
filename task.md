@@ -137,6 +137,14 @@
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.52
 - [x] Оновити `walkthrough.md` та `task.md`
 
+## Повернення умовного Upload лише за наявності нових релізів (v0.6.53)
+
+- [x] Повернути виклик `run_gist_sync("upload")` всередину умови `if total_added_count > 0:`
+- [x] Протестувати завантаження стану Gist локально (`python sync_gist_state.py download`)
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.53
+- [x] Оновити `walkthrough.md` та `task.md`
+
+
 
 
 
