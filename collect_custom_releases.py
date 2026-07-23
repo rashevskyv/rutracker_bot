@@ -11,13 +11,7 @@ from openai import OpenAI
 DATA_DIR = "data"
 MANUAL_RELEASES_FILE = os.path.join(DATA_DIR, "manual_releases.json")
 TARGET_USERS = ["NaGaa95", "ChanseyIsTheBest"]
-MAX_RELEASE_AGE_DAYS = 3  # Only collect releases from the last 3 days (recent/new)
-
-EXCLUDE_KEYWORDS = [
-    "kernel", "nvgpu", "dtb", "l4t", "firmware", "hekate", "atmosphere", 
-    "payload", "android", "linux", "driver", "cheat", "database", "patch", 
-    "config", "bootloader", "sysmodule", "overlay", "module", "loader", "sdk"
-]
+MAX_RELEASE_AGE_DAYS = 2  # Collect releases published starting from yesterday (within last 48 hours)
 
 def run_gist_sync(action: str) -> bool:
     """Runs the sync_gist_state.py script to download or upload state."""
@@ -87,16 +81,8 @@ def is_already_added(manual_entries: list, repo_url: str, repo_name: str) -> boo
             
     return False
 
-def is_system_or_kernel_component(repo_name: str, repo_desc: str) -> bool:
-    """Returns True if the repo is a kernel, DTB, firmware, or non-game system component."""
-    combined = f"{repo_name} {repo_desc or ''}".lower()
-    for kw in EXCLUDE_KEYWORDS:
-        if kw in combined:
-            return True
-    return False
-
-def is_release_recent(pub_date_str: str, max_days: int = MAX_RELEASE_AGE_DAYS) -> bool:
-    """Checks if the release date is within the max allowed age in days."""
+def is_release_since_yesterday(pub_date_str: str, max_days: int = MAX_RELEASE_AGE_DAYS) -> bool:
+    """Checks if the release was published starting from yesterday (within last ~48 hours)."""
     if not pub_date_str:
         return False
     try:
@@ -106,30 +92,27 @@ def is_release_recent(pub_date_str: str, max_days: int = MAX_RELEASE_AGE_DAYS) -
             pub_dt = pub_dt.replace(tzinfo=timezone.utc)
         
         now = datetime.now(timezone.utc)
-        age = now - pub_dt
-        return age <= timedelta(days=max_days)
+        cutoff = now - timedelta(days=max_days)
+        return pub_dt >= cutoff
     except Exception as e:
         print(f"Warning: Could not parse release date '{pub_date_str}': {e}")
-        return True
+        return False
 
 def analyze_repo_with_gemini(repo_name: str, repo_desc: str, topics: list, username: str = "author") -> dict:
-    """Calls local Gemini Web2API (or OpenAI API) to analyze if a repo is a Switch game port and translate details."""
+    """Calls Gemini Web2API (or OpenAI API) to format app name and description in Ukrainian."""
     prompt = f"""
-Analyze the following GitHub repository of user '{username}' to determine if it is specifically a playable GAME or a GAME PORT for the Nintendo Switch console.
+Analyze the following new GitHub repository of user '{username}' for Nintendo Switch.
 
 Repo Name: {repo_name}
 Description: {repo_desc or "No description provided."}
 Topics: {", ".join(topics) if topics else "None"}
 
-CRITICAL CLASSIFICATION RULES:
-1. Set 'is_switch_game' to true ONLY if this repository is a playable GAME or a GAME PORT (e.g. Android/PC/retro game ported to Nintendo Switch).
-2. Set 'is_switch_game' to false if it is a kernel, Linux/L4T component, DTB file, firmware, driver, system tool, bootloader, payload, cheat database, sysmodule, overlay, emulator, or non-game utility.
-3. Formulate a short, punchy description of the game/game port in Ukrainian (max 1-2 sentences). Example: 'Порт гри [Name] для Nintendo Switch.'
-4. Clean the app name (remove suffixes like '-NX', '_nx', '-switch', or similar).
+Generate details for a Telegram release post:
+1. Formulate a short, punchy description of this release in Ukrainian (max 1-2 sentences). Example: 'Новий реліз [Name] для Nintendo Switch.'
+2. Clean the app name (remove suffixes like '-NX', '_nx', '-switch', or similar).
 
 Respond ONLY with a raw JSON object containing these keys:
 {{
-  "is_switch_game": true/false,
   "app_name": "...",
   "description": "...",
   "platform": "Switch"
@@ -154,9 +137,7 @@ Respond ONLY with a raw JSON object containing these keys:
             match = re.search(r'(\{.*\})', content, re.DOTALL)
             if match:
                 content = match.group(1)
-            res = json.loads(content)
-            res["is_switch_related"] = res.get("is_switch_game", False)
-            return res
+            return json.loads(content)
     except Exception as e:
         print(f"Warning: Local Gemini Web2API call failed for {repo_name}: {e}. Trying OpenAI API fallback...")
 
@@ -178,21 +159,15 @@ Respond ONLY with a raw JSON object containing these keys:
                 match = re.search(r'(\{.*\})', content, re.DOTALL)
                 if match:
                     content = match.group(1)
-                res = json.loads(content)
-                res["is_switch_related"] = res.get("is_switch_game", False)
-                return res
+                return json.loads(content)
     except Exception as e:
-        print(f"Warning: OpenAI API fallback failed for {repo_name}: {e}. Using keywords.")
+        print(f"Warning: OpenAI API fallback failed for {repo_name}: {e}. Using fallback format.")
 
-    # 3. Keyword fallback
-    desc_lower = (repo_desc or "").lower()
-    name_lower = repo_name.lower()
-    is_game = any(x in name_lower or x in desc_lower for x in ["game", "port", "switch", "nx"]) and not is_system_or_kernel_component(repo_name, repo_desc)
-    
+    # 3. Fallback format
+    clean_name = repo_name.replace("-NX", "").replace("_nx", "").replace("-switch", "").replace("-", " ").title()
     return {
-        "is_switch_related": is_game,
-        "app_name": repo_name.replace("-NX", "").replace("_nx", "").replace("-switch", "").replace("-", " ").title(),
-        "description": f"Порт гри {repo_name} для Nintendo Switch." if is_game else "",
+        "app_name": clean_name,
+        "description": f"Новий реліз {clean_name} для Nintendo Switch.",
         "platform": "Switch"
     }
 
@@ -236,7 +211,7 @@ def main():
             print(f"No repositories found for {username} or error occurred.")
             continue
 
-        print(f"Analyzing {len(repos)} repositories for {username}...")
+        print(f"Checking {len(repos)} repositories for {username}...")
         user_added_count = 0
 
         for repo in repos:
@@ -246,10 +221,6 @@ def main():
             topics = repo.get("topics", [])
             
             if is_already_added(manual_releases, repo_url, repo_name):
-                continue
-
-            if is_system_or_kernel_component(repo_name, repo_desc):
-                print(f"-> Skipped {repo_name} (system/kernel component)")
                 continue
 
             release = fetch_latest_release(username, repo_name, github_token)
@@ -263,16 +234,13 @@ def main():
                 release_url = release.get("html_url") or release_url
                 pub_date = release.get("published_at") or pub_date
 
-            if not is_release_recent(pub_date, MAX_RELEASE_AGE_DAYS):
-                print(f"-> Skipped {repo_name} (release is older than {MAX_RELEASE_AGE_DAYS} days: {pub_date})")
+            if not is_release_since_yesterday(pub_date):
+                # Release is older than yesterday
                 continue
 
-            print(f"\nChecking game candidate: {repo_name} ({pub_date})...")
+            print(f"\nFound new release from yesterday/today: {repo_name} ({version}, date: {pub_date})...")
             
             ai_res = analyze_repo_with_gemini(repo_name, repo_desc, topics, username)
-            if not ai_res.get("is_switch_related"):
-                print(f"-> Skipped {repo_name} (not a Switch game/game port according to AI)")
-                continue
 
             new_entry = {
                 "type": "homebrew",
@@ -280,7 +248,7 @@ def main():
                 "app_name": f"{ai_res.get('app_name', repo_name)} ({username})",
                 "version": version,
                 "release_url": release_url,
-                "description": ai_res.get("description") or f"Порт гри для Nintendo Switch.",
+                "description": ai_res.get("description") or f"Новий реліз {repo_name} для Nintendo Switch.",
                 "is_new": True,
                 "date": pub_date,
                 "processed": False
@@ -289,9 +257,9 @@ def main():
             manual_releases.append(new_entry)
             user_added_count += 1
             total_added_count += 1
-            print(f"-> ADDED NEW GAME: {new_entry['app_name']} ({version}) - {new_entry['description']}")
+            print(f"-> ADDED NEW RELEASE: {new_entry['app_name']} ({version}) - {new_entry['description']}")
 
-        print(f"\nUser {username}: added {user_added_count} new game release(s).")
+        print(f"\nUser {username}: added {user_added_count} new release(s).")
 
     if total_added_count > 0:
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -305,7 +273,7 @@ def main():
         else:
             print("Gist upload failed. State remains local.")
     else:
-        print("\nNo new Switch game releases found.")
+        print("\nNo new releases found since yesterday.")
 
 if __name__ == "__main__":
     main()
