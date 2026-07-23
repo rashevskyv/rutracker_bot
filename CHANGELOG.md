@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.48] - 2026-07-23
+
+### Fixed
+- **Custom Collector API Fallback**: Refactored OpenAI/Gemini client initialization in `collect_custom_releases.py`. Added proper loading of settings from `core.settings_loader` (supporting `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and custom models). Configured `max_retries=0` and timeouts to ensure that if local/remote LLM endpoint is unreachable, the collector immediately falls back to keyword-based extraction without hanging or crashing with connection retries.
+
 ## [v0.6.47] - 2026-07-22
 
 ### Fixed

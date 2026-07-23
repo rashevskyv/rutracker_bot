@@ -81,7 +81,7 @@ def is_already_added(manual_entries: list, repo_url: str, repo_name: str) -> boo
     return False
 
 def analyze_repo_with_gemini(repo_name: str, repo_desc: str, topics: list, username: str = "author") -> dict:
-    """Calls local Gemini API to analyze if a repo is a Switch port and translate details."""
+    """Calls local Gemini API or OpenAI API to analyze if a repo is a Switch port and translate details."""
     prompt = f"""
 Analyze the following GitHub repository of user '{username}' to determine if it is a port of an Android/PC game or a homebrew application specifically for the Nintendo Switch console.
 
@@ -105,14 +105,26 @@ Respond ONLY with a raw JSON object containing these keys:
   "platform": "Switch"
 }}
 """
-    client = OpenAI(
-        api_key="dummy_key",
-        base_url="http://localhost:8081/v1"
-    )
+    model_name = "gemini-auto"
+    try:
+        from core.settings_loader import settings
+        base_url = settings.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+        api_key = settings.get("OPENAI_API_KEY") or settings.get("OPENAI_API") or os.environ.get("OPENAI_API_KEY")
+
+        if base_url:
+            client = OpenAI(api_key="dummy_key", base_url=base_url, max_retries=0, timeout=3.0)
+            model_name = settings.get("OPENAI_MODEL", "gemini-auto")
+        elif api_key:
+            client = OpenAI(api_key=api_key, max_retries=0, timeout=10.0)
+            model_name = settings.get("OPENAI_MODEL", "gpt-4o-mini")
+        else:
+            client = OpenAI(api_key="dummy_key", base_url="http://localhost:8081/v1", max_retries=0, timeout=3.0)
+    except Exception:
+        client = OpenAI(api_key="dummy_key", base_url="http://localhost:8081/v1", max_retries=0, timeout=3.0)
     
     try:
         response = client.chat.completions.create(
-            model="gemini-auto",
+            model=model_name,
             messages=[
                 {"role": "user", "content": prompt}
             ],
@@ -131,7 +143,7 @@ Respond ONLY with a raw JSON object containing these keys:
             
         return json.loads(content)
     except Exception as e:
-        print(f"Warning: Gemini API call failed for {repo_name}: {e}. Falling back to keywords.")
+        print(f"Warning: Gemini/OpenAI API call failed for {repo_name}: {e}. Falling back to keywords.")
         desc_lower = (repo_desc or "").lower()
         name_lower = repo_name.lower()
         is_switch = any(x in name_lower or x in desc_lower for x in ["switch", "nx", "hos", "nintendo"])
