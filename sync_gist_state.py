@@ -64,7 +64,7 @@ def download_state(gist_id: str, token: str):
         raise
 
 def merge_json_files(filename: str, local_content: str, gist_content: str) -> str:
-    """Safely merges local and Gist contents for JSON files to prevent data loss."""
+    """Safely merges local and Gist contents for JSON files to prevent data loss while respecting local edits."""
     try:
         local_data = json.loads(local_content)
         gist_data = json.loads(gist_content)
@@ -84,21 +84,21 @@ def merge_json_files(filename: str, local_content: str, gist_content: str) -> st
             return (url.strip(), name.strip().lower(), version.strip().lower())
 
         gist_by_key = {get_release_key(e): e for e in gist_data}
-        merged_list = list(gist_data)  # Start with gist list to preserve server order
         
+        # Base merged list on local_data so local deletions and edits are respected!
+        merged_list = []
         for local_entry in local_data:
             key = get_release_key(local_entry)
-            if key not in gist_by_key:
-                merged_list.append(local_entry)
-            else:
+            if key in gist_by_key:
                 gist_entry = gist_by_key[key]
-                # If either has been marked processed, preserve the processed status
+                merged_entry = dict(gist_entry)
+                merged_entry.update(local_entry)
                 if local_entry.get('processed') or gist_entry.get('processed'):
-                    gist_entry['processed'] = True
-                # Merge other fields
-                for k, v in local_entry.items():
-                    if k not in gist_entry or gist_entry[k] is None:
-                        gist_entry[k] = v
+                    merged_entry['processed'] = True
+                merged_list.append(merged_entry)
+            else:
+                merged_list.append(local_entry)
+                
         return json.dumps(merged_list, ensure_ascii=False, indent=2)
 
     elif filename == "posted_links.json":
@@ -166,20 +166,23 @@ def merge_json_files(filename: str, local_content: str, gist_content: str) -> st
     return gist_content if gist_content.strip() else local_content
 
 
-def upload_state(gist_id: str, token: str):
-    logger.info(f"Uploading state to Gist {gist_id}...")
+def upload_state(gist_id: str, token: str, force: bool = False):
+    logger.info(f"Uploading state to Gist {gist_id} (force={force})...")
     
-    # 1. Download current Gist content first to perform a safe merge
+    # 1. Download current Gist content first to perform a safe merge unless force is True
     gist_files = {}
-    try:
-        url = f"https://api.github.com/gists/{gist_id}"
-        req = urllib.request.Request(url, headers=get_gist_headers(token))
-        with urllib.request.urlopen(req) as response:
-            gist_data = json.loads(response.read().decode())
-            gist_files = gist_data.get("files", {})
-        logger.info("Successfully fetched current Gist state for merging.")
-    except Exception as e:
-        logger.warning(f"Could not download Gist content before upload, skipping merge: {e}")
+    if not force:
+        try:
+            url = f"https://api.github.com/gists/{gist_id}"
+            req = urllib.request.Request(url, headers=get_gist_headers(token))
+            with urllib.request.urlopen(req) as response:
+                gist_data = json.loads(response.read().decode())
+                gist_files = gist_data.get("files", {})
+            logger.info("Successfully fetched current Gist state for merging.")
+        except Exception as e:
+            logger.warning(f"Could not download Gist content before upload, skipping merge: {e}")
+    else:
+        logger.info("Force flag enabled: bypassing merge, uploading local files directly.")
     
     files_payload = {}
     for filename in FILES_TO_SYNC:
@@ -191,12 +194,11 @@ def upload_state(gist_id: str, token: str):
             gist_file = gist_files.get(filename, {})
             gist_content = gist_file.get("content", "")
             
-            # Merge logic if both Gist and local have content
-            if gist_content.strip() and gist_content.strip() not in ("empty", "{}") and local_content.strip():
+            # Merge logic if both Gist and local have content and force is False
+            if not force and gist_content.strip() and gist_content.strip() not in ("empty", "{}") and local_content.strip():
                 if filename.endswith('.json'):
                     final_content = merge_json_files(filename, local_content, gist_content)
                 else:
-                    # For non-JSON files (like last_entry.txt), prefer local version to update the server
                     final_content = local_content
                 
                 # Write the merged content back to the local file to keep it synced
@@ -238,6 +240,7 @@ def upload_state(gist_id: str, token: str):
 def main():
     parser = argparse.ArgumentParser(description="Synchronize bot state with GitHub Gist")
     parser.add_argument("action", choices=["download", "upload"], help="Action to perform")
+    parser.add_argument("-f", "--force", action="store_true", help="Force upload local files directly without merging")
     
     args = parser.parse_args()
     
@@ -259,7 +262,7 @@ def main():
     if args.action == "download":
         download_state(gist_id, token)
     elif args.action == "upload":
-        upload_state(gist_id, token)
+        upload_state(gist_id, token, force=args.force)
 
 if __name__ == "__main__":
     main()

@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.54] - 2026-07-23
+
+### Fixed
+- **Gist State Upload Local Edits & Deletions Preservation**: Fixed merge logic in `sync_gist_state.py` for `manual_releases.json`. Previously, `merge_json_files` iterated over server Gist content and re-added items deleted locally. Updated merge logic to base merged list on `local_data` to preserve local deletions and edits. Added `--force` (`-f`) flag to `sync_gist_state.py upload` to allow direct forced overwrite of Gist state with local files.
+
 ## [v0.6.53] - 2026-07-23
 
 ### Fixed

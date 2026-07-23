@@ -144,6 +144,15 @@
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.53
 - [x] Оновити `walkthrough.md` та `task.md`
 
+## Збереження локальних видалень та прапорець --force для Gist Sync (v0.6.54)
+
+- [x] Оновити логіку злиття `manual_releases.json` у `sync_gist_state.py` з орієнтацією на `local_data` для збереження локальних видалень
+- [x] Додати параметр `-f` / `--force` до команди `python sync_gist_state.py upload`
+- [x] Протестувати завантаження та вивантаження локальних змін у Gist
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.54
+- [x] Оновити `walkthrough.md` та `task.md`
+
+
 
 
 
