@@ -130,6 +130,14 @@
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.51
 - [x] Оновити `walkthrough.md` та `task.md`
 
+## Безумовний Upload у Gist при виконанні колектора (v0.6.52)
+
+- [x] Винести `run_gist_sync("upload")` за межі умови `total_added_count > 0` у `collect_custom_releases.py`
+- [x] Протестувати безумовне вивантаження в Gist при завершенні скрипту
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.52
+- [x] Оновити `walkthrough.md` та `task.md`
+
+
 
 
 
