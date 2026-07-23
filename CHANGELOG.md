@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.51] - 2026-07-23
+
+### Changed
+- **All Releases Starting From Yesterday**: Simplified `collect_custom_releases.py` to collect any new release published by target authors (`NaGaa95`, `ChanseyIsTheBest`) starting from yesterday (last 48 hours). Removed complex AI category filtering to guarantee every new release from the target authors is captured, using Gemini 3.5 Flash thinking to generate clean titles and Ukrainian descriptions.
+
 ## [v0.6.50] - 2026-07-23
 
 ### Fixed
