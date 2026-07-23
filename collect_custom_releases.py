@@ -81,7 +81,7 @@ def is_already_added(manual_entries: list, repo_url: str, repo_name: str) -> boo
     return False
 
 def analyze_repo_with_gemini(repo_name: str, repo_desc: str, topics: list, username: str = "author") -> dict:
-    """Calls local Gemini API or OpenAI API to analyze if a repo is a Switch port and translate details."""
+    """Calls local Gemini Web2API (or OpenAI API) to analyze if a repo is a Switch port and translate details."""
     prompt = f"""
 Analyze the following GitHub repository of user '{username}' to determine if it is a port of an Android/PC game or a homebrew application specifically for the Nintendo Switch console.
 
@@ -105,55 +105,62 @@ Respond ONLY with a raw JSON object containing these keys:
   "platform": "Switch"
 }}
 """
-    model_name = "gemini-auto"
+    # 1. Attempt Local Gemini Web2API (http://localhost:8081/v1) with gemini-3.5-flash-thinking
     try:
         from core.settings_loader import settings
-        base_url = settings.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-        api_key = settings.get("OPENAI_API_KEY") or settings.get("OPENAI_API") or os.environ.get("OPENAI_API_KEY")
-
-        if base_url:
-            client = OpenAI(api_key="dummy_key", base_url=base_url, max_retries=0, timeout=3.0)
-            model_name = settings.get("OPENAI_MODEL", "gemini-auto")
-        elif api_key:
-            client = OpenAI(api_key=api_key, max_retries=0, timeout=10.0)
-            model_name = settings.get("OPENAI_MODEL", "gpt-4o-mini")
-        else:
-            client = OpenAI(api_key="dummy_key", base_url="http://localhost:8081/v1", max_retries=0, timeout=3.0)
-    except Exception:
-        client = OpenAI(api_key="dummy_key", base_url="http://localhost:8081/v1", max_retries=0, timeout=3.0)
-    
-    try:
+        base_url = settings.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or "http://localhost:8081/v1"
+        client = OpenAI(api_key="dummy_key", base_url=base_url, max_retries=0, timeout=5.0)
+        model_name = settings.get("OPENAI_MODEL", "gemini-3.5-flash-thinking")
+        
         response = client.chat.completions.create(
             model=model_name,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "user", "content": prompt}],
             temperature=0.1
         )
         content = response.choices[0].message.content
-        if not content:
-            raise ValueError("Received empty content from Gemini API")
-            
-        content = content.strip()
-        
-        import re
-        match = re.search(r'(\{.*\})', content, re.DOTALL)
-        if match:
-            content = match.group(1)
-            
-        return json.loads(content)
+        if content:
+            content = content.strip()
+            import re
+            match = re.search(r'(\{.*\})', content, re.DOTALL)
+            if match:
+                content = match.group(1)
+            return json.loads(content)
     except Exception as e:
-        print(f"Warning: Gemini/OpenAI API call failed for {repo_name}: {e}. Falling back to keywords.")
-        desc_lower = (repo_desc or "").lower()
-        name_lower = repo_name.lower()
-        is_switch = any(x in name_lower or x in desc_lower for x in ["switch", "nx", "hos", "nintendo"])
-        
-        return {
-            "is_switch_related": is_switch,
-            "app_name": repo_name.replace("-NX", "").replace("_nx", "").replace("-switch", "").replace("-", " ").title(),
-            "description": f"Порт гри {repo_name} для Nintendo Switch." if is_switch else "",
-            "platform": "Switch"
-        }
+        print(f"Warning: Local Gemini Web2API call failed for {repo_name}: {e}. Trying OpenAI API fallback...")
+
+    # 2. Attempt OpenAI API fallback (if OPENAI_API_KEY is available)
+    try:
+        from core.settings_loader import settings
+        api_key = settings.get("OPENAI_API_KEY") or settings.get("OPENAI_API") or os.environ.get("OPENAI_API_KEY")
+        if api_key:
+            client = OpenAI(api_key=api_key, max_retries=0, timeout=10.0)
+            response = client.chat.completions.create(
+                model=settings.get("OPENAI_MODEL", "gpt-4o-mini"),
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1
+            )
+            content = response.choices[0].message.content
+            if content:
+                content = content.strip()
+                import re
+                match = re.search(r'(\{.*\})', content, re.DOTALL)
+                if match:
+                    content = match.group(1)
+                return json.loads(content)
+    except Exception as e:
+        print(f"Warning: OpenAI API fallback failed for {repo_name}: {e}. Using keywords.")
+
+    # 3. Keyword fallback
+    desc_lower = (repo_desc or "").lower()
+    name_lower = repo_name.lower()
+    is_switch = any(x in name_lower or x in desc_lower for x in ["switch", "nx", "hos", "nintendo"])
+    
+    return {
+        "is_switch_related": is_switch,
+        "app_name": repo_name.replace("-NX", "").replace("_nx", "").replace("-switch", "").replace("-", " ").title(),
+        "description": f"Порт гри {repo_name} для Nintendo Switch." if is_switch else "",
+        "platform": "Switch"
+    }
 
 def main():
     try:

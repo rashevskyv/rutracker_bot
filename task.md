@@ -106,3 +106,12 @@
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.48
 - [x] Оновити `walkthrough.md` та `task.md`
 
+## Інтеграція моделі gemini-3.5-flash-thinking (v0.6.49)
+
+- [x] Налаштувати першочерговий запит до `http://localhost:8081/v1` з моделлю `gemini-3.5-flash-thinking` у `collect_custom_releases.py`
+- [x] Налаштувати 3-рівневу систему фолбеків (Gemini Web2API -> OpenAI API -> Ключові слова)
+- [x] Протестувати виконання скрипту із запущеним Gemini Web2API
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.49
+- [x] Оновити `walkthrough.md` та `task.md`
+
+

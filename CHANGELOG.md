@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.49] - 2026-07-23
+
+### Changed
+- **Gemini Web2API Model Integration**: Updated `collect_custom_releases.py` to prioritize `http://localhost:8081/v1` with `gemini-3.5-flash-thinking` model for repo analysis and translation. Fallbacks gracefully to OpenAI API and keyword extraction if local proxy is offline.
+
 ## [v0.6.48] - 2026-07-23
 
 ### Fixed
