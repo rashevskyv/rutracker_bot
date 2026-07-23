@@ -267,13 +267,13 @@ def main():
             json.dump(manual_releases, f, ensure_ascii=False, indent=2)
             
         print(f"\nSuccessfully added {total_added_count} new manual releases locally.")
+        
+        if run_gist_sync("upload"):
+            print("Gist upload successful! All environments are in sync.")
+        else:
+            print("Gist upload failed. State remains local.")
     else:
         print("\nNo new releases found since yesterday.")
-
-    if run_gist_sync("upload"):
-        print("Gist upload successful! All environments are in sync.")
-    else:
-        print("Gist upload failed. State remains local.")
 
 if __name__ == "__main__":
     main()
