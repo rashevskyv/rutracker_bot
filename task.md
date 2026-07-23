@@ -114,4 +114,14 @@
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.49
 - [x] Оновити `walkthrough.md` та `task.md`
 
+## Строгий фільтр ігор та свіжості релізів (v0.6.50)
+
+- [x] Додати список виключень системних компонентів/ядер/прошивок (`EXCLUDE_KEYWORDS`)
+- [x] Додати фільтрацію за датою релізу (`MAX_RELEASE_AGE_DAYS = 3`) у `collect_custom_releases.py`
+- [x] Оновити промпт класифікації для Gemini 3.5 Flash thinking (`is_switch_game`)
+- [x] Очистити не-ігрові тести з `manual_releases.json` та синхронізувати стан з Gist
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.50
+- [x] Оновити `walkthrough.md` та `task.md`
+
+
 

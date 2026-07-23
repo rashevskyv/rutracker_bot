@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.50] - 2026-07-23
+
+### Fixed
+- **Strict Game & Recency Filtering in Custom Collector**: Updated `collect_custom_releases.py` to filter out non-game repositories (kernels, DTBs, firmwares, drivers, hekate/atmosphere patches, sysmodules, tools). Added release age limit (`MAX_RELEASE_AGE_DAYS = 3`) to ensure only fresh releases published within the last 3 days are collected. Cleaned up non-game test entries from `manual_releases.json` and synchronized state with Gist.
+
 ## [v0.6.49] - 2026-07-23
 
 ### Changed
