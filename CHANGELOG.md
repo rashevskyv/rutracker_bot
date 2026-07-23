@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.52] - 2026-07-23
+
+### Fixed
+- **Unconditional Gist Upload in Custom Collector**: Modified `collect_custom_releases.py` to always run `sync_gist_state.py upload` at the end of execution regardless of whether new releases were found. Ensures any manual user modifications to `manual_releases.json` or other state files are consistently synced to Gist.
+
 ## [v0.6.51] - 2026-07-23
 
 ### Changed
