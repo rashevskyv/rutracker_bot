@@ -152,6 +152,16 @@
 - [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.54
 - [x] Оновити `walkthrough.md` та `task.md`
 
+## Додавання ручного релізу green-nx (v0.6.55)
+
+- [x] Отримати інформацію про реліз `rmrf404/green-nx` (v1.0.5)
+- [x] Додати новий запис для `green-nx` у файл `data/manual_releases.json` з прапорцем `"processed": false`
+- [x] Виконати примусове вивантаження бази даних у Gist (`python sync_gist_state.py upload -f`)
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.55
+- [x] Оновити `walkthrough.md`, `plan.md` та `task.md`
+- [x] Закомітити зміни та створити git-тег v0.6.55
+
+
 
 
 

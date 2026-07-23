@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.55] - 2026-07-23
+
+### Added
+- **Manual Release Addition**: Added homebrew release `green-nx` v1.0.5 (Xbox Cloud Gaming client for Nintendo Switch by `rmrf404`) to `manual_releases.json` and force-uploaded updated state to GitHub Gist.
+
 ## [v0.6.54] - 2026-07-23
 
 ### Fixed
