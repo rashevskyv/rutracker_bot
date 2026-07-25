@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.56] - 2026-07-25
+
+### Added
+- **Manual Release Addition**: Added homebrew release `ys1x_nx` v0.1 (Port of Ys Chronicles 1 / Ys I: Ancient Ys Vanished for Nintendo Switch by `DI4VOLO-dev`) to `manual_releases.json` with `"processed": false` and force-uploaded updated state to GitHub Gist.
+
 ## [v0.6.55] - 2026-07-23
 
 ### Added

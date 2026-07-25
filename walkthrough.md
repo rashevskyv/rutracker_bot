@@ -1,20 +1,20 @@
-# Результати виконання — Додавання ручного релізу green-nx (v0.6.55)
+# Результати виконання — Додавання ручного релізу ys1x_nx (v0.6.56)
 
-Додано новий хомбрю реліз `green-nx` v1.0.5 (клієнт Xbox Cloud Gaming для Nintendo Switch) до баз даних ручних релізів та примусово оновлено стан у GitHub Gist.
+Додано новий хомбрю реліз `ys1x_nx` v0.1 (порт гри Ys Chronicles 1 для Nintendo Switch від авторів DI4VOLO-dev) до баз даних ручних релізів та примусово оновлено стан у GitHub Gist.
 
-## Зміни, що були внесені (v0.6.55)
+## Зміни, що були внесені (v0.6.56)
 
 ### 1. Додавання релізу у `data/manual_releases.json`
 - Додано новий запис:
-  * **App Name**: `green-nx`
-  * **Version**: `v1.0.5`
-  * **Release URL**: `https://github.com/rmrf404/green-nx/releases/tag/v1.0.5`
+  * **App Name**: `ys1x_nx`
+  * **Version**: `v0.1`
+  * **Release URL**: `https://github.com/DI4VOLO-dev/ys1x_nx/releases/tag/v0.1`
   * **Platform**: `Switch`
-  * **Description**: `Клієнт Xbox Cloud Gaming (xCloud) для Nintendo Switch з підтримкою WebRTC стрімінгу, апаратного декодування H.264 та GPU рендерингу.`
+  * **Description**: `Порт гри Ys Chronicles 1 (Ys I: Ancient Ys Vanished) для Nintendo Switch.`
   * **Processed**: `false`
 
 ### 2. Примусове вивантаження в Gist
 - Виконано команду `python sync_gist_state.py upload -f`, яка успішно синхронізувала локальні актуальні файли баз даних з GitHub Gist.
 
 ### 3. Версіонування та документація
-- Версію програми оновлено до `v0.6.55` у файлах `CHANGELOG.md`, `task.md`, `plan.md` та `walkthrough.md`.
+- Версію програми оновлено до `v0.6.56` у файлах `CHANGELOG.md`, `task.md`, `plan.md` та `walkthrough.md`.

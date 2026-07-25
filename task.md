@@ -161,6 +161,15 @@
 - [x] Оновити `walkthrough.md`, `plan.md` та `task.md`
 - [x] Закомітити зміни та створити git-тег v0.6.55
 
+## Додавання ручного релізу ys1x_nx (v0.6.56)
+
+- [x] Отримати інформацію про реліз `DI4VOLO-dev/ys1x_nx` (v0.1)
+- [x] Додати новий запис для `ys1x_nx` у файл `data/manual_releases.json` з прапорцем `"processed": false`
+- [x] Виконати примусове вивантаження бази даних у Gist (`python sync_gist_state.py upload -f`)
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.56
+- [x] Оновити `walkthrough.md`, `plan.md` та `task.md`
+- [x] Закомітити зміни та створити git-тег v0.6.56
+
 
 
 
