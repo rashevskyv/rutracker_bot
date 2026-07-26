@@ -1,20 +1,31 @@
-# Результати виконання — Додавання ручного релізу ys1x_nx (v0.6.56)
+# Результати виконання — Додавання нових ручних релізів (v0.6.58)
 
-Додано новий хомбрю реліз `ys1x_nx` v0.1 (порт гри Ys Chronicles 1 для Nintendo Switch від авторів DI4VOLO-dev) до баз даних ручних релізів та примусово оновлено стан у GitHub Gist.
+Завантажено свіжий стан бази даних з Gist та додано 4 нові ручні релізи (3 програми та 1 гру) у `data/manual_releases.json` з прапорцем `"processed": false`. Зміни примусово вивантажено у Gist (`python sync_gist_state.py upload -f`).
 
-## Зміни, що були внесені (v0.6.56)
+---
 
-### 1. Додавання релізу у `data/manual_releases.json`
-- Додано новий запис:
-  * **App Name**: `ys1x_nx`
-  * **Version**: `v0.1`
-  * **Release URL**: `https://github.com/DI4VOLO-dev/ys1x_nx/releases/tag/v0.1`
-  * **Platform**: `Switch`
-  * **Description**: `Порт гри Ys Chronicles 1 (Ys I: Ancient Ys Vanished) для Nintendo Switch.`
-  * **Processed**: `false`
+## Внесені зміни (v0.6.58)
 
-### 2. Примусове вивантаження в Gist
-- Виконано команду `python sync_gist_state.py upload -f`, яка успішно синхронізувала локальні актуальні файли баз даних з GitHub Gist.
+### 1. Синхронізація з Gist
+- Виконано команду `python sync_gist_state.py download` для завантаження актуальних даних з Gist.
 
-### 3. Версіонування та документація
-- Версію програми оновлено до `v0.6.56` у файлах `CHANGELOG.md`, `task.md`, `plan.md` та `walkthrough.md`.
+### 2. Додавання 4 нових релізів (`data/manual_releases.json`)
+До масиву ручних релізів додано наступні записи із прапорцем `"processed": false`:
+- **`NX-torrent-player (shodowlo)`** (`v0.1.1`): Медіаплеєр та клієнт Stremio з підтримкою торрент-стрімінгу для Nintendo Switch (`https://github.com/shodowlo/NX-torrent-player/releases/tag/v0.1.1`).
+- **`PipenSX (i3sey)`** (`1.1.1`): Кастомний магазин та оновлювач хоумбрю додатків для консолі Nintendo Switch (`https://github.com/i3sey/pipensx/releases/tag/1.1.1`).
+- **`TorrentShopNX (Langegen)`** (`2.1`): Додаток TorrentShopNX для перегляду та завантаження торрент-вмісту безпосередньо на Nintendo Switch (`https://github.com/Langegen/TorrentShopNX/releases/tag/2.1`).
+- **`Zelda Oni Link Begins (worthis)`** (`1.1`): Порт фанатської гри Zelda: Oni Link Begins на оновленому рушії для Nintendo Switch (`https://github.com/worthis/ZeldaOLB-new-engine/releases/tag/1.1`).
+
+### 3. Синхронізаційне вивантаження у Gist
+- Запущено `python sync_gist_state.py upload -f` для примусового збереження оновленого стану у Gist.
+
+### 4. Версіонування та документація
+- Версію проекту підвищено до **`v0.6.58`**.
+- Оновлено документацію у файлах [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md), [task.md](file:///d:/git/dev/rutracker_bot/task.md), [plan.md](file:///d:/git/dev/rutracker_bot/plan.md) та [walkthrough.md](file:///d:/git/dev/rutracker_bot/walkthrough.md).
+
+---
+
+## Перевірка та результат
+
+- Файл `data/manual_releases.json` перевірено на валідність JSON.
+- Успішно виконано примусове вивантаження в Gist (`Upload successful`).

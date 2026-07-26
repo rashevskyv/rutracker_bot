@@ -103,6 +103,7 @@ Phase 1a: UDB API          — 3DS/DS(i)    https://udb-api.lightsage.dev/all   
 Phase 1b: ForTheUsers      — Switch       https://switch.cdn.fortheusers.org/repo.json (GET)
 Phase 1c: ForTheUsers      — WiiU         https://wiiu.cdn.fortheusers.org/repo.json   (GET)
 Phase 1d: VitaDB           — PSVita       3 POST endpoints on rinnegatamante.eu
+Phase 1e: SwitchPorts      — Switch       Markdown tables on ChanseyIsTheBest/SwitchPorts
 Phase 2:  GitHub/GitLab    — Everything else not covered above
 ```
 
@@ -126,6 +127,7 @@ All sources: `_extract_latest_changelog()` extracts the top block, then GPT (`gp
 | `data/udb_state.json` | UDB API | `{slug}` |
 | `data/fortheusers_state.json` | Switch/WiiU FTU | `switch-hb:{name}` / `wiiu-hb:{name}` |
 | `data/vitadb_state.json` | VitaDB | `vita-hb:{id}` / `vita-plugin:{id}` / `vita-tool:{id}` |
+| `data/switchports_state.json` | SwitchPorts | `{slug_or_game_name}` |
 | `data/hb_state.json` | GitHub/GitLab | `{api_url}` |
 | `data/hb_descriptions.json` | Shared cache | `{prefix}:{id}` |
 

@@ -49,6 +49,10 @@ VITADB_ENDPOINTS = [
 # Vita entries in list_hb.json (if any) use this category
 VITA_CATEGORIES = {'Vita', 'PSVita'}
 
+# SwitchPorts (ChanseyIsTheBest/SwitchPorts)
+SWITCHPORTS_STATE_PATH = os.path.join('data', 'switchports_state.json')
+SWITCHPORTS_REPO_URL = 'https://raw.githubusercontent.com/ChanseyIsTheBest/SwitchPorts/main/README.md'
+
 # Collector run stats (saved after each run for the digest sender)
 HB_STATS_PATH = os.path.join('data', 'hb_collect_stats.json')
 
@@ -84,6 +88,7 @@ class HomebrewUpdatesCollector:
         self._udb_state: Dict[str, Dict] = {}          # udb_state.json (Universal-DB)
         self._fortheusers_state: Dict[str, Dict] = {}  # fortheusers_state.json
         self._vitadb_state: Dict[str, Dict] = {}       # vitadb_state.json
+        self._switchports_state: Dict[str, Dict] = {}  # switchports_state.json
         self._descriptions: Dict[str, str] = {}        # hb_descriptions.json (shared cache)
 
         # Load unprocessed manual releases to skip update tracking for them
@@ -240,6 +245,32 @@ class HomebrewUpdatesCollector:
             logger.info(f"Saved VitaDB state for {len(self._vitadb_state)} entries")
         except Exception as e:
             logger.error(f"Error saving VitaDB state: {e}")
+
+    def load_switchports_state(self) -> Dict[str, Dict]:
+        """Load SwitchPorts state from switchports_state.json"""
+        path = Path(SWITCHPORTS_STATE_PATH)
+        if not path.exists():
+            logger.info("SwitchPorts state file not found — starting fresh")
+            return {}
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+            logger.info(f"Loaded SwitchPorts state for {len(state)} entries")
+            return state
+        except Exception as e:
+            logger.error(f"Error loading SwitchPorts state: {e}")
+            return {}
+
+    def save_switchports_state(self):
+        """Save SwitchPorts state to switchports_state.json"""
+        path = Path(SWITCHPORTS_STATE_PATH)
+        try:
+            os.makedirs(path.parent, exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(self._switchports_state, f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved SwitchPorts state for {len(self._switchports_state)} entries")
+        except Exception as e:
+            logger.error(f"Error saving SwitchPorts state: {e}")
 
     def load_homebrew_list(self) -> List[Dict]:
         """Load static registry and merge with dynamic state and processed manual releases"""
@@ -1243,6 +1274,222 @@ class HomebrewUpdatesCollector:
         self.source_stats[platform_name] = {'checked': vita_checked, 'found': updates_found}
         return covered_github_slugs
 
+    @staticmethod
+    def _parse_switchports_readme(content: str) -> List[Dict]:
+        """Parse markdown tables from SwitchPorts README.md"""
+        import re
+        items = []
+        lines = content.splitlines()
+
+        for line in lines:
+            line_str = line.strip()
+            if not line_str.startswith('|') or '---' in line_str or 'GBATemp' in line_str or 'Game' in line_str:
+                continue
+
+            parts = [p.strip() for p in line_str.split('|')]
+            if len(parts) >= 6:
+                game_name = parts[1]
+                version = parts[2]
+                last_updated = parts[3]
+                link_cell = parts[4]
+                gbatemp_cell = parts[5] if len(parts) > 5 else ''
+
+                if not game_name or game_name == 'Game':
+                    continue
+
+                rel_url = ''
+                m_link = re.search(r'\[.*?\]\((https?://[^\s\)]+)\)', link_cell)
+                if m_link:
+                    rel_url = m_link.group(1)
+                elif link_cell.startswith(('http://', 'https://')):
+                    rel_url = link_cell
+
+                gbatemp_url = ''
+                m_gba = re.search(r'\[.*?\]\((https?://[^\s\)]+)\)', gbatemp_cell)
+                if m_gba:
+                    gbatemp_url = m_gba.group(1)
+                elif gbatemp_cell.startswith(('http://', 'https://')):
+                    gbatemp_url = gbatemp_cell
+
+                items.append({
+                    'game_name': game_name,
+                    'version': version,
+                    'last_updated': last_updated,
+                    'release_url': rel_url,
+                    'gbatemp_url': gbatemp_url
+                })
+        return items
+
+    async def collect_switchports_updates(self, local_entries: List[Dict]) -> Set[str]:
+        """
+        Phase 1e: Fetch Switch ports from ChanseyIsTheBest/SwitchPorts README.md.
+        Returns a set of GitHub slugs ('owner/repo') covered by SwitchPorts.
+        """
+        logger.info("=== Phase 1e: SwitchPorts (Nintendo Switch Ports) ===")
+        self.source_stats['SwitchPorts'] = {'checked': 0, 'found': 0}
+
+        try:
+            async with self.session.get(SWITCHPORTS_REPO_URL, headers=BROWSER_HEADERS, timeout=30) as resp:
+                if resp.status != 200:
+                    logger.error(f"SwitchPorts README returned HTTP {resp.status} — skipping phase")
+                    self.source_stats['SwitchPorts']['error'] = True
+                    self.source_stats['SwitchPorts']['error_msg'] = f"HTTP {resp.status}"
+                    return set()
+                content = await resp.text()
+                self.github_requests += 1
+        except Exception as e:
+            logger.error(f"SwitchPorts request failed: {e} — skipping phase")
+            self.source_stats['SwitchPorts']['error'] = True
+            self.source_stats['SwitchPorts']['error_msg'] = str(e)
+            return set()
+
+        items = self._parse_switchports_readme(content)
+        logger.info(f"Parsed {len(items)} ports from SwitchPorts README")
+
+        processed_manual_names = set()
+        processed_manual_slugs = set()
+        try:
+            from services.manual_releases import load_manual_releases
+            for m_entry in load_manual_releases():
+                m_name = m_entry.get('app_name', '').lower()
+                m_url = m_entry.get('release_url') or m_entry.get('url') or ''
+                m_slug = self._extract_github_slug(m_url)
+                if m_entry.get('processed'):
+                    if m_name:
+                        processed_manual_names.add(m_name)
+                    if m_slug:
+                        processed_manual_slugs.add(m_slug.lower())
+        except Exception as e:
+            logger.error(f"Error loading processed manual releases in SwitchPorts collector: {e}")
+
+        covered_slugs: Set[str] = set()
+        first_run_initialized = 0
+        updates_found = 0
+        is_first_run = len(self._switchports_state) == 0
+
+        for item in items:
+            game_name = item['game_name']
+            version = item['version']
+            last_updated = item['last_updated']
+            release_url = item['release_url']
+            gh_slug = self._extract_github_slug(release_url)
+            if gh_slug:
+                covered_slugs.add(gh_slug.lower())
+
+            key = (gh_slug or game_name).lower()
+            self.source_stats['SwitchPorts']['checked'] += 1
+
+            saved = self._switchports_state.get(key, {})
+            saved_version = saved.get('version', '')
+            saved_updated = saved.get('last_updated', '')
+
+            # Case 1: First time collector sees this entry
+            if not saved:
+                self._switchports_state[key] = {
+                    'game_name': game_name,
+                    'version': version,
+                    'last_updated': last_updated,
+                    'release_url': release_url,
+                    'gbatemp_url': item['gbatemp_url']
+                }
+
+                # Collision check: pending (unprocessed) manual releases
+                if self.is_unprocessed_manual(game_name) or (gh_slug and self.is_unprocessed_manual(gh_slug)):
+                    logger.info(f"Skipping initial SwitchPorts entry for {game_name} — pending manual release.")
+                    continue
+
+                # State initialization (first run of switchports_state.json): seed state without posting
+                if is_first_run:
+                    first_run_initialized += 1
+                    continue
+
+                # Collision check: already processed in manual releases
+                clean_name = game_name.lower().strip()
+                was_in_processed_manual = clean_name in processed_manual_names or (gh_slug and gh_slug.lower() in processed_manual_slugs)
+
+                if was_in_processed_manual:
+                    logger.info(f"SwitchPorts entry {game_name} was already processed in manual releases. Seeding state without posting new release.")
+                    continue
+
+                # New port added to SwitchPorts README
+                logger.info(f"New SwitchPorts entry found: {game_name} ({version})")
+                cache_key = f"switchports:{key}"
+                raw_desc = f"Port of {game_name} for Nintendo Switch."
+                description = await self._get_description_cached(
+                    cache_key=cache_key,
+                    local_entry=None,
+                    raw_text=raw_desc,
+                    fallback_name=f"Порт {game_name} для Nintendo Switch"
+                )
+
+                homebrew_digest_manager.add_entry(
+                    app_name=f"{game_name} (Port)",
+                    version=version or "1.0",
+                    release_url=release_url or item['gbatemp_url'] or SWITCHPORTS_REPO_URL,
+                    description=description,
+                    platform='Switch',
+                    timestamp=datetime.now(),
+                    is_new=True
+                )
+                updates_found += 1
+                self.updates_found += 1
+                self.updated_apps.append(f"{game_name} (Port)")
+                continue
+
+            # Case 2: Existing entry — check for updates
+            version_changed = version and version != saved_version
+            updated_changed = last_updated and last_updated != saved_updated
+
+            if not version_changed and not updated_changed:
+                continue
+
+            # Collision check: pending manual release
+            if self.is_unprocessed_manual(game_name) or (gh_slug and self.is_unprocessed_manual(gh_slug)):
+                logger.info(f"Skipping SwitchPorts update for {game_name} — pending manual release. Updating state only.")
+                self._switchports_state[key].update({
+                    'version': version,
+                    'last_updated': last_updated,
+                    'release_url': release_url
+                })
+                continue
+
+            logger.info(f"SwitchPorts update: {game_name} {version} (was {saved_version})")
+
+            self._switchports_state[key].update({
+                'version': version,
+                'last_updated': last_updated,
+                'release_url': release_url
+            })
+
+            cache_key = f"switchports:{key}"
+            raw_desc = f"Port of {game_name} for Nintendo Switch."
+            description = await self._get_description_cached(
+                cache_key=cache_key,
+                local_entry=None,
+                raw_text=raw_desc,
+                fallback_name=f"Порт {game_name} для Nintendo Switch"
+            )
+
+            homebrew_digest_manager.add_entry(
+                app_name=f"{game_name} (Port)",
+                version=version or "Update",
+                release_url=release_url or item['gbatemp_url'] or SWITCHPORTS_REPO_URL,
+                description=description,
+                platform='Switch',
+                timestamp=datetime.now(),
+                is_new=False
+            )
+            updates_found += 1
+            self.updates_found += 1
+            self.updated_apps.append(f"{game_name} (Port) [Update]")
+
+        logger.info(
+            f"SwitchPorts complete: {updates_found} updates/new, "
+            f"{first_run_initialized} initialized, {len(covered_slugs)} GitHub repos covered"
+        )
+        self.source_stats['SwitchPorts']['found'] = updates_found
+        return covered_slugs
+
     async def collect_updates(self, translate: bool = True, max_entries: Optional[int] = None):
         """Collect all homebrew updates"""
         entries = self.load_homebrew_list()
@@ -1255,6 +1502,7 @@ class HomebrewUpdatesCollector:
         self._udb_state = self.load_udb_state()
         self._fortheusers_state = self.load_fortheusers_state()
         self._vitadb_state = self.load_vitadb_state()
+        self._switchports_state = self.load_switchports_state()
         self._descriptions = self.load_descriptions_cache()
 
         # Phase 1a: Universal-DB (3DS/DS) — primary source
@@ -1288,12 +1536,17 @@ class HomebrewUpdatesCollector:
             )
             covered |= vita_covered
 
+        # Phase 1e: SwitchPorts (Nintendo Switch Ports)
+        switchports_covered = await self.collect_switchports_updates(local_entries=entries)
+        covered |= switchports_covered
+
         covered_github_slugs = {s.lower() for s in covered}
 
         # Save all states and descriptions cache
         self.save_udb_state()
         self.save_fortheusers_state()
         self.save_vitadb_state()
+        self.save_switchports_state()
         self.save_descriptions_cache()
 
         # Phase 2: GitHub/GitLab — skip entries already covered by repo sources

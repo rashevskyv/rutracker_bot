@@ -2,6 +2,18 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.58] - 2026-07-26
+
+### Added
+- **Manual Release Additions**: Downloaded latest state from Gist and added 4 new manual homebrew releases (`NX-torrent-player` v0.1.1 by `shodowlo`, `PipenSX` v1.1.1 by `i3sey`, `TorrentShopNX` v2.1 by `Langegen`, and fan game port `Zelda Oni Link Begins` v1.1 by `worthis`) to `manual_releases.json` with `"processed": false` for upcoming digest announcements. Force-uploaded updated state to GitHub Gist (`python sync_gist_state.py upload -f`).
+
+## [v0.6.57] - 2026-07-25
+
+### Added
+- **SwitchPorts Collector Integration (Phase 1e)**: Added multi-source homebrew collector phase for parsing Nintendo Switch port tables from [ChanseyIsTheBest/SwitchPorts](https://github.com/ChanseyIsTheBest/SwitchPorts) (`README.md`).
+- **Collision Resolution Engine**: Implemented cross-checks against pending (`processed: false`) and processed (`processed: true`) entries in `manual_releases.json`, as well as GitHub Phase 2 `list_hb.json` slugs, preventing duplicate announcements or premature update notifications.
+- **State Management & Caching**: Added `data/switchports_state.json` to persist version/update states, along with automated Ukrainian description generation via repo READMEs and GPT translation.
+
 ## [v0.6.56] - 2026-07-25
 
 ### Added

@@ -41,6 +41,7 @@ Checks various platforms for homebrew updates:
 - **Phase 1b (Switch)**: ForTheUsers Switch repository JSON.
 - **Phase 1c (Wii U)**: ForTheUsers Wii U repository JSON.
 - **Phase 1d (PS Vita)**: VitaDB APIs (Homebrew, Plugins, PC Tools).
+- **Phase 1e (Switch Ports)**: ChanseyIsTheBest/SwitchPorts markdown tables with Collision Resolution against manual releases and existing repos.
 - **Phase 2 (GitHub/GitLab)**: General registry matching of repositories.
 - **Descriptions Cache**: Translated app descriptions are cached in `data/hb_descriptions.json` to prevent duplicate translations.
 - **Changelog Summarization**: GPT compiles a one-sentence Ukrainian summary from raw update notes.

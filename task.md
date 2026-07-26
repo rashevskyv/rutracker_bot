@@ -170,10 +170,24 @@
 - [x] Оновити `walkthrough.md`, `plan.md` та `task.md`
 - [x] Закомітити зміни та створити git-тег v0.6.56
 
+## Інтеграція колектора SwitchPorts з Collision Resolution (v0.6.57)
 
+- [x] Створити структуру зберігання стану `data/switchports_state.json`
+- [x] Реалізувати парсинг Markdown-таблиць `ChanseyIsTheBest/SwitchPorts` у `collect_homebrew_updates.py`
+- [x] Налаштувати Collision Resolution (перевірки необроблених і оброблених `manual_releases.json`, та `list_hb.json`)
+- [x] Додати генерацію українського опису через README та GPT-переклад
+- [x] Інтегрувати колектор у загальний виклик `run_all()`
+- [x] Протестувати роботу збору та обробки колізій
+- [x] Оновити `README.md`, `GEMINI.md`, `CHANGELOG.md` та ітерувати версію до v0.6.57
+- [x] Оновити `walkthrough.md`, `plan.md` та `task.md`
 
+## Додавання ручних релізів NX-torrent-player, PipenSX, TorrentShopNX та ZeldaOLB (v0.6.58)
 
-
-
-
+- [x] Виконати `python sync_gist_state.py download` для завантаження останнього стану `manual_releases.json`
+- [x] Отримати метадані релізів з GitHub (версії, дати, посилання, описи)
+- [x] Додати 4 нові релізи (`NX-torrent-player`, `pipensx`, `TorrentShopNX`, `ZeldaOLB-new-engine`) до `data/manual_releases.json` з `"processed": false`
+- [x] Виконати примусове вивантаження стану в Gist (`python sync_gist_state.py upload -f`)
+- [x] Оновити `CHANGELOG.md` та ітерувати версію до v0.6.58
+- [x] Оновити `walkthrough.md`, `plan.md` та `task.md`
+- [x] Закомітити зміни локально та створити git-тег v0.6.58
 
