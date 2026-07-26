@@ -1,7 +1,7 @@
 @echo off
 echo ==================================================
 echo Running Custom Switch Repositories Collector...
-echo (NaGaa95, ChanseyIsTheBest)
+echo (NaGaa95, ChanseyIsTheBest, delsonazevedo)
 echo ==================================================
 cd /d "%~dp0"
 call venv\Scripts\activate.bat 2>nul

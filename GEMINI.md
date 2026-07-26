@@ -128,8 +128,18 @@ All sources: `_extract_latest_changelog()` extracts the top block, then GPT (`gp
 | `data/fortheusers_state.json` | Switch/WiiU FTU | `switch-hb:{name}` / `wiiu-hb:{name}` |
 | `data/vitadb_state.json` | VitaDB | `vita-hb:{id}` / `vita-plugin:{id}` / `vita-tool:{id}` |
 | `data/switchports_state.json` | SwitchPorts | `{slug_or_game_name}` |
+| `data/custom_releases_state.json` | Custom Repos Collector | `last_run` timestamp & `authors` map |
 | `data/hb_state.json` | GitHub/GitLab | `{api_url}` |
 | `data/hb_descriptions.json` | Shared cache | `{prefix}:{id}` |
+
+## Custom Switch Repositories Collector (`collect_custom_releases.py`)
+
+- **Tracked Authors:** `NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`.
+- **State File:** `data/custom_releases_state.json` (synced via Gist `sync_gist_state.py`).
+- **Time Windows:**
+  - **New authors** (not in state): Collect releases from the last 3 weeks (21 days).
+  - **Existing authors** (in state): Collect all releases published since `last_run` timestamp.
+- **LLM Verification:** Evaluates repository descriptions/topics via LLM (`"is_switch_homebrew": true/false`) to ensure only Nintendo Switch homebrew applications, games, ports, or tools are added to `data/manual_releases.json` with `"processed": false`.
 
 ### First Run Behavior
 

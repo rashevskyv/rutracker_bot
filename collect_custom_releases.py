@@ -10,8 +10,10 @@ from openai import OpenAI
 
 DATA_DIR = "data"
 MANUAL_RELEASES_FILE = os.path.join(DATA_DIR, "manual_releases.json")
-TARGET_USERS = ["NaGaa95", "ChanseyIsTheBest"]
-MAX_RELEASE_AGE_DAYS = 2  # Collect releases published starting from yesterday (within last 48 hours)
+CUSTOM_RELEASES_STATE_FILE = os.path.join(DATA_DIR, "custom_releases_state.json")
+
+TARGET_USERS = ["NaGaa95", "ChanseyIsTheBest", "delsonazevedo"]
+NEW_AUTHOR_AGE_DAYS = 21  # Collect releases from last 3 weeks for new authors
 
 def run_gist_sync(action: str) -> bool:
     """Runs the sync_gist_state.py script to download or upload state."""
@@ -26,6 +28,48 @@ def run_gist_sync(action: str) -> bool:
     except Exception as e:
         print(f"Failed to run Gist sync {action}: {e}")
         return False
+
+def load_custom_releases_state() -> dict:
+    """Loads state tracking for custom releases collection."""
+    if os.path.exists(CUSTOM_RELEASES_STATE_FILE):
+        try:
+            with open(CUSTOM_RELEASES_STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except Exception as e:
+            print(f"Error loading custom_releases_state.json: {e}")
+    return {"last_run": None, "authors": {}}
+
+def save_custom_releases_state(state: dict):
+    """Saves state tracking for custom releases collection."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    try:
+        with open(CUSTOM_RELEASES_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Error saving custom_releases_state.json: {e}")
+
+def parse_iso_datetime(date_str: str) -> datetime:
+    """Parses ISO-8601 date string to timezone-aware UTC datetime."""
+    if not date_str:
+        return None
+    try:
+        clean = date_str.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(clean)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception as e:
+        print(f"Warning: Could not parse date '{date_str}': {e}")
+        return None
+
+def is_release_after_cutoff(pub_date_str: str, cutoff_dt: datetime) -> bool:
+    """Checks if release date is at or after cutoff datetime."""
+    pub_dt = parse_iso_datetime(pub_date_str)
+    if not pub_dt or not cutoff_dt:
+        return False
+    return pub_dt >= cutoff_dt
 
 def fetch_user_repos(username: str, token: str = None) -> list:
     """Fetches all public repositories for a GitHub user."""
@@ -81,65 +125,62 @@ def is_already_added(manual_entries: list, repo_url: str, repo_name: str) -> boo
             
     return False
 
-def is_release_since_yesterday(pub_date_str: str, max_days: int = MAX_RELEASE_AGE_DAYS) -> bool:
-    """Checks if the release was published starting from yesterday (within last ~48 hours)."""
-    if not pub_date_str:
-        return False
+def is_local_web2api_online() -> bool:
+    import socket
     try:
-        date_clean = pub_date_str.replace("Z", "+00:00")
-        pub_dt = datetime.fromisoformat(date_clean)
-        if pub_dt.tzinfo is None:
-            pub_dt = pub_dt.replace(tzinfo=timezone.utc)
-        
-        now = datetime.now(timezone.utc)
-        cutoff = now - timedelta(days=max_days)
-        return pub_dt >= cutoff
-    except Exception as e:
-        print(f"Warning: Could not parse release date '{pub_date_str}': {e}")
+        s = socket.socket()
+        s.settimeout(0.1)
+        s.connect(("127.0.0.1", 8081))
+        s.close()
+        return True
+    except Exception:
         return False
 
 def analyze_repo_with_gemini(repo_name: str, repo_desc: str, topics: list, username: str = "author") -> dict:
-    """Calls Gemini Web2API (or OpenAI API) to format app name and description in Ukrainian."""
+    """Calls Gemini Web2API (or OpenAI API) to format app name, description in Ukrainian, and verify if it's Switch homebrew."""
     prompt = f"""
-Analyze the following new GitHub repository of user '{username}' for Nintendo Switch.
+Analyze the following new GitHub repository of user '{username}'.
 
 Repo Name: {repo_name}
 Description: {repo_desc or "No description provided."}
 Topics: {", ".join(topics) if topics else "None"}
 
-Generate details for a Telegram release post:
-1. Formulate a short, punchy description of this release in Ukrainian (max 1-2 sentences). Example: 'Новий реліз [Name] для Nintendo Switch.'
-2. Clean the app name (remove suffixes like '-NX', '_nx', '-switch', or similar).
+Determine:
+1. Is this repository a homebrew application, game, port, emulator, or utility designed for Nintendo Switch? Set "is_switch_homebrew": true if yes, false if it is for PC only, another platform, non-Switch tutorial/bootcamp, or generic non-Switch code.
+2. Formulate a short, punchy description of this release in Ukrainian (max 1-2 sentences). Example: 'Новий реліз [Name] для Nintendo Switch.'
+3. Clean the app name (remove suffixes like '-NX', '_nx', '-switch', or similar).
 
 Respond ONLY with a raw JSON object containing these keys:
 {{
+  "is_switch_homebrew": true,
   "app_name": "...",
   "description": "...",
   "platform": "Switch"
 }}
 """
     # 1. Attempt Local Gemini Web2API (http://localhost:8081/v1) with gemini-3.5-flash-thinking
-    try:
-        from core.settings_loader import settings
-        base_url = settings.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or "http://localhost:8081/v1"
-        client = OpenAI(api_key="dummy_key", base_url=base_url, max_retries=0, timeout=25.0)
-        model_name = settings.get("OPENAI_MODEL", "gemini-3.5-flash-thinking")
-        
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1
-        )
-        content = response.choices[0].message.content
-        if content:
-            content = content.strip()
-            import re
-            match = re.search(r'(\{.*\})', content, re.DOTALL)
-            if match:
-                content = match.group(1)
-            return json.loads(content)
-    except Exception as e:
-        print(f"Warning: Local Gemini Web2API call failed for {repo_name}: {e}. Trying OpenAI API fallback...")
+    if is_local_web2api_online():
+        try:
+            from core.settings_loader import settings
+            base_url = settings.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or "http://localhost:8081/v1"
+            client = OpenAI(api_key="dummy_key", base_url=base_url, max_retries=0, timeout=5.0)
+            model_name = settings.get("OPENAI_MODEL", "gemini-3.5-flash-thinking")
+            
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1
+            )
+            content = response.choices[0].message.content
+            if content:
+                content = content.strip()
+                import re
+                match = re.search(r'(\{.*\})', content, re.DOTALL)
+                if match:
+                    content = match.group(1)
+                return json.loads(content)
+        except Exception as e:
+            print(f"Info: Local Gemini Web2API call failed ({e}). Trying OpenAI API fallback.")
 
     # 2. Attempt OpenAI API fallback (if OPENAI_API_KEY is available)
     try:
@@ -161,11 +202,14 @@ Respond ONLY with a raw JSON object containing these keys:
                     content = match.group(1)
                 return json.loads(content)
     except Exception as e:
-        print(f"Warning: OpenAI API fallback failed for {repo_name}: {e}. Using fallback format.")
+        print(f"Warning: OpenAI API fallback failed for {repo_name}: {e}. Using code fallback format.")
 
-    # 3. Fallback format
+    # 3. Code-based heuristic fallback
+    combined_text = f"{repo_name} {repo_desc or ''} {' '.join(topics)}".lower()
+    is_switch = any(kw in combined_text for kw in ["switch", "nx", "homebrew", "nintendo", "libnx", "atmosphere", "hekat", "nro", "nsp", "xci", "hbmenu", "port"])
     clean_name = repo_name.replace("-NX", "").replace("_nx", "").replace("-switch", "").replace("-", " ").title()
     return {
+        "is_switch_homebrew": is_switch,
         "app_name": clean_name,
         "description": f"Новий реліз {clean_name} для Nintendo Switch.",
         "platform": "Switch"
@@ -199,16 +243,38 @@ def main():
     else:
         manual_releases = []
 
+    state = load_custom_releases_state()
+    last_run_str = state.get("last_run")
+    authors_state = state.get("authors", {})
+    now_dt = datetime.now(timezone.utc)
+    now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     total_added_count = 0
 
     for username in TARGET_USERS:
-        print(f"\n==========================================")
-        print(f"Processing user: {username}")
-        print(f"==========================================")
-        
+        is_new_author = username not in authors_state
+        if is_new_author:
+            cutoff_dt = now_dt - timedelta(days=NEW_AUTHOR_AGE_DAYS)
+            print(f"\n==========================================")
+            print(f"Processing NEW author: {username} (cutoff: last {NEW_AUTHOR_AGE_DAYS} days -> {cutoff_dt.strftime('%Y-%m-%d')})")
+            print(f"==========================================")
+        else:
+            last_run_dt = parse_iso_datetime(last_run_str)
+            if last_run_dt:
+                cutoff_dt = last_run_dt
+            else:
+                cutoff_dt = now_dt - timedelta(days=NEW_AUTHOR_AGE_DAYS)
+            print(f"\n==========================================")
+            print(f"Processing existing author: {username} (cutoff: since last run -> {cutoff_dt.strftime('%Y-%m-%d %H:%M:%S UTC')})")
+            print(f"==========================================")
+
         repos = fetch_user_repos(username, github_token)
         if not repos:
             print(f"No repositories found for {username} or error occurred.")
+            authors_state[username] = {
+                "first_seen": authors_state.get(username, {}).get("first_seen") or now_str,
+                "last_checked": now_str
+            }
             continue
 
         print(f"Checking {len(repos)} repositories for {username}...")
@@ -225,7 +291,7 @@ def main():
 
             release = fetch_latest_release(username, repo_name, github_token)
             
-            pub_date = repo.get("pushed_at") or repo.get("updated_at") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            pub_date = repo.get("pushed_at") or repo.get("updated_at") or now_str
             version = "v1.0.0"
             release_url = repo_url
 
@@ -234,13 +300,16 @@ def main():
                 release_url = release.get("html_url") or release_url
                 pub_date = release.get("published_at") or pub_date
 
-            if not is_release_since_yesterday(pub_date):
-                # Release is older than yesterday
+            if not is_release_after_cutoff(pub_date, cutoff_dt):
                 continue
 
-            print(f"\nFound new release from yesterday/today: {repo_name} ({version}, date: {pub_date})...")
-            
             ai_res = analyze_repo_with_gemini(repo_name, repo_desc, topics, username)
+
+            if not ai_res.get("is_switch_homebrew", True):
+                print(f"Skipping repository '{repo_name}': not identified as Nintendo Switch homebrew.")
+                continue
+
+            print(f"\nFound new Nintendo Switch release: {repo_name} ({version}, date: {pub_date})...")
 
             new_entry = {
                 "type": "homebrew",
@@ -259,7 +328,15 @@ def main():
             total_added_count += 1
             print(f"-> ADDED NEW RELEASE: {new_entry['app_name']} ({version}) - {new_entry['description']}")
 
+        authors_state[username] = {
+            "first_seen": authors_state.get(username, {}).get("first_seen") or now_str,
+            "last_checked": now_str
+        }
         print(f"\nUser {username}: added {user_added_count} new release(s).")
+
+    state["last_run"] = now_str
+    state["authors"] = authors_state
+    save_custom_releases_state(state)
 
     if total_added_count > 0:
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -273,7 +350,10 @@ def main():
         else:
             print("Gist upload failed. State remains local.")
     else:
-        print("\nNo new releases found since yesterday.")
+        # Save state & upload state even if 0 releases were added so last_run is updated!
+        if run_gist_sync("upload"):
+            print("State updated and uploaded to Gist.")
+        print("\nNo new releases found since last run.")
 
 if __name__ == "__main__":
     main()

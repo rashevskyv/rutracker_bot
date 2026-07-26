@@ -1,31 +1,37 @@
-# Результати виконання — Додавання нових ручних релізів (v0.6.58)
+# Результати виконання — Додавання автора delsonazevedo та покращення логіки відстеження (v0.6.59)
 
-Завантажено свіжий стан бази даних з Gist та додано 4 нові ручні релізи (3 програми та 1 гру) у `data/manual_releases.json` з прапорцем `"processed": false`. Зміни примусово вивантажено у Gist (`python sync_gist_state.py upload -f`).
+У скрипті `collect_custom_releases.py` додано розробника `delsonazevedo` та реалізовано збереження часу останнього запуску (`last_run`) та стану відстеження авторів у файлі `data/custom_releases_state.json`.
 
 ---
 
-## Внесені зміни (v0.6.58)
+## Внесені зміни (v0.6.59)
 
-### 1. Синхронізація з Gist
-- Виконано команду `python sync_gist_state.py download` для завантаження актуальних даних з Gist.
+### 1. Додавання автора та збереження стану (`collect_custom_releases.py`)
+- До списку відстежуваних авторів `TARGET_USERS` додано `delsonazevedo`.
+- Реалізовано збереження та завантаження файлу стану `data/custom_releases_state.json`, який зберігає таймштамп `last_run` та історію авторів `authors`.
 
-### 2. Додавання 4 нових релізів (`data/manual_releases.json`)
-До масиву ручних релізів додано наступні записи із прапорцем `"processed": false`:
-- **`NX-torrent-player (shodowlo)`** (`v0.1.1`): Медіаплеєр та клієнт Stremio з підтримкою торрент-стрімінгу для Nintendo Switch (`https://github.com/shodowlo/NX-torrent-player/releases/tag/v0.1.1`).
-- **`PipenSX (i3sey)`** (`1.1.1`): Кастомний магазин та оновлювач хоумбрю додатків для консолі Nintendo Switch (`https://github.com/i3sey/pipensx/releases/tag/1.1.1`).
-- **`TorrentShopNX (Langegen)`** (`2.1`): Додаток TorrentShopNX для перегляду та завантаження торрент-вмісту безпосередньо на Nintendo Switch (`https://github.com/Langegen/TorrentShopNX/releases/tag/2.1`).
-- **`Zelda Oni Link Begins (worthis)`** (`1.1`): Порт фанатської гри Zelda: Oni Link Begins на оновленому рушії для Nintendo Switch (`https://github.com/worthis/ZeldaOLB-new-engine/releases/tag/1.1`).
+### 2. Диференційована часова логіка (Cutoff)
+- **Для нових авторів**: якщо автор вперше доданий до стану, збираються його релізи за останні **3 тижні (21 день)**.
+- **Для існуючих авторів**: збираються всі нові релізи з моменту останнього запуску (`last_run`).
 
-### 3. Синхронізаційне вивантаження у Gist
-- Запущено `python sync_gist_state.py upload -f` для примусового збереження оновленого стану у Gist.
+### 3. Штучний інтелект та перевірка на Nintendo Switch хомбрю
+- Оновлено аналізатор `analyze_repo_with_gemini`: додано перевірку `"is_switch_homebrew": true/false`. Репозиторії, які не є іграми, портами чи хомбрю додатками для Nintendo Switch (наприклад, не-Switch навчальні репозиторії), автоматично відсіюються.
 
-### 4. Версіонування та документація
-- Версію проекту підвищено до **`v0.6.58`**.
-- Оновлено документацію у файлах [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md), [task.md](file:///d:/git/dev/rutracker_bot/task.md), [plan.md](file:///d:/git/dev/rutracker_bot/plan.md) та [walkthrough.md](file:///d:/git/dev/rutracker_bot/walkthrough.md).
+### 4. Інтеграція з Gist Sync (`sync_gist_state.py`)
+- Файл `custom_releases_state.json` додано до масиву `FILES_TO_SYNC`.
+- Реалізовано алгоритм злиття (merge) для збереження найновішого `last_run` та актуального стану авторів.
+
+### 5. Релізи, додані при першому запуску v0.6.59
+У `data/manual_releases.json` автоматично додано **4 нові релізи** із прапорцем `"processed": false`:
+- **`papersplease (ChanseyIsTheBest)`** (`1.0.0`): Новий реліз Papers, Please для Nintendo Switch (`https://github.com/ChanseyIsTheBest/papersplease_nx`).
+- **`Valkyrie Profile Lenneth (delsonazevedo)`** (`1.0.0`): Порт Valkyrie Profile Lenneth для Nintendo Switch (`https://github.com/delsonazevedo/vpl_nx`).
+- **`Super Mario World Remastered Plus (delsonazevedo)`** (`1.0.0`): Порт Super Mario World Remastered Plus для Nintendo Switch (`https://github.com/delsonazevedo/Super-Mario-World-Remastered-Plus-Switch`).
+- **`nbajam (delsonazevedo)`** (`1.0.0`): Порт NBA Jam для Nintendo Switch (`https://github.com/delsonazevedo/nbajam_nx`).
 
 ---
 
 ## Перевірка та результат
 
-- Файл `data/manual_releases.json` перевірено на валідність JSON.
-- Успішно виконано примусове вивантаження в Gist (`Upload successful`).
+- Проведено тестові запуски `collect_custom_releases.py`.
+- При повторному запуску скрипт чітко розпізнав існуючих авторів, використав `last_run` як відсічення та правильно повідомив `No new releases found since last run.`
+- Стан бази даних та файл `custom_releases_state.json` успішно синхронізовано з GitHub Gist (`Gist upload successful!`).

@@ -51,7 +51,13 @@ Checks various platforms for homebrew updates:
 - Fetches supported game versions and updates state.
 - Queues localization entries into `data/swuk_digest_data.json`.
 
-### 4. Daily Digests (`send_*_digest.py`)
+### 4. Custom Switch Repositories Collector (`collect_custom_releases.py`)
+- Tracks custom GitHub authors (`NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`) for Nintendo Switch homebrew applications, ports, and games.
+- State is persisted in `data/custom_releases_state.json` (synced with Gist), tracking `last_run` timestamp and author history.
+- Evaluates releases over the last 3 weeks (21 days) for newly added authors, and since `last_run` for existing authors.
+- Uses LLM verification to confirm that repositories are valid Nintendo Switch homebrew software before queueing them to `data/manual_releases.json`.
+
+### 5. Daily Digests (`send_*_digest.py`)
 Sends aggregated digests to configured Telegram channels once a day (scheduled at 09:00 Kyiv time, 06:00 UTC):
 - **Daily Digest**: Combines new and updated tracker posts.
 - **Homebrew Digest**: Groups homebrew updates by platform.

@@ -191,3 +191,16 @@
 - [x] Оновити `walkthrough.md`, `plan.md` та `task.md`
 - [x] Закомітити зміни локально та створити git-тег v0.6.58
 
+## Додавання автора delsonazevedo та покращення логіки відстеження (v0.6.59)
+
+- [x] Оновити `sync_gist_state.py`: додати `custom_releases_state.json` до `FILES_TO_SYNC`
+- [x] Оновити `collect_custom_releases.py`: додати автора `delsonazevedo` та логіку відстеження часу останнього запуску (`last_run`)
+- [x] Реалізувати перевірку релізів: за останні 3 тижні (21 день) для нових авторів та з `last_run` для існуючих
+- [x] Реалізувати перевірку Gemini/LLM на Nintendo Switch хомбрю
+- [x] Оновити `run_custom_collector.bat`
+- [x] Протестувати роботу збору релізів та збереження стану у Gist
+- [x] Оновити `README.md`, `GEMINI.md`, `CHANGELOG.md` та ітерувати версію до v0.6.59
+- [x] Оновити `walkthrough.md`, `plan.md` та `task.md`
+- [x] Закомітити зміни локально та створити git-тег v0.6.59
+
+

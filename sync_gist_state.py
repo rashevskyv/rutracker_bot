@@ -20,7 +20,8 @@ FILES_TO_SYNC = [
     "last_digest_run.json",
     "last_homebrew_digest_run.json",
     "manual_releases.json",
-    "list_hb.json"
+    "list_hb.json",
+    "custom_releases_state.json"
 ]
 
 DATA_DIR = "data"
@@ -162,6 +163,28 @@ def merge_json_files(filename: str, local_content: str, gist_content: str) -> st
                 if local_upd > gist_upd or local_ver > gist_ver:
                     merged_state[k] = v
         return json.dumps(merged_state, ensure_ascii=False, indent=2)
+
+    elif filename == "custom_releases_state.json":
+        if not isinstance(local_data, dict): local_data = {}
+        if not isinstance(gist_data, dict): gist_data = {}
+        local_run = local_data.get("last_run", "") or ""
+        gist_run = gist_data.get("last_run", "") or ""
+        last_run = local_run if local_run >= gist_run else gist_run
+        
+        merged_authors = dict(gist_data.get("authors", {}))
+        for auth, auth_info in local_data.get("authors", {}).items():
+            if auth not in merged_authors:
+                merged_authors[auth] = auth_info
+            else:
+                first_seen = min(auth_info.get("first_seen", ""), merged_authors[auth].get("first_seen", "")) or auth_info.get("first_seen", "") or merged_authors[auth].get("first_seen", "")
+                last_checked = max(auth_info.get("last_checked", ""), merged_authors[auth].get("last_checked", ""))
+                merged_authors[auth] = {"first_seen": first_seen, "last_checked": last_checked}
+        
+        merged_res = {
+            "last_run": last_run,
+            "authors": merged_authors
+        }
+        return json.dumps(merged_res, ensure_ascii=False, indent=2)
 
     return gist_content if gist_content.strip() else local_content
 

@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.59] - 2026-07-26
+
+### Added
+- **Custom Releases Collector Enhancement & State Tracking**: Added author `delsonazevedo` to `TARGET_USERS` in `collect_custom_releases.py`. Implemented state persistence via `data/custom_releases_state.json` (tracked in `sync_gist_state.py`) to record `last_run` timestamp and per-author tracking history.
+- **Dynamic Cutoff & Switch Homebrew AI Verification**: New authors are evaluated for releases over the last 3 weeks (21 days), while existing authors check all releases published since `last_run`. Added LLM verification to filter and verify that collected repositories are homebrew games, ports, or applications for Nintendo Switch. Updated `run_custom_collector.bat`.
+
 ## [v0.6.58] - 2026-07-26
 
 ### Added
