@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.61] - 2026-07-28
+
+### Fixed
+- **FlareSolverr Cookie Payload & Mirror Fallback**: Fixed FlareSolverr 500 error caused by sending outdated/invalid `bb_session` cookies in FlareSolverr payload. Added fallback to alternative mirror `rutracker.net` if `rutracker.org` FlareSolverr request times out.
+
 ## [v0.6.60] - 2026-07-28
 
 ### Added

@@ -15,7 +15,7 @@ from core.settings_loader import get_session, RUTRACKER_COOKIES, FLARESOLVERR_UR
 
 logger = logging.getLogger(__name__)
 
-async def fetch_via_flaresolverr(url: str, timeout: int = 60) -> Optional[BeautifulSoup]:
+async def fetch_via_flaresolverr(url: str, timeout: int = 120) -> Optional[BeautifulSoup]:
     """Fetch page content via FlareSolverr proxy to bypass Cloudflare challenge."""
     if not FLARESOLVERR_URL:
         return None
@@ -26,9 +26,9 @@ async def fetch_via_flaresolverr(url: str, timeout: int = 60) -> Optional[Beauti
         "url": url,
         "maxTimeout": timeout * 1000
     }
-    if RUTRACKER_COOKIES:
-        cookies_list = [{"name": k, "value": v, "domain": ".rutracker.org"} for k, v in RUTRACKER_COOKIES.items()]
-        payload["cookies"] = cookies_list
+    # Pass cf_clearance if present in RUTRACKER_COOKIES, but omit bb_session to avoid invalid session challenge loops
+    if RUTRACKER_COOKIES and "cf_clearance" in RUTRACKER_COOKIES:
+        payload["cookies"] = [{"name": "cf_clearance", "value": RUTRACKER_COOKIES["cf_clearance"], "domain": ".rutracker.org"}]
 
     try:
         logger.info(f"Attempting FlareSolverr bypass for {url} via {FLARESOLVERR_URL}...")
@@ -76,6 +76,10 @@ async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Opt
                 if response.status_code == 403 or "Just a moment..." in response.text:
                     logger.warning(f"Cloudflare challenge detected (HTTP {response.status_code}) fetching {url}. Trying FlareSolverr...")
                     flaresolverr_soup = await fetch_via_flaresolverr(url)
+                    if not flaresolverr_soup and "rutracker.org" in url:
+                        alt_url = url.replace("rutracker.org", "rutracker.net")
+                        logger.info(f"Retrying FlareSolverr with alternative mirror: {alt_url}")
+                        flaresolverr_soup = await fetch_via_flaresolverr(alt_url)
                     if flaresolverr_soup:
                         return flaresolverr_soup
                     logger.error(f"FlareSolverr fallback failed for {url} (Attempt {attempt + 1}/{retries})")
