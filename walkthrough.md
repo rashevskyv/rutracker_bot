@@ -1,37 +1,28 @@
-# Результати виконання — Додавання автора delsonazevedo та покращення логіки відстеження (v0.6.59)
+# Walkthrough — Інтеграція FlareSolverr для обходу Cloudflare (v0.6.60)
 
-У скрипті `collect_custom_releases.py` додано розробника `delsonazevedo` та реалізовано збереження часу останнього запуску (`last_run`) та стану відстеження авторів у файлі `data/custom_releases_state.json`.
+У цьому випуску додано автоматичну обробку та обхід JavaScript Challenge від Cloudflare (*Just a moment...*) при завантаженні сторінок топіків RuTracker.
 
----
+## Внесені зміни
 
-## Внесені зміни (v0.6.59)
+### 1. Налаштування конфігурації
+- **[settings.json](file:///d:/git/dev/rutracker_bot/config/settings.json):** Додано константу `"FLARESOLVERR_URL": "http://localhost:8191/v1"`.
+- **[settings_loader.py](file:///d:/git/dev/rutracker_bot/core/settings_loader.py):** Експортовано змінну `FLARESOLVERR_URL` з параметрів.
 
-### 1. Додавання автора та збереження стану (`collect_custom_releases.py`)
-- До списку відстежуваних авторів `TARGET_USERS` додано `delsonazevedo`.
-- Реалізовано збереження та завантаження файлу стану `data/custom_releases_state.json`, який зберігає таймштамп `last_run` та історію авторів `authors`.
+### 2. Автоматичний обхід у парсері
+- **[tracker_parser.py](file:///d:/git/dev/rutracker_bot/parsers/tracker_parser.py):** 
+  - Реалізовано асинхронну функцію `fetch_via_flaresolverr(url)`, яка відправляє POST-запит до локального сервера FlareSolverr.
+  - Оновлено `fetch_page_content(url)`: при отриманні `HTTP 403` або виявленні повідомлення Cloudflare (*Just a moment...*) запит автоматично повторюється через FlareSolverr.
+  - Усі отримані куки (зокрема `cf_clearance`) автоматично додаються до `RUTRACKER_COOKIES` у пам'яті для оптимізації подальших запитів.
 
-### 2. Диференційована часова логіка (Cutoff)
-- **Для нових авторів**: якщо автор вперше доданий до стану, збираються його релізи за останні **3 тижні (21 день)**.
-- **Для існуючих авторів**: збираються всі нові релізи з моменту останнього запуску (`last_run`).
-
-### 3. Штучний інтелект та перевірка на Nintendo Switch хомбрю
-- Оновлено аналізатор `analyze_repo_with_gemini`: додано перевірку `"is_switch_homebrew": true/false`. Репозиторії, які не є іграми, портами чи хомбрю додатками для Nintendo Switch (наприклад, не-Switch навчальні репозиторії), автоматично відсіюються.
-
-### 4. Інтеграція з Gist Sync (`sync_gist_state.py`)
-- Файл `custom_releases_state.json` додано до масиву `FILES_TO_SYNC`.
-- Реалізовано алгоритм злиття (merge) для збереження найновішого `last_run` та актуального стану авторів.
-
-### 5. Релізи, додані при першому запуску v0.6.59
-У `data/manual_releases.json` автоматично додано **4 нові релізи** із прапорцем `"processed": false`:
-- **`papersplease (ChanseyIsTheBest)`** (`1.0.0`): Новий реліз Papers, Please для Nintendo Switch (`https://github.com/ChanseyIsTheBest/papersplease_nx`).
-- **`Valkyrie Profile Lenneth (delsonazevedo)`** (`1.0.0`): Порт Valkyrie Profile Lenneth для Nintendo Switch (`https://github.com/delsonazevedo/vpl_nx`).
-- **`Super Mario World Remastered Plus (delsonazevedo)`** (`1.0.0`): Порт Super Mario World Remastered Plus для Nintendo Switch (`https://github.com/delsonazevedo/Super-Mario-World-Remastered-Plus-Switch`).
-- **`nbajam (delsonazevedo)`** (`1.0.0`): Порт NBA Jam для Nintendo Switch (`https://github.com/delsonazevedo/nbajam_nx`).
+### 3. Документація та версіонування
+- **[README.md](file:///d:/git/dev/rutracker_bot/README.md):** Додано інструкцію з розгортання FlareSolverr в Docker на сервері.
+- **[CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md):** Додано опис релізу **`v0.6.60`**.
 
 ---
 
-## Перевірка та результат
+## Результати тестування
 
-- Проведено тестові запуски `collect_custom_releases.py`.
-- При повторному запуску скрипт чітко розпізнав існуючих авторів, використав `last_run` як відсічення та правильно повідомив `No new releases found since last run.`
-- Стан бази даних та файл `custom_releases_state.json` успішно синхронізовано з GitHub Gist (`Gist upload successful!`).
+1. **Імпорт та ініціалізація:**
+   Успішно перевірено завантаження конфігурації `FLARESOLVERR_URL = http://localhost:8191/v1`.
+2. **Перевірка блокування Cloudflare:**
+   У разі виявлення `HTTP 403` парсер переходить до використання `fetch_via_flaresolverr`, корректно обробляє відповідь або помилку з'єднання при відсутності сервера.

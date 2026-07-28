@@ -10,13 +10,52 @@ import logging
 from typing import Optional, Tuple, List # Import Optional, Tuple, List
 # --- Import functions moved to html_utils ---
 from utils.html_utils import clean_description_html, make_tag, sanitize_html_for_telegram
-from core.settings_loader import get_session, RUTRACKER_COOKIES
+from core.settings_loader import get_session, RUTRACKER_COOKIES, FLARESOLVERR_URL
 # --------------------------------------------
 
 logger = logging.getLogger(__name__)
 
+async def fetch_via_flaresolverr(url: str, timeout: int = 60) -> Optional[BeautifulSoup]:
+    """Fetch page content via FlareSolverr proxy to bypass Cloudflare challenge."""
+    if not FLARESOLVERR_URL:
+        return None
+
+    session = get_session()
+    payload = {
+        "cmd": "request.get",
+        "url": url,
+        "maxTimeout": timeout * 1000
+    }
+    if RUTRACKER_COOKIES:
+        cookies_list = [{"name": k, "value": v, "domain": ".rutracker.org"} for k, v in RUTRACKER_COOKIES.items()]
+        payload["cookies"] = cookies_list
+
+    try:
+        logger.info(f"Attempting FlareSolverr bypass for {url} via {FLARESOLVERR_URL}...")
+        async with session.post(FLARESOLVERR_URL, json=payload, timeout=timeout + 10) as response:
+            if response.status != 200:
+                logger.error(f"FlareSolverr returned HTTP {response.status}")
+                return None
+            data = await response.json()
+            if data.get("status") == "ok" and "solution" in data:
+                html_content = data["solution"].get("response", "")
+                returned_cookies = data["solution"].get("cookies", [])
+                for c in returned_cookies:
+                    if isinstance(c, dict) and "name" in c and "value" in c:
+                        if RUTRACKER_COOKIES is not None:
+                            RUTRACKER_COOKIES[c["name"]] = c["value"]
+                soup = BeautifulSoup(html_content, "html.parser")
+                logger.info(f"Successfully fetched {url} via FlareSolverr.")
+                return soup
+            else:
+                logger.error(f"FlareSolverr response error: {data.get('message')}")
+                return None
+    except Exception as e:
+        logger.error(f"FlareSolverr request failed for {url}: {e}")
+        return None
+
 async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Optional[BeautifulSoup]:
-    """Fetch a RuTracker page using curl_cffi with Chrome TLS impersonation."""
+    """Fetch a RuTracker page using curl_cffi with Chrome TLS impersonation and FlareSolverr fallback."""
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -34,15 +73,23 @@ async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Opt
                 )
                 if response.status_code == 404:
                     return None
-                if response.status_code != 200:
+                if response.status_code == 403 or "Just a moment..." in response.text:
+                    logger.warning(f"Cloudflare challenge detected (HTTP {response.status_code}) fetching {url}. Trying FlareSolverr...")
+                    flaresolverr_soup = await fetch_via_flaresolverr(url)
+                    if flaresolverr_soup:
+                        return flaresolverr_soup
+                    logger.error(f"FlareSolverr fallback failed for {url} (Attempt {attempt + 1}/{retries})")
+                elif response.status_code != 200:
                     logger.error(f"HTTP {response.status_code} fetching {url} (Attempt {attempt + 1}/{retries})")
-                    if attempt < retries - 1:
-                        logger.info(f"Retrying in {delay}s... ({attempt + 2}/{retries})")
-                        await asyncio.sleep(delay)
-                        continue
-                    raise ValueError(f"Failed to fetch page content (HTTP error {response.status_code} after {retries} attempts)")
-                soup = BeautifulSoup(response.content, "html.parser")
-                return soup
+                else:
+                    soup = BeautifulSoup(response.content, "html.parser")
+                    return soup
+
+                if attempt < retries - 1:
+                    logger.info(f"Retrying in {delay}s... ({attempt + 2}/{retries})")
+                    await asyncio.sleep(delay)
+                    continue
+                raise ValueError(f"Failed to fetch page content (HTTP error {response.status_code} after {retries} attempts)")
         except ValueError:
             raise
         except Exception as e:

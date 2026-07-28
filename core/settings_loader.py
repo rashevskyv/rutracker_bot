@@ -109,6 +109,7 @@ OPENAI_API_KEY = get_env_or_setting(settings, 'OPENAI_API', 'OPENAI_API_KEY') if
 FEED_URL = settings.get('FEED_URL', 'https://feed.rutracker.cc/atom/f/1605.atom')
 YOUTUBE_API_KEY = get_env_or_setting(settings, 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEY')
 DEEPL_API_KEY = get_env_or_setting(settings, 'DEEPL_API_KEY', 'DEEPL_API_KEY')
+FLARESOLVERR_URL = settings.get('FLARESOLVERR_URL', 'http://localhost:8191/v1')
 
 GROUPS = settings.get('GROUPS', [])
 TEST_GROUPS = settings.get('TEST_GROUPS', [])

@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.60] - 2026-07-28
+
+### Added
+- **Cloudflare Challenge Bypass & FlareSolverr Fallback**: Added automatic Cloudflare JavaScript Challenge bypass integration in `parsers/tracker_parser.py`. When `curl_cffi` receives HTTP 403 or encounters Cloudflare's *"Just a moment..."* challenge page, requests automatically fall back to a local FlareSolverr instance (`FLARESOLVERR_URL`, default `"http://localhost:8191/v1"`).
+- **Cookie Caching**: FlareSolverr response cookies (including `cf_clearance`) are dynamically cached in `RUTRACKER_COOKIES` in memory to speed up subsequent topic page fetches.
+- **Config & Documentation**: Configured `FLARESOLVERR_URL` in `config/settings.json` and `core/settings_loader.py`, and updated `README.md` with Docker installation and configuration instructions.
+
 ## [v0.6.59] - 2026-07-26
 
 ### Added

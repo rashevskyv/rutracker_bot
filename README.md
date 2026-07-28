@@ -95,8 +95,18 @@ Format for a manual homebrew entry:
 ]
 ```
 
+### Cloudflare Bypass via FlareSolverr
+To bypass Cloudflare JavaScript challenges (*Just a moment...*) when fetching topic pages from RuTracker on server environments:
+- The bot features an automated fallback to FlareSolverr (`FLARESOLVERR_URL`, default `"http://localhost:8191/v1"`).
+- Run FlareSolverr via Docker on your server:
+  ```bash
+  docker run -d --name=flaresolverr -p 8191:8191 --restart=always ghcr.io/flaresolverr/flaresolverr:latest
+  ```
+- When `tracker_parser.py` encounters a 403 response or Cloudflare challenge, it automatically routes the request through FlareSolverr to solve the challenge, fetch HTML, and cache updated `cf_clearance` cookies in memory.
+
 ### Scheduling & Cooldowns
 To protect against GitHub Actions schedule delays and prevent duplicate posts:
 - Collectors and Send scripts implement a **20-hour cooldown check** internally.
 - Even if GitHub Actions cron triggers a script multiple times in its scheduled hour, the script runs successfully only once per day.
 - A forced run can be triggered manually from GitHub Actions by choosing the task under `force_task` inputs.
+

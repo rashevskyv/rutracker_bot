@@ -1,18 +1,23 @@
-# План реалізації: Додавання автора delsonazevedo та покращення логіки відстеження (v0.6.59)
+# План інтеграції FlareSolverr для обходу Cloudflare
 
-## Опис завдання
-Додати розробника `delsonazevedo` до відстеження у скрипті `collect_custom_releases.py`. Реалізувати відстеження часу останнього запуску скрипта та диференційовану логіку для нових і існуючих авторів:
-1. Якщо автор новий — збирати його релізи за останні 3 тижні (21 день), перевіряючи, що реліз є Nintendo Switch хомбрю.
-2. При наступних запусках — збирати нові додані релізи з моменту останнього запуску (`last_run`).
+Цей план описує додавання підтримки FlareSolverr для вирішення JavaScript Challenge від Cloudflare при парсингу сторінок роздач RuTracker.
 
-## Кроки виконання:
-1. [x] Оновити `sync_gist_state.py`: додати `custom_releases_state.json` до списку файлів синхронізації `FILES_TO_SYNC`.
-2. [x] Оновити `collect_custom_releases.py`:
-   - Додати `delsonazevedo` до списку `TARGET_USERS`.
-   - Інтегрувати збереження/завантаження стану відстеження авторів та останнього запуску (`data/custom_releases_state.json`).
-   - Реалізувати перевірку дати виходу релізу: для нових авторів (за останні 21 день), для існуючих — з моменту `last_run`.
-   - Покращити аналіз Gemini/LLM для перевірки, чи є репозиторій/реліз саме хомбрю для Nintendo Switch (`is_switch_homebrew`).
-3. [x] Оновити `run_custom_collector.bat` з урахуванням доданого автора.
-4. [x] Протестувати запуск `collect_custom_releases.py` та перевірити збір релізів.
-5. [x] Оновити документацію (`CHANGELOG.md`, `README.md`, `GEMINI.md`), `plan.md`, `task.md` та `walkthrough.md` з ітерацією версії до `v0.6.59`.
-6. [x] Закомітити зміни локально та створити тег `v0.6.59`.
+## Покрокові зміни
+
+### 1. Конфігурація (`core/settings_loader.py` та `config/settings.json`)
+- Додати параметр `FLARESOLVERR_URL` в `config/settings.json` (за замовчуванням `"http://localhost:8191/v1"`).
+- Зчитувати `FLARESOLVERR_URL` у `core/settings_loader.py`.
+
+### 2. Інтеграція у парсер (`parsers/tracker_parser.py`)
+- Створити допоміжну функцію `fetch_via_flaresolverr(url: str)` для відправки POST-запиту до FlareSolverr API (`http://localhost:8191/v1`).
+- У функції `fetch_page_content(url)`:
+  - Спершу виконувати швидкий запит через `curl_cffi`.
+  - Якщо `status_code == 403` або у відповіді виявлено сторінку Cloudflare ("Just a moment..."), виконувати резервний запит через FlareSolverr.
+  - Якщо FlareSolverr повернув новий cookie `cf_clearance`, зберегти його в пам'яті для подальших запитів.
+
+### 3. Документація та README (`README.md`, `CHANGELOG.md`)
+- Оновити `README.md` з описом налаштування та використання FlareSolverr для роботи бота на сервері.
+- Додати запис про зміни в `CHANGELOG.md`.
+
+## Перевірка
+- Перевірити коректність імпорту та обробку помилок, якщо FlareSolverr недоступний.
