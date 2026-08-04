@@ -51,7 +51,19 @@ jobs:
         
       # titledb is ~200MB of generated Nintendo metadata — fetched at runtime instead of
       # living in git. Only used for screenshots; main.py degrades gracefully without it.
+      # This job runs every 15 min, so the download is cached and refreshed weekly.
+      - name: Compute titledb cache key
+        run: echo "TITLEDB_WEEK=$(date -u +%Y-w%V)" >> $GITHUB_ENV
+
+      - name: Restore titledb cache
+        id: titledb-cache
+        uses: actions/cache@v4
+        with:
+          path: titledb
+          key: titledb-${{ env.TITLEDB_WEEK }}
+
       - name: Download titledb
+        if: steps.titledb-cache.outputs.cache-hit != 'true'
         continue-on-error: true
         run: |
           mkdir -p titledb
