@@ -119,158 +119,69 @@ class HomebrewUpdatesCollector:
         from core.settings_loader import get_session
         return get_session()
 
-    def load_state(self) -> Dict[str, Dict]:
-        """Load dynamic state (comm_date, tag_name, html_url) from hb_state.json"""
-        if not self.state_path.exists():
-            logger.warning(f"State file not found: {self.state_path} — using empty state")
+    @staticmethod
+    def _load_json(path, label: str) -> Dict:
+        """Load a JSON state file, returning {} when missing or unreadable."""
+        path = Path(path)
+        if not path.exists():
+            logger.info(f"{label} file not found: {path} — starting fresh")
             return {}
         try:
-            with open(self.state_path, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-            logger.info(f"Loaded state for {len(state)} entries from {self.state_path}")
-            return state
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            logger.info(f"Loaded {label} for {len(data)} entries from {path}")
+            return data
         except Exception as e:
-            logger.error(f"Error loading state file: {e}")
+            logger.error(f"Error loading {label}: {e}")
             return {}
+
+    @staticmethod
+    def _save_json(path, data: Dict, label: str):
+        """Write a JSON state file, creating its directory if needed."""
+        path = Path(path)
+        try:
+            os.makedirs(path.parent, exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved {label} for {len(data)} entries to {path}")
+        except Exception as e:
+            logger.error(f"Error saving {label}: {e}")
+
+    def load_state(self) -> Dict[str, Dict]:
+        return self._load_json(self.state_path, "state")
 
     def save_state(self):
-        """Save dynamic state to hb_state.json"""
-        try:
-            os.makedirs(self.state_path.parent, exist_ok=True)
-            with open(self.state_path, 'w', encoding='utf-8') as f:
-                json.dump(self._state, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved state for {len(self._state)} entries to {self.state_path}")
-        except Exception as e:
-            logger.error(f"Error saving state: {e}")
+        self._save_json(self.state_path, self._state, "state")
 
     def load_udb_state(self) -> Dict[str, Dict]:
-        """Load Universal-DB state (version, updated, description cache) from udb_state.json"""
-        udb_state_path = Path(UDB_STATE_PATH)
-        if not udb_state_path.exists():
-            logger.info("UDB state file not found — starting fresh")
-            return {}
-        try:
-            with open(udb_state_path, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-            logger.info(f"Loaded UDB state for {len(state)} entries")
-            return state
-        except Exception as e:
-            logger.error(f"Error loading UDB state: {e}")
-            return {}
+        return self._load_json(UDB_STATE_PATH, "UDB state")
 
     def save_udb_state(self):
-        """Save Universal-DB state to udb_state.json"""
-        udb_state_path = Path(UDB_STATE_PATH)
-        try:
-            os.makedirs(udb_state_path.parent, exist_ok=True)
-            with open(udb_state_path, 'w', encoding='utf-8') as f:
-                json.dump(self._udb_state, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved UDB state for {len(self._udb_state)} entries")
-        except Exception as e:
-            logger.error(f"Error saving UDB state: {e}")
+        self._save_json(UDB_STATE_PATH, self._udb_state, "UDB state")
 
     def load_fortheusers_state(self) -> Dict[str, Dict]:
-        """Load ForTheUsers state from fortheusers_state.json"""
-        path = Path(FORTHEUSERS_STATE_PATH)
-        if not path.exists():
-            logger.info("ForTheUsers state file not found — starting fresh")
-            return {}
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-            logger.info(f"Loaded ForTheUsers state for {len(state)} entries")
-            return state
-        except Exception as e:
-            logger.error(f"Error loading ForTheUsers state: {e}")
-            return {}
+        return self._load_json(FORTHEUSERS_STATE_PATH, "ForTheUsers state")
 
     def save_fortheusers_state(self):
-        """Save ForTheUsers state to fortheusers_state.json"""
-        path = Path(FORTHEUSERS_STATE_PATH)
-        try:
-            os.makedirs(path.parent, exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(self._fortheusers_state, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved ForTheUsers state for {len(self._fortheusers_state)} entries")
-        except Exception as e:
-            logger.error(f"Error saving ForTheUsers state: {e}")
+        self._save_json(FORTHEUSERS_STATE_PATH, self._fortheusers_state, "ForTheUsers state")
 
     def load_descriptions_cache(self) -> Dict[str, str]:
-        """Load shared descriptions cache from hb_descriptions.json"""
-        path = Path(DESCRIPTIONS_CACHE_PATH)
-        if not path.exists():
-            return {}
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                cache = json.load(f)
-            logger.info(f"Loaded descriptions cache: {len(cache)} entries")
-            return cache
-        except Exception as e:
-            logger.error(f"Error loading descriptions cache: {e}")
-            return {}
+        return self._load_json(DESCRIPTIONS_CACHE_PATH, "descriptions cache")
 
     def save_descriptions_cache(self):
-        """Save shared descriptions cache to hb_descriptions.json"""
-        path = Path(DESCRIPTIONS_CACHE_PATH)
-        try:
-            os.makedirs(path.parent, exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(self._descriptions, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved descriptions cache: {len(self._descriptions)} entries")
-        except Exception as e:
-            logger.error(f"Error saving descriptions cache: {e}")
+        self._save_json(DESCRIPTIONS_CACHE_PATH, self._descriptions, "descriptions cache")
 
     def load_vitadb_state(self) -> Dict[str, Dict]:
-        """Load VitaDB state from vitadb_state.json"""
-        path = Path(VITADB_STATE_PATH)
-        if not path.exists():
-            logger.info("VitaDB state file not found — starting fresh")
-            return {}
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-            logger.info(f"Loaded VitaDB state for {len(state)} entries")
-            return state
-        except Exception as e:
-            logger.error(f"Error loading VitaDB state: {e}")
-            return {}
+        return self._load_json(VITADB_STATE_PATH, "VitaDB state")
 
     def save_vitadb_state(self):
-        """Save VitaDB state to vitadb_state.json"""
-        path = Path(VITADB_STATE_PATH)
-        try:
-            os.makedirs(path.parent, exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(self._vitadb_state, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved VitaDB state for {len(self._vitadb_state)} entries")
-        except Exception as e:
-            logger.error(f"Error saving VitaDB state: {e}")
+        self._save_json(VITADB_STATE_PATH, self._vitadb_state, "VitaDB state")
 
     def load_switchports_state(self) -> Dict[str, Dict]:
-        """Load SwitchPorts state from switchports_state.json"""
-        path = Path(SWITCHPORTS_STATE_PATH)
-        if not path.exists():
-            logger.info("SwitchPorts state file not found — starting fresh")
-            return {}
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-            logger.info(f"Loaded SwitchPorts state for {len(state)} entries")
-            return state
-        except Exception as e:
-            logger.error(f"Error loading SwitchPorts state: {e}")
-            return {}
+        return self._load_json(SWITCHPORTS_STATE_PATH, "SwitchPorts state")
 
     def save_switchports_state(self):
-        """Save SwitchPorts state to switchports_state.json"""
-        path = Path(SWITCHPORTS_STATE_PATH)
-        try:
-            os.makedirs(path.parent, exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(self._switchports_state, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved SwitchPorts state for {len(self._switchports_state)} entries")
-        except Exception as e:
-            logger.error(f"Error saving SwitchPorts state: {e}")
+        self._save_json(SWITCHPORTS_STATE_PATH, self._switchports_state, "SwitchPorts state")
 
     def load_homebrew_list(self) -> List[Dict]:
         """Load static registry and merge with dynamic state and processed manual releases"""
@@ -310,10 +221,6 @@ class HomebrewUpdatesCollector:
                 e.get('api_url', '').lower().rstrip('/')
                 for e in entries if e.get('api_url')
             }
-            existing_names = {
-                e.get('app_name', '').lower().replace('-', ' ').replace('_', ' ').strip()
-                for e in entries if e.get('app_name')
-            }
 
             manual_added = 0
             for m in manual_releases:
@@ -337,9 +244,6 @@ class HomebrewUpdatesCollector:
                     continue
 
                 app_name = m.get('app_name') or m.get('title') or 'Unknown'
-                app_name_clean = app_name.lower().replace('-', ' ').replace('_', ' ').strip()
-                if app_name_clean in existing_names:
-                    continue
 
                 comm_date = m.get('date', '2024-01-01T00:00:00Z')
                 tag_name = m.get('version', '')
@@ -370,7 +274,6 @@ class HomebrewUpdatesCollector:
 
                 entries.append(manual_entry)
                 existing_api_urls.add(api_url_clean)
-                existing_names.add(app_name_clean)
                 manual_added += 1
 
             if manual_added > 0:

@@ -8,7 +8,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from core.settings_loader import get_session, close_clients
 from services.translation import translate_short_description
-from scratch.fetch_new_releases import load_github_token, github_request, get_repo_details, process_repo
+from scratch._gh import load_github_token, github_request, get_repo_details
+from scratch.fetch_new_releases import process_repo
 
 async def main():
     session = get_session()

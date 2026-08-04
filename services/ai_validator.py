@@ -1,5 +1,5 @@
 # --- START OF FILE ai_validator.py ---
-from core.settings_loader import openai_client
+from services import gpt
 from typing import Optional
 import re
 import logging
@@ -54,10 +54,6 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
     else:
         logger.debug(f"YT Layer 2 (word overlap {overlap:.0%}): below threshold, proceeding to GPT")
 
-    if not openai_client:
-        logger.warning("OpenAI client unavailable for YouTube title validation.")
-        return False
-
     # --- Layer 3: GPT with structured response ---
     prompt = (
         f"You are a strict game trailer validation assistant.\n\n"
@@ -74,39 +70,21 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
         f"REASON: one sentence"
     )
 
-    fallback_model = "gpt-4o-mini"
+    raw = await gpt.complete(prompt, max_tokens=60, model=model, temperature=0.1, label="YT Layer 3")
+    if raw is None:
+        return False
 
-    for attempt_model in (model, fallback_model):
-        try:
-            use_new_param = attempt_model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
-            extra = {'max_completion_tokens': 60} if use_new_param else {'max_tokens': 60}
-            response = await openai_client.chat.completions.create(
-                model=attempt_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                **extra,
-            )
-            raw = response.choices[0].message.content.strip()
-            logger.debug(f"YT Layer 3 GPT ({attempt_model}) raw: {raw!r}")
+    raw = raw.strip()
+    logger.debug(f"YT Layer 3 GPT raw: {raw!r}")
 
-            # Parse structured response
-            relevant_line = next((l for l in raw.splitlines() if l.upper().startswith('RELEVANT:')), '')
-            reason_line   = next((l for l in raw.splitlines() if l.upper().startswith('REASON:')), '')
-            reason = reason_line.split(':', 1)[1].strip() if ':' in reason_line else ''
-            is_relevant = 'yes' in relevant_line.lower()
+    # Parse structured response
+    relevant_line = next((l for l in raw.splitlines() if l.upper().startswith('RELEVANT:')), '')
+    reason_line   = next((l for l in raw.splitlines() if l.upper().startswith('REASON:')), '')
+    reason = reason_line.split(':', 1)[1].strip() if ':' in reason_line else ''
+    is_relevant = 'yes' in relevant_line.lower()
 
-            if is_relevant:
-                logger.info(f"YT Layer 3 ({attempt_model}): RELEVANT — {reason}")
-            else:
-                logger.info(f"YT Layer 3 ({attempt_model}): NOT RELEVANT — {reason}")
-            return is_relevant
-
-        except Exception as e:
-            logger.error(f"YT Layer 3 GPT error ({attempt_model}): {e}")
-            if attempt_model == fallback_model:
-                return False
-
-    return False  # unreachable
+    logger.info(f"YT Layer 3: {'RELEVANT' if is_relevant else 'NOT RELEVANT'} — {reason}")
+    return is_relevant
 
 async def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-5.4-nano") -> str:
     """
@@ -120,10 +98,6 @@ async def summarize_description_with_ai(description: str, target_length: int = 6
     Returns:
         The summarized description, or the original if an error occurs.
     """
-    if not openai_client:
-        logger.warning("OpenAI client unavailable for summarization. Returning original description.")
-        return description
-
     logger.info(f"Description length ({len(description)}) is too long. Summarizing with {model}...")
 
     prompt = (
@@ -140,21 +114,12 @@ async def summarize_description_with_ai(description: str, target_length: int = 6
         f"**Summarized Text (ESSENCE PRESERVED, under {target_length} chars, ONLY HTML FORMATTING):**"
     )
 
-    try:
-        use_new_param = model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
-        extra = {'max_completion_tokens': 2048} if use_new_param else {'max_tokens': 2048}
-        response = await openai_client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.5,
-            **extra,
-        )
-        from utils.html_utils import sanitize_html_for_telegram
-        summary = response.choices[0].message.content.strip()
-        # Final sanitization to remove any unsupported tags GPT might have included
-        summary = sanitize_html_for_telegram(summary)
-        logger.info(f"Successfully summarized description. New length: {len(summary)}")
-        return summary
-    except Exception as e:
-        logger.error(f"Error during AI summarization: {e}")
-        return description # Fallback to original text on error
+    summary = await gpt.complete(prompt, max_tokens=2048, model=model, temperature=0.5, label="AI summarization")
+    if summary is None:
+        return description  # Fallback to original text on error
+
+    from utils.html_utils import sanitize_html_for_telegram
+    # Final sanitization to remove any unsupported tags GPT might have included
+    summary = sanitize_html_for_telegram(summary.strip())
+    logger.info(f"Successfully summarized description. New length: {len(summary)}")
+    return summary

@@ -8,70 +8,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from core.settings_loader import get_session, close_clients
 from services.translation import translate_short_description
+from scratch._gh import GITHUB_TOKEN, github_request, get_repo_details
 
 # We reuse the token from scratch/fetch_user_list.py if needed, or get_env_or_setting
-# Load GitHub token dynamically from environment or settings
-def load_github_token():
-    import os
-    import json
-    token = os.environ.get("GITHUB_TOKEN")
-    if token and "dummy" not in token.lower():
-        return token
-    # Try config/local_settings.json or settings.json
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for filename in ["local_settings.json", "settings.json"]:
-        path = os.path.join(root_dir, "config", filename)
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    cfg = json.load(f)
-                    val = cfg.get("GITHUB_TOKEN")
-                    if val and not val.startswith("os.environ") and "gho_sHIJ" not in val:
-                        return val
-            except Exception:
-                pass
-    return None
 
-GITHUB_TOKEN = load_github_token()
-
-async def github_request(session, url: str) -> dict:
-    headers = {"Accept": "application/vnd.github.v3+json"}
-    if GITHUB_TOKEN:
-        headers["Authorization"] = f"token {GITHUB_TOKEN}"
-    async with session.get(url, headers=headers) as resp:
-        if resp.status != 200:
-            print(f"Error requesting {url}: status {resp.status}", file=sys.stderr)
-            return None
-        return await resp.json()
-
-async def get_repo_details(session, owner, repo):
-    repo_url = f"https://api.github.com/repos/{owner}/{repo}"
-    releases_url = f"https://api.github.com/repos/{owner}/{repo}/releases"
-    
-    repo_info = await github_request(session, repo_url)
-    if not repo_info:
-        return None
-        
-    releases = await github_request(session, releases_url)
-    latest_release = None
-    if releases and isinstance(releases, list) and len(releases) > 0:
-        latest_release = releases[0]
-        
-    return {
-        "owner": owner,
-        "repo": repo,
-        "name": repo_info.get("name"),
-        "description": repo_info.get("description"),
-        "html_url": repo_info.get("html_url"),
-        "updated_at": repo_info.get("updated_at"),
-        "pushed_at": repo_info.get("pushed_at"),
-        "latest_release": {
-            "tag_name": latest_release.get("tag_name") if latest_release else None,
-            "html_url": latest_release.get("html_url") if latest_release else None,
-            "published_at": latest_release.get("published_at") if latest_release else None,
-            "body": latest_release.get("body") if latest_release else None,
-        } if latest_release else None
-    }
 
 async def process_repo(repo_data, custom_name=None):
     owner = repo_data["owner"]

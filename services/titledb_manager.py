@@ -147,34 +147,6 @@ class TitleDBManager:
                 cleared = False
         return cleared
 
-    async def download_cover_image(self, image_url: str, timeout: int = 15) -> Optional[BytesIO]:
-        fallback_url = 'https://via.placeholder.com/300x200.png?text=No+Image+Found'
-        image = await self._try_download_image(image_url, timeout)
-        if image: return image
-        logger.warning(f"Cover download failed for {image_url}. Trying fallback...")
-        if image_url != fallback_url:
-            image = await self._try_download_image(fallback_url, timeout)
-            if image:
-                logger.info("Fallback image downloaded.")
-                return image
-            else:
-                logger.warning("Fallback image download failed.")
-        return None
-
-    async def download_trailer_thumbnail(self, video_id: str, timeout: int = 15) -> Optional[BytesIO]:
-        if not video_id: return None
-        thumbnail_urls_to_try = [
-            f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg", f"https://img.youtube.com/vi/{video_id}/sddefault.jpg",
-            f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg", f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",
-            f"https://img.youtube.com/vi/{video_id}/default.jpg",
-        ]
-        for url in thumbnail_urls_to_try:
-            image = await self._try_download_image(url, timeout)
-            if image:
-                logger.debug(f"Successfully downloaded thumbnail: {url}")
-                return image
-        return None
-
     async def download_screenshots(self, screenshot_urls: List[str], nsuid: Optional[str] = None, game_title: Optional[str] = None, max_screenshots: int = 4) -> List[str]:
         if not self.tmp_screenshot_dir:
             logger.error("Temp screenshot dir not available.")
@@ -201,21 +173,5 @@ class TitleDBManager:
             await asyncio.sleep(0.1)
         logger.info(f"Finished download. Successfully got {len(downloaded_paths)} screenshots.")
         return downloaded_paths
-
-if __name__ == "__main__":
-    # Minimal logging for direct tests
-    logging.basicConfig(level=logging.INFO)
-    test_titledb_json_path = "titledb"
-    logger.info("--- Running TitleDBManager Tests ---")
-    abs_test_path = os.path.join(_SCRIPT_DIR, test_titledb_json_path)
-    if not os.path.exists(abs_test_path):
-        logger.error(f"Test titledb JSON directory not found: '{abs_test_path}'")
-    else:
-        try:
-            manager = TitleDBManager(titledb_json_path=test_titledb_json_path)
-            # ... (test titles logic)
-        except Exception as e:
-            logger.error(f"Test Failed: {e}")
-            traceback.print_exc()
 
 # --- END OF FILE titledb_manager.py ---

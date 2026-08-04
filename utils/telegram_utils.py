@@ -7,6 +7,7 @@ from html.parser import HTMLParser
 from typing import List, Optional, Tuple, Set
 import logging
 from core.settings_loader import get_session
+from utils.html_utils import normalize_colons
 
 logger = logging.getLogger(__name__)
 
@@ -327,36 +328,8 @@ def split_text(text: str, max_length: int) -> List[str]:
     full_content = re.sub(r'(?:\s*###GAP###\s*)+', '\n\n', full_content)
     
     # --- Final strict formatting rules enforcement ---
-    # Ensure all colons are absolutely glued to the preceding word/tag (no space before colon, never detached)
-    # Move trailing spaces out of bold/strong tags first to clean the boundaries
-    full_content = re.sub(r'([\s\u200b\xa0]+)(</(?:b|strong)>)', r'\2\1', full_content)
-    
-    # Glue colon inside bold/strong tags and push trailing spaces out: <b>Word : </b> -> <b>Word:</b> 
-    full_content = re.sub(r'<(b|strong)>([^:<]+?)(?:[\s\u200b\xa0]*:[\s\u200b\xa0]*)</\1>', r'<\1>\2:</\1> ', full_content)
-    
-    # Clean spaces/newlines before colons outside/after tags: <b>Word</b>  : -> <b>Word</b>:
-    full_content = re.sub(r'(</(?:b|strong|i|em|u|ins|code|a)>)[\s\u200b\xa0\n]*:', r'\1:', full_content)
-    
-    # Clean spaces/newlines before colons in plain words (except inside URL protocols or magnet links):
-    full_content = re.sub(r'(?<!http)(?<!https)(?<!magnet)(\w)[\s\u200b\xa0\n]*:', r'\1:', full_content)
-    
-    # Snap any orphaned colon at the start of a line back to the end of the previous line (attached)
-    full_content = re.sub(r'\n+\s*:', ':', full_content)
-    
-    # Ensure exactly one space after a colon if it is followed by non-newline text
-    # Exclude URL protocols (https://, http://, magnet:) to avoid breaking links
-    full_content = re.sub(r'(?<!https)(?<!http)(?<!magnet):(?=[^\s\n<])', ': ', full_content)
-    
-    # Collapse multiple spaces/tabs after a colon into a single space
-    full_content = re.sub(r':[ \t\u200b\xa0]{2,}', ': ', full_content)
+    full_content = normalize_colons(full_content)
 
-    # Safety: restore any colon damage inside href attributes (e.g. https: // -> https://)
-    full_content = re.sub(
-        r'href="([^"]*)"',
-        lambda m: 'href="' + m.group(1).replace(': //', '://').replace(': ?', ':?').replace(': #', ':#') + '"',
-        full_content
-    )
-    
     # 2. Delete orphaned bullets (bullets with no text after them on the same line)
     # Using (?m) for multiple lines so `^•` matches cleanly.
     full_content = re.sub(r'(?m)^[ \t]*•[ \t]*(?=\n|$)', '', full_content)

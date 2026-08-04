@@ -9,6 +9,12 @@ venv/
 data/*
 posted_links.json
 
+# Generated Nintendo metadata (~200MB) — fetched at runtime, see bot_runner.yml
+titledb/
+
+# Knowledge-graph output (graphify)
+graphify-out/
+
 # Config files (contain secrets)
 config/settings.json
 config/local_settings.json

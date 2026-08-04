@@ -1,9 +1,15 @@
 import asyncio
 import aiohttp
+import os
 import sys
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from collect_homebrew_updates import UDB_API_URL
+
+
 async def test_udb():
-    url = 'https://udb-api.lightsage.dev/all'
+    url = UDB_API_URL
     print(f"Fetching {url}...")
     try:
         async with aiohttp.ClientSession() as session:

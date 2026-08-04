@@ -4,6 +4,41 @@ import html
 from bs4 import BeautifulSoup, NavigableString, Tag
 from typing import Optional, List # Import Optional, List needed for clean_description_html
 
+def normalize_colons(text: str) -> str:
+    """Glue every colon to the preceding word/tag and leave exactly one space after it.
+
+    Shared by sanitize_html_for_telegram() and telegram_utils.split_text() — both run
+    this as the final formatting pass, so it must stay in one place.
+    """
+    # Move trailing spaces out of bold/strong tags first to clean the boundaries
+    text = re.sub(r'([\s\u200b\xa0]+)(</(?:b|strong)>)', r'\2\1', text)
+
+    # Glue colon inside bold/strong tags and push trailing spaces out: <b>Word : </b> -> <b>Word:</b>
+    text = re.sub(r'<(b|strong)>([^:<]+?)(?:[\s\u200b\xa0]*:[\s\u200b\xa0]*)</\1>', r'<\1>\2:</\1> ', text)
+
+    # Clean spaces/newlines before colons outside/after tags: <b>Word</b>  : -> <b>Word</b>:
+    text = re.sub(r'(</(?:b|strong|i|em|u|ins|code|a)>)[\s\u200b\xa0\n]*:', r'\1:', text)
+
+    # Clean spaces/newlines before colons in plain words (except inside URL protocols or magnet links)
+    text = re.sub(r'(?<!http)(?<!https)(?<!magnet)(\w)[\s\u200b\xa0\n]*:', r'\1:', text)
+
+    # Snap any orphaned colon at the start of a line back to the end of the previous line
+    text = re.sub(r'\n+\s*:', ':', text)
+
+    # Ensure exactly one space after a colon if it is followed by non-newline text
+    text = re.sub(r'(?<!https)(?<!http)(?<!magnet):(?=[^\s\n<])', ': ', text)
+
+    # Collapse multiple spaces/tabs after a colon into a single space
+    text = re.sub(r':[ \t\u200b\xa0]{2,}', ': ', text)
+
+    # Safety: restore any colon damage inside href attributes (e.g. https: // -> https://)
+    return re.sub(
+        r'href="([^"]*)"',
+        lambda m: 'href="' + m.group(1).replace(': //', '://').replace(': ?', ':?').replace(': #', ':#') + '"',
+        text
+    )
+
+
 def sanitize_html_for_telegram(html_str: str) -> str:
     """
     Core function to sanitize HTML for Telegram's HTML parse mode.
@@ -66,35 +101,7 @@ def sanitize_html_for_telegram(html_str: str) -> str:
     # 5. Normalize whitespace
     cleaned_html = cleaned_html.replace('\r', '')
     
-    # Ensure all colons are absolutely glued to the preceding word/tag (no space before colon, never detached)
-    # Move trailing spaces out of bold/strong tags first to clean the boundaries
-    cleaned_html = re.sub(r'([\s\u200b\xa0]+)(</(?:b|strong)>)', r'\2\1', cleaned_html)
-    
-    # Glue colon inside bold/strong tags and push trailing spaces out: <b>Word : </b> -> <b>Word:</b> 
-    cleaned_html = re.sub(r'<(b|strong)>([^:<]+?)(?:[\s\u200b\xa0]*:[\s\u200b\xa0]*)</\1>', r'<\1>\2:</\1> ', cleaned_html)
-    
-    # Clean spaces/newlines before colons outside/after tags: <b>Word</b>  : -> <b>Word</b>:
-    cleaned_html = re.sub(r'(</(?:b|strong|i|em|u|ins|code|a)>)[\s\u200b\xa0\n]*:', r'\1:', cleaned_html)
-    
-    # Clean spaces/newlines before colons in plain words (except inside URL protocols or magnet links):
-    cleaned_html = re.sub(r'(?<!http)(?<!https)(?<!magnet)(\w)[\s\u200b\xa0\n]*:', r'\1:', cleaned_html)
-    
-    # Snap any orphaned colon at the start of a line back to the end of the previous line (attached)
-    cleaned_html = re.sub(r'\n+\s*:', ':', cleaned_html)
-    
-    # Ensure exactly one space after a colon if it is followed by non-newline text
-    # Exclude URL protocols (https://, http://, magnet:) to avoid breaking links
-    cleaned_html = re.sub(r'(?<!https)(?<!http)(?<!magnet):(?=[^\s\n<])', ': ', cleaned_html)
-    
-    # Collapse multiple spaces/tabs after a colon into a single space
-    cleaned_html = re.sub(r':[ \t\u200b\xa0]{2,}', ': ', cleaned_html)
-
-    # Safety: restore any colon damage inside href attributes (e.g. https: // -> https://)
-    cleaned_html = re.sub(
-        r'href="([^"]*)"',
-        lambda m: 'href="' + m.group(1).replace(': //', '://').replace(': ?', ':?').replace(': #', ':#') + '"',
-        cleaned_html
-    )
+    cleaned_html = normalize_colons(cleaned_html)
 
     # Convert horizontal bullet lists to properly separated vertical lists (e.g. "Item 1 • Item 2" -> "Item 1\n• Item 2")
     # We look for a bullet preceded by spaces that follows some text on the SAME line.

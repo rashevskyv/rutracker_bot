@@ -1,6 +1,7 @@
 # --- START OF FILE translation.py ---
 import asyncio
-from core.settings_loader import openai_client, get_session
+from core.settings_loader import openai_client
+from services import gpt
 from utils.html_utils import sanitize_html_for_telegram
 import re
 import logging
@@ -30,10 +31,6 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
     :param model: GPT model to use. Defaults to "gpt-5.4-nano".
     :return: Translated text or original text on error.
     """
-    if not openai_client:
-        logger.error("Error: OpenAI client not available for GPT translation.")
-        return text
-
     logger.info(f"Translating text RU -> UA using GPT model: {model}...")
 
     # Check if text contains GAP markers
@@ -67,79 +64,60 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
     )
     # --- End of Updated Prompt ---
 
-    fallback_model = "gpt-4o-mini"
+    translated_text = await gpt.complete(prompt, max_tokens=8192, model=model, label="Translation")
+    if translated_text is None:
+        return text  # Both models failed — return original
 
-    for attempt_model in (model, fallback_model):
-        try:
-            use_new_param = attempt_model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
-            extra = {'max_completion_tokens': 8192} if use_new_param else {'max_tokens': 8192}
-            response = await openai_client.chat.completions.create(
-                model=attempt_model,
-                messages=[{"role": "user", "content": prompt}],
-                **extra,
-            )
-            if attempt_model != model:
-                logger.info(f"Translation: used fallback model {attempt_model}.")
+    # Clean trailing markdown code fences and whitespace
+    cleaned_text = translated_text.strip()
+    cleaned_text = re.sub(r"^(```html|```)", "", cleaned_text).strip()
+    cleaned_text = re.sub(r"```$", "", cleaned_text).strip()
 
-            translated_text = response.choices[0].message.content
+    # Clean up prompt hallucination if GPT repeated/mimicked the prompt suffix
+    cleaned_text = re.sub(r'(?i)\*\*Beautiful Ukrainian Translation.*?:\*\*', '', cleaned_text).strip()
+    cleaned_text = re.sub(r'(?i)\bBeautiful Ukrainian Translation.*?:\s*', '', cleaned_text).strip()
 
-            # Clean trailing markdown code fences and whitespace
-            cleaned_text = translated_text.strip()
-            cleaned_text = re.sub(r"^(```html|```)", "", cleaned_text).strip()
-            cleaned_text = re.sub(r"```$", "", cleaned_text).strip()
+    # --- Post-translation structural cleaning ---
+    # 1. Clean up newlines around blockquote markers
+    cleaned_text = re.sub(r'\s*XBQSX\s*', '\nXBQSX\n', cleaned_text)
+    cleaned_text = re.sub(r'\s*XBQEX\s*', '\nXBQEX\n', cleaned_text)
 
-            # Clean up prompt hallucination if GPT repeated/mimicked the prompt suffix
-            cleaned_text = re.sub(r'(?i)\*\*Beautiful Ukrainian Translation.*?:\*\*', '', cleaned_text).strip()
-            cleaned_text = re.sub(r'(?i)\bBeautiful Ukrainian Translation.*?:\s*', '', cleaned_text).strip()
+    # 2. Snap floating colons back to the bold tags outside the blockquote
+    # If the bold header has no colon, but there is a leading colon inside the blockquote
+    cleaned_text = re.sub(
+        r'(<b>[^<:]+</b>)\s*\n*XBQSX\s*\n*\s*:\s*',
+        r'\1:\nXBQSX\n',
+        cleaned_text
+    )
+    # If the bold header already has a colon, and there is also a colon inside the blockquote
+    cleaned_text = re.sub(
+        r'(<b>[^<]+:</b>|<b>[^<]+</b>:)\s*\n*XBQSX\s*\n*\s*:\s*',
+        r'\1\nXBQSX\n',
+        cleaned_text
+    )
+    # ---------------------------------------------
 
-            # --- Post-translation structural cleaning ---
-            # 1. Clean up newlines around blockquote markers
-            cleaned_text = re.sub(r'\s*XBQSX\s*', '\nXBQSX\n', cleaned_text)
-            cleaned_text = re.sub(r'\s*XBQEX\s*', '\nXBQEX\n', cleaned_text)
+    # FINAL SANITIZATION: Clean any unsupported tags from GPT response
+    logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
 
-            # 2. Snap floating colons back to the bold tags outside the blockquote
-            # If the bold header has no colon, but there is a leading colon inside the blockquote
-            cleaned_text = re.sub(
-                r'(<b>[^<:]+</b>)\s*\n*XBQSX\s*\n*\s*:\s*',
-                r'\1:\nXBQSX\n',
-                cleaned_text
-            )
-            # If the bold header already has a colon, and there is also a colon inside the blockquote
-            cleaned_text = re.sub(
-                r'(<b>[^<]+:</b>|<b>[^<]+</b>:)\s*\n*XBQSX\s*\n*\s*:\s*',
-                r'\1\nXBQSX\n',
-                cleaned_text
-            )
-            # ---------------------------------------------
+    # Replace accidental BBCode with HTML (GPT sometimes hallucinates [b] instead of <b>)
+    cleaned_text = re.sub(r'\[b\](.*?)\[/b\]', r'<b>\1</b>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+    cleaned_text = re.sub(r'\[i\](.*?)\[/i\]', r'<i>\1</i>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+    cleaned_text = re.sub(r'\[u\](.*?)\[/u\]', r'<u>\1</u>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+    cleaned_text = re.sub(r'\[s\](.*?)\[/s\]', r'<s>\1</s>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
 
-            # FINAL SANITIZATION: Clean any unsupported tags from GPT response
-            logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
+    final_text = sanitize_html_for_telegram(cleaned_text)
 
-            # Replace accidental BBCode with HTML (GPT sometimes hallucinates [b] instead of <b>)
-            cleaned_text = re.sub(r'\[b\](.*?)\[/b\]', r'<b>\1</b>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
-            cleaned_text = re.sub(r'\[i\](.*?)\[/i\]', r'<i>\1</i>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
-            cleaned_text = re.sub(r'\[u\](.*?)\[/u\]', r'<u>\1</u>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
-            cleaned_text = re.sub(r'\[s\](.*?)\[/s\]', r'<s>\1</s>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
+    # AGGRESSIVE MERGE OF ALL POSSIBLE BLOCKQUOTE MARKERS
+    final_text = final_text.replace("<blockquote>", "XBQSX").replace("</blockquote>", "XBQEX")
+    final_text = re.sub(r'XBQEX[\s\S]*?XBQSX', 'XBQEXXBQSX', final_text, flags=re.IGNORECASE)
+    final_text = final_text.replace("XBQSX", "<blockquote>")
+    final_text = final_text.replace("XBQEX", "</blockquote>")
+    final_text = re.sub(r'</blockquote>[ \t\n\r]*<blockquote>', '</blockquote><blockquote>', final_text, flags=re.IGNORECASE)
+    final_text = re.sub(r'\n{3,}', '\n\n', final_text).strip()
 
-            final_text = sanitize_html_for_telegram(cleaned_text)
-
-            # AGGRESSIVE MERGE OF ALL POSSIBLE BLOCKQUOTE MARKERS
-            final_text = final_text.replace("<blockquote>", "XBQSX").replace("</blockquote>", "XBQEX")
-            final_text = re.sub(r'XBQEX[\s\S]*?XBQSX', 'XBQEXXBQSX', final_text, flags=re.IGNORECASE)
-            final_text = final_text.replace("XBQSX", "<blockquote>")
-            final_text = final_text.replace("XBQEX", "</blockquote>")
-            final_text = re.sub(r'</blockquote>[ \t\n\r]*<blockquote>', '</blockquote><blockquote>', final_text, flags=re.IGNORECASE)
-            final_text = re.sub(r'\n{3,}', '\n\n', final_text).strip()
-
-            logger.debug(f"GPT Response (final bytes {len(final_text)}): {final_text[:300]}...")
-            return final_text
-
-        except Exception as e:
-            logger.error(f"Error during GPT translation with {attempt_model}: {e}")
-            if attempt_model == fallback_model:
-                return text  # Both models failed — return original
-
-    return text  # unreachable
+    logger.debug(f"GPT Response (final bytes {len(final_text)}): {final_text[:300]}...")
+    return final_text
 
 async def translate_short_description(text: str, model: str = "gpt-5.4-nano") -> str:
     """
@@ -151,10 +129,6 @@ async def translate_short_description(text: str, model: str = "gpt-5.4-nano") ->
     :param model: GPT model to use (primary).
     :return: 1-sentence Ukrainian description, or original text on error.
     """
-    if not openai_client:
-        logger.error("Error: OpenAI client not available for GPT translation.")
-        return text
-
     prompt = (
         f"Summarize the following app description into exactly ONE short sentence in Ukrainian.\n\n"
         f"**Rules:**\n"
@@ -173,54 +147,13 @@ async def translate_short_description(text: str, model: str = "gpt-5.4-nano") ->
         f"**App description:**\n{text}\n\n**One-sentence Ukrainian summary:**"
     )
 
-    fallback_model = "gpt-4o-mini"
+    logger.info(f"Summarizing description using GPT model: {model}...")
+    translated_text = await gpt.complete(prompt, max_tokens=100, model=model, temperature=0.3,
+                                         label="Description summarization")
+    if translated_text is None:
+        return text  # Both models failed — caller decides whether to cache
 
-    for attempt_model in (model, fallback_model):
-        try:
-            logger.info(f"Summarizing description using GPT model: {attempt_model}...")
-            # New-generation models require max_completion_tokens instead of max_tokens
-            use_new_param = attempt_model.startswith(('gpt-5', 'o1', 'o3', 'o4'))
-            extra = {'max_completion_tokens': 100} if use_new_param else {'max_tokens': 100}
-            response = await openai_client.chat.completions.create(
-                model=attempt_model,
-                messages=[{'role': 'user', 'content': prompt}],
-                temperature=0.3,
-                **extra,
-            )
-            translated_text = response.choices[0].message.content.strip()
-
-            # Clean any markdown artifacts
-            translated_text = re.sub(r"^(```html|```)", "", translated_text).strip()
-            translated_text = re.sub(r"```$", "", translated_text).strip()
-
-            if attempt_model != model:
-                logger.info(f"Used fallback model {attempt_model} for description translation.")
-            return translated_text
-
-        except Exception as e:
-            logger.error(f"Error during GPT description summarization with {attempt_model}: {e}")
-            if attempt_model == fallback_model:
-                # Both models failed — return original text (caller decides whether to cache)
-                return text
-
-    return text  # unreachable, but satisfies type checker
-
-
-# Function translate_ru_to_ua_deepl remains the same (using aiohttp)
-async def translate_ru_to_ua_deepl(text: str) -> str:
-    """Translates text from Russian to Ukrainian using DeepL API."""
-    if not DEEPL_API_KEY: return text
-    logger.info("Translating text RU -> UA using DeepL...")
-    url = "https://api-free.deepl.com/v2/translate"
-    params = {"auth_key": DEEPL_API_KEY, "text": text, "source_lang": "RU", "target_lang": "UK", "tag_handling": "html"}
-    session = get_session()
-    try:
-        async with session.post(url, data=params, timeout=20) as response:
-            response.raise_for_status()
-            data = await response.json()
-            translated_text = data['translations'][0]['text']
-            return sanitize_html_for_telegram(translated_text)
-    except Exception as e:
-        logger.error(f"Error during DeepL translation: {e}")
-    return text
+    # Clean any markdown artifacts
+    translated_text = re.sub(r"^(```html|```)", "", translated_text.strip()).strip()
+    return re.sub(r"```$", "", translated_text).strip()
 # --- END OF FILE translation.py ---

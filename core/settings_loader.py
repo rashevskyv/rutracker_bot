@@ -25,7 +25,7 @@ def get_env_or_setting(settings_dict: Dict[str, Any], key: str, env_var: str) ->
     if isinstance(value, str) and value == placeholder:
         env_value = os.environ.get(env_var)
         if not env_value:
-            if key in ['DEEPL_API_KEY', 'YOUTUBE_API_KEY']: # Make optional keys explicit
+            if key == 'YOUTUBE_API_KEY': # Make optional keys explicit
                  # logging.info(f"Setting '{key}' uses env var '{env_var}' which is not set. Feature disabled.")
                  return None
             sys.exit(f"Error: Environment variable {env_var} is not set, and setting '{key}' requires it.")
@@ -43,7 +43,7 @@ def get_env_or_setting(settings_dict: Dict[str, Any], key: str, env_var: str) ->
         elif key == 'FEED_URL': return 'https://feed.rutracker.cc/atom/f/1605.atom' # Default even if None
         elif key == 'LOG': return False
         elif key == 'test': return False
-        else: return None # Includes DEEPL_API_KEY, YOUTUBE_API_KEY if explicitly null
+        else: return None # Includes YOUTUBE_API_KEY if explicitly null
     # Handle boolean conversion for LOG/test if they are strings
     if key in ['LOG', 'test'] and isinstance(value, str): return value.lower() == 'true'
     # Return value as is (could be bool, list, dict, string, etc.)
@@ -108,7 +108,6 @@ OPENAI_BASE_URL = settings.get('OPENAI_BASE_URL')  # Optional: for localhost/cus
 OPENAI_API_KEY = get_env_or_setting(settings, 'OPENAI_API', 'OPENAI_API_KEY') if not OPENAI_BASE_URL else None
 FEED_URL = settings.get('FEED_URL', 'https://feed.rutracker.cc/atom/f/1605.atom')
 YOUTUBE_API_KEY = get_env_or_setting(settings, 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEY')
-DEEPL_API_KEY = get_env_or_setting(settings, 'DEEPL_API_KEY', 'DEEPL_API_KEY')
 FLARESOLVERR_URL = settings.get('FLARESOLVERR_URL', 'http://localhost:8191/v1')
 
 GROUPS = settings.get('GROUPS', [])
