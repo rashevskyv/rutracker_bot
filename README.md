@@ -73,6 +73,27 @@ All configurations are stored in the `config/` directory:
 - `local_settings.json`: Overrides defaults locally (API keys, bot token).
 - `credentials.json`: Google Service Account keys for secondary services.
 
+Required keys (environment variables take precedence over both JSON files):
+
+| Key | Purpose |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Bot account used for all posting. |
+| `OPENAI_API` | Translation and description summarisation. |
+| `YOUTUBE_API_KEY` | Trailer lookup. Optional — the feature degrades quietly. |
+| `GITHUB_TOKEN` | Reading releases from GitHub. Public read-only is enough. |
+| `GIST_ID` | Gist holding the synced state. **No default** — `sync_gist_state.py` exits rather than guess. |
+| `GIST_TOKEN` | Gist read/write. Falls back to `GITHUB_TOKEN`, which then needs the `Gists: Read and write` permission. |
+
+### State Synchronization (`sync_gist_state.py`)
+State lives in a GitHub Gist so that runs on different machines stay consistent.
+These files are synced: `posted_links.json`, `hb_state.json`, `daily_digest_data.json`,
+`homebrew_digest_data.json`, `last_entry.txt`, `last_digest_run.json`,
+`last_homebrew_digest_run.json`, `manual_releases.json`, `list_hb.json`,
+`custom_releases_state.json`.
+
+If the token lacks Gist write permission, `upload` fails with 403 and state is lost
+between runs — duplicate posts and a stale manual-releases queue are the symptoms.
+
 ### Manual Releases Queue (`data/manual_releases.json`)
 Allows queueing custom posts that will be seamlessly merged into the next digest run.
 - **Processing limit**: Maximum 5 unprocessed releases are handled per script execution to avoid flood.

@@ -269,18 +269,37 @@ def main():
     
     gist_id = os.environ.get("GIST_ID")
     token = os.environ.get("GIST_TOKEN")
-    
+    used_github_token = False
+
     if not gist_id or not token:
         try:
             from core.settings_loader import settings
-            gist_id = gist_id or settings.get("GIST_ID") or "46128fc489e0fd60e226ff26dc638e97"
-            token = token or settings.get("GIST_TOKEN") or settings.get("GITHUB_TOKEN")
+            gist_id = gist_id or settings.get("GIST_ID")
+            if not token:
+                token = settings.get("GIST_TOKEN")
+                if not token:
+                    token = settings.get("GITHUB_TOKEN")
+                    used_github_token = bool(token)
         except Exception as e:
             logger.debug(f"Could not load Gist settings from config: {e}")
-            
-    if not gist_id or not token:
-        logger.error("GIST_ID and GIST_TOKEN must be set as environment variables or in config/local_settings.json.")
+
+    if not gist_id:
+        logger.error(
+            "GIST_ID is not set. Put it in config/local_settings.json or export GIST_ID. "
+            "State sync is how manual_releases.json, posted_links.json and the digest "
+            "files survive between runs — refusing to guess which Gist to write to."
+        )
         exit(1)
+
+    if not token:
+        logger.error("GIST_TOKEN is not set (and no GITHUB_TOKEN to fall back on). "
+                     "Set it in config/local_settings.json or export GIST_TOKEN.")
+        exit(1)
+
+    if used_github_token:
+        logger.warning("GIST_TOKEN not set — falling back to GITHUB_TOKEN. "
+                       "That token needs the 'Gists: Read and write' permission, "
+                       "otherwise uploads fail with 403 and state is silently lost.")
         
     if args.action == "download":
         download_state(gist_id, token)
