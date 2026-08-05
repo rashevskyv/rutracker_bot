@@ -71,7 +71,6 @@ Sends aggregated digests to configured Telegram channels once a day (scheduled a
 All configurations are stored in the `config/` directory:
 - `settings.json`: Default configuration (channels, endpoints, fallback values).
 - `local_settings.json`: Overrides defaults locally (API keys, bot token).
-- `credentials.json`: Google Service Account keys for secondary services.
 
 Required keys (environment variables take precedence over both JSON files):
 

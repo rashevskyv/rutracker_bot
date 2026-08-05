@@ -56,7 +56,6 @@ config_directory = os.path.join(current_directory, 'config')
 default_settings_path = os.path.join(config_directory, 'settings.json')
 test_settings_path = os.path.join(config_directory, 'test_settings.json')
 local_settings_path = os.path.join(config_directory, 'local_settings.json')
-credentials_path = os.path.join(config_directory, 'credentials.json')
 last_entry_file_path = os.path.join(current_directory, "data", "last_entry.txt")
 
 # --- NEW Settings Loading Logic ---
@@ -120,11 +119,6 @@ TEST_LAST_ENTRY_LINK = settings.get('test_last_entry_link') if IS_TEST_MODE else
 # --- Validate Critical Settings ---
 if not TOKEN: logging.critical("TELEGRAM_BOT_TOKEN is not configured."); sys.exit("Error: TELEGRAM_BOT_TOKEN is not configured.")
 if not OPENAI_API_KEY and not OPENAI_BASE_URL: logging.warning("OPENAI_API_KEY and OPENAI_BASE_URL not configured. GPT translation disabled.")
-
-# Set Google credentials path
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
-if not os.path.exists(credentials_path):
-     logging.warning(f"Google credentials file ({credentials_path}) not found. Google services might fail.")
 
 # --- Initialize API Clients ---
 try:
