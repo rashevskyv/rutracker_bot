@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import os
 
 def setup_logging(log_level=logging.INFO, log_file="log/bot.log", log_to_console=True):
@@ -24,9 +25,10 @@ def setup_logging(log_level=logging.INFO, log_file="log/bot.log", log_to_console
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
 
-    # File handler - overwrite mode (not append)
-    file_handler = logging.FileHandler(
-        log_file, mode='w', encoding="utf-8"
+    # Append + rotate: every script in a run cycle writes to the same file,
+    # so overwrite mode loses the log of whichever ran first.
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=5_000_000, backupCount=3, encoding="utf-8"
     )
     file_handler.setFormatter(log_format)
     root_logger.addHandler(file_handler)

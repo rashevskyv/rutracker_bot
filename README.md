@@ -16,7 +16,7 @@ The bot runs on a hybrid scheduling model using GitHub Actions and self-managing
          │                         │                         │
   • Tracker Atom RSS        • UDB API (3DS/DS)        • Daily Digest
   • Parse topic pages       • ForTheUsers (Switch/WiiU)• Homebrew Digest
-  • Translate RU → UA       • VitaDB API (Vita)       • Swuk Digest
+  • Translate RU → UA       • VitaForge (Vita/PSP)    • Swuk Digest
   • Lookup screenshots      • GitHub/GitLab APIs      
   • Validate YT trailers    • Swuk RSS feed
          │                         │                         │
@@ -40,7 +40,7 @@ Checks various platforms for homebrew updates:
 - **Phase 1a (3DS/DS)**: Universal-DB API.
 - **Phase 1b (Switch)**: ForTheUsers Switch repository JSON.
 - **Phase 1c (Wii U)**: ForTheUsers Wii U repository JSON.
-- **Phase 1d (PS Vita)**: VitaDB APIs (Homebrew, Plugins, PC Tools).
+- **Phase 1d (PS Vita & PSP)**: VitaForge / VitaDBtoo database (Homebrew, Plugins, PC Tools, PSP Homebrew).
 - **Phase 1e (Switch Ports)**: ChanseyIsTheBest/SwitchPorts markdown tables with Collision Resolution against manual releases and existing repos.
 - **Phase 2 (GitHub/GitLab)**: General registry matching of repositories.
 - **Descriptions Cache**: Translated app descriptions are cached in `data/hb_descriptions.json` to prevent duplicate translations.
@@ -52,7 +52,7 @@ Checks various platforms for homebrew updates:
 - Queues localization entries into `data/swuk_digest_data.json`.
 
 ### 4. Custom Switch Repositories Collector (`collect_custom_releases.py`)
-- Tracks custom GitHub authors (`NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`) for Nintendo Switch homebrew applications, ports, and games.
+- Tracks custom GitHub authors (`NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`) for Nintendo Switch homebrew applications, ports, and games.
 - State is persisted in `data/custom_releases_state.json` (synced with Gist), tracking `last_run` timestamp and author history.
 - Evaluates releases over the last 3 weeks (21 days) for newly added authors, and since `last_run` for existing authors.
 - Uses LLM verification to confirm that repositories are valid Nintendo Switch homebrew software before queueing them to `data/manual_releases.json`.
@@ -79,7 +79,7 @@ Required keys (environment variables take precedence over both JSON files):
 | `TELEGRAM_BOT_TOKEN` | Bot account used for all posting. |
 | `OPENAI_API` | Translation and description summarisation. |
 | `YOUTUBE_API_KEY` | Trailer lookup. Optional — the feature degrades quietly. |
-| `GITHUB_TOKEN` | Reading releases from GitHub. Public read-only is enough. |
+| `GITHUB_TOKEN` | Reading releases from GitHub. Public read-only is enough. Automatically falls back to unauthenticated requests if token returns HTTP 401. |
 | `GIST_ID` | Gist holding the synced state. **No default** — `sync_gist_state.py` exits rather than guess. |
 | `GIST_TOKEN` | Gist read/write. Falls back to `GITHUB_TOKEN`, which then needs the `Gists: Read and write` permission. |
 
@@ -90,8 +90,8 @@ These files are synced: `posted_links.json`, `hb_state.json`, `daily_digest_data
 `last_homebrew_digest_run.json`, `manual_releases.json`, `list_hb.json`,
 `custom_releases_state.json`.
 
-If the token lacks Gist write permission, `upload` fails with 403 and state is lost
-between runs — duplicate posts and a stale manual-releases queue are the symptoms.
+Public Gist downloading and merge state fetching automatically retry without authentication if `GIST_TOKEN` or `GITHUB_TOKEN` returns HTTP 401 Bad credentials.
+If the token lacks Gist write permission or is invalid/expired, `upload` fails with 401/403 and state cannot be pushed to Gist.
 
 ### Manual Releases Queue (`data/manual_releases.json`)
 Allows queueing custom posts that will be seamlessly merged into the next digest run.

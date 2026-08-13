@@ -26,12 +26,15 @@ FILES_TO_SYNC = [
 
 DATA_DIR = "data"
 
-def get_gist_headers(token: str) -> Dict[str, str]:
-    return {
+def get_gist_headers(token: str = None) -> Dict[str, str]:
+    headers = {
         "Accept": "application/vnd.github.v3+json",
-        "Authorization": f"token {token}",
-        "X-GitHub-Api-Version": "2022-11-28"
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "rutracker_bot"
     }
+    if token:
+        headers["Authorization"] = f"token {token}"
+    return headers
 
 def download_state(gist_id: str, token: str):
     logger.info(f"Downloading state from Gist {gist_id}...")
@@ -41,7 +44,17 @@ def download_state(gist_id: str, token: str):
     os.makedirs(DATA_DIR, exist_ok=True)
     
     try:
-        with urllib.request.urlopen(req) as response:
+        try:
+            response_obj = urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            if e.code == 401 and token:
+                logger.warning("Authentication failed (401 Bad credentials), attempting unauthenticated download for public Gist...")
+                req = urllib.request.Request(url, headers=get_gist_headers(None))
+                response_obj = urllib.request.urlopen(req)
+            else:
+                raise
+
+        with response_obj as response:
             gist_data = json.loads(response.read().decode())
             
             files = gist_data.get("files", {})
@@ -198,7 +211,16 @@ def upload_state(gist_id: str, token: str, force: bool = False):
         try:
             url = f"https://api.github.com/gists/{gist_id}"
             req = urllib.request.Request(url, headers=get_gist_headers(token))
-            with urllib.request.urlopen(req) as response:
+            try:
+                response_obj = urllib.request.urlopen(req)
+            except urllib.error.HTTPError as e:
+                if e.code == 401 and token:
+                    logger.warning("Authentication failed (401 Bad credentials) while fetching Gist state for merge, attempting unauthenticated fetch...")
+                    req = urllib.request.Request(url, headers=get_gist_headers(None))
+                    response_obj = urllib.request.urlopen(req)
+                else:
+                    raise
+            with response_obj as response:
                 gist_data = json.loads(response.read().decode())
                 gist_files = gist_data.get("files", {})
             logger.info("Successfully fetched current Gist state for merging.")

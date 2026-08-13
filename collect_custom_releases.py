@@ -12,14 +12,23 @@ DATA_DIR = "data"
 MANUAL_RELEASES_FILE = os.path.join(DATA_DIR, "manual_releases.json")
 CUSTOM_RELEASES_STATE_FILE = os.path.join(DATA_DIR, "custom_releases_state.json")
 
-TARGET_USERS = ["NaGaa95", "ChanseyIsTheBest", "delsonazevedo"]
+TARGET_USERS = ["NaGaa95", "ChanseyIsTheBest", "delsonazevedo", "boraeskicioglu"]
 NEW_AUTHOR_AGE_DAYS = 21  # Collect releases from last 3 weeks for new authors
 
 def run_gist_sync(action: str) -> bool:
     """Runs the sync_gist_state.py script to download or upload state."""
     print(f"\n--- Gist Sync: {action.upper()} ---")
     try:
-        res = subprocess.run([sys.executable, "sync_gist_state.py", action], capture_output=True, text=True, encoding="utf-8")
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        res = subprocess.run(
+            [sys.executable, "sync_gist_state.py", action],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env
+        )
         if res.returncode != 0:
             print(f"Error during Gist sync {action}: {res.stderr}")
             return False
@@ -84,6 +93,12 @@ def fetch_user_repos(username: str, token: str = None) -> list:
     try:
         with urllib.request.urlopen(req) as response:
             return json.loads(response.read().decode())
+    except urllib.error.HTTPError as e:
+        if e.code == 401 and token:
+            print(f"Warning: Authorization failed (401 Bad credentials) for {username}, retrying without token...")
+            return fetch_user_repos(username, token=None)
+        print(f"Error fetching repos for {username}: {e}")
+        return []
     except Exception as e:
         print(f"Error fetching repos for {username}: {e}")
         return []
@@ -101,6 +116,9 @@ def fetch_latest_release(owner: str, repo: str, token: str = None) -> dict:
         with urllib.request.urlopen(req) as response:
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as e:
+        if e.code == 401 and token:
+            print(f"Warning: Authorization failed (401 Bad credentials) for {owner}/{repo}, retrying without token...")
+            return fetch_latest_release(owner, repo, token=None)
         if e.code == 404:
             return None # No releases
         print(f"HTTP Error {e.code} fetching release for {owner}/{repo}")

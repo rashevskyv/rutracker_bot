@@ -1,28 +1,53 @@
-# Walkthrough — Інтеграція FlareSolverr для обходу Cloudflare (v0.6.60)
+# Звіт про виконану роботу: Інтеграція VitaForge / VitaDBtoo (v0.6.66)
 
-У цьому випуску додано автоматичну обробку та обхід JavaScript Challenge від Cloudflare (*Just a moment...*) при завантаженні сторінок топіків RuTracker.
+## Огляд задачі
 
-## Внесені зміни
+31 липня 2026 року оригінальний бекенд сервісу **VitaDB** (на `rinnegatamante.eu`), який використовувався клієнтом **Vita Homebrew Browser (VHBB)**, припинив свою роботу і повертає порожні дані (`[]`).
 
-### 1. Налаштування конфігурації
-- **[settings.json](file:///d:/git/dev/rutracker_bot/config/settings.json):** Додано константу `"FLARESOLVERR_URL": "http://localhost:8191/v1"`.
-- **[settings_loader.py](file:///d:/git/dev/rutracker_bot/core/settings_loader.py):** Експортовано змінну `FLARESOLVERR_URL` з параметрів.
+На заміну полеглому VHBB спільнотою було створено сучасний хомбрю-браузер **VitaForge** ([josephinoo/vitaForge](https://github.com/josephinoo/vitaForge)), який використовує базу даних **VitaDBtoo** ([DrDecki/VitaDBtoo-db](https://github.com/DrDecki/VitaDBtoo-db)).
 
-### 2. Автоматичний обхід у парсері
-- **[tracker_parser.py](file:///d:/git/dev/rutracker_bot/parsers/tracker_parser.py):** 
-  - Реалізовано асинхронну функцію `fetch_via_flaresolverr(url)`, яка відправляє POST-запит до локального сервера FlareSolverr.
-  - Оновлено `fetch_page_content(url)`: при отриманні `HTTP 403` або виявленні повідомлення Cloudflare (*Just a moment...*) запит автоматично повторюється через FlareSolverr.
-  - Усі отримані куки (зокрема `cf_clearance`) автоматично додаються до `RUTRACKER_COOKIES` у пам'яті для оптимізації подальших запитів.
+---
 
-### 3. Документація та версіонування
-- **[README.md](file:///d:/git/dev/rutracker_bot/README.md):** Додано інструкцію з розгортання FlareSolverr в Docker на сервері.
-- **[CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md):** Додано опис релізу **`v0.6.60`**.
+## Звідки VitaForge бере дані та формат API
+
+1. **Джерело даних**:
+   - Каталог **VitaDBtoo** (`DrDecki/VitaDBtoo-db`) — це збережена та щоденно оновлювана база даних застосунків, плагінів, ПК-інструментів та PSP-хомбрю.
+   - Дані надаються як статичні JSON-файли через GitHub / GitHub Pages:
+     - `https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/apps.json` — PS Vita Homebrew застосунки та ігри (1030+ записів).
+     - `https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/preserved/plugins.json` — PS Vita плагіни (124+ записи).
+     - `https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/preserved/tools.json` — ПК-утиліти для PS Vita (33+ записи).
+     - `https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/psp_apps.json` — PSP Homebrew застосунки (127+ записів).
+   - Також існує REST API бекенд VitaForge `https://vitaforge.josephinoo.dev/api/v1` (який синхронізує VitaDBtoo + NPS, проте вимагає обов'язкових заголовків клієнта `X-Client-ID` та має рейт-ліміти).
+
+2. **Формат записів**:
+   - Зберігає 100% сумісність із полями VitaDB:
+     `id`, `name`, `version`, `author`, `date` (формат `YYYY-MM-DD`), `status`, `source`, `release_page`, `url`, `description`, `long_description`, `changelog`.
+   - Запити виконуються методом **GET** (замість старого порожнього POST у VitaDB).
+   - Ідентифікатори `id` збережено без змін (наприклад, `534` для Noboru), завдяки чому наявна історія в `data/vitadb_state.json` (`vita-hb:{id}`, `vita-plugin:{id}`, `vita-tool:{id}`) зберігається і плавно продовжує роботу без помилкових повторних сповіщень.
+
+---
+
+## Впроваджені зміни
+
+### 1. Збирач оновлень [collect_homebrew_updates.py](file:///d:/git/dev/rutracker_bot/collect_homebrew_updates.py)
+- **Оновлено `VITADB_ENDPOINTS`**: налаштовано прямі GET URL на `apps.json`, `preserved/plugins.json`, `preserved/tools.json`, `psp_apps.json`.
+- **Розширено `VITA_CATEGORIES`**: додано підтримку категорії `PSP`.
+- **Оновлено `collect_vitadb_updates()`**:
+  - Метод HTTP-запитів змінено з `self.session.post` на `self.session.get` із таймаутом і заголовками `BROWSER_HEADERS`.
+  - Оновлено логування та мітки на `VitaForge/VitaDBtoo`.
+  - Додано підтримку префікса `vita-psp` для PSP-застосунків.
+
+### 2. Документація та версіонування
+- Оновлено [README.md](file:///d:/git/dev/rutracker_bot/README.md) та [GEMINI.md](file:///d:/git/dev/rutracker_bot/GEMINI.md) з описом нової архітектури джерел Phase 1d.
+- Оновлено [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md) (версія `v0.6.66`).
+- Оновлено [plan.md](file:///d:/git/dev/rutracker_bot/plan.md) та [task.md](file:///d:/git/dev/rutracker_bot/task.md).
 
 ---
 
 ## Результати тестування
 
-1. **Імпорт та ініціалізація:**
-   Успішно перевірено завантаження конфігурації `FLARESOLVERR_URL = http://localhost:8191/v1`.
-2. **Перевірка блокування Cloudflare:**
-   У разі виявлення `HTTP 403` парсер переходить до використання `fetch_via_flaresolverr`, корректно обробляє відповідь або помилку з'єднання при відсутності сервера.
+1. **Тестове завантаження Phase 1d**:
+   - Успішно завантажено та розпарсено 1033 записів PSVita, 124 плагіни, 33 ПК-інструменти та 127 PSP застосунків (покриття 618 GitHub репозиторіїв).
+   - Усі поля, дати релізів, посилання на завантаження та changelog'и коректно обробляються.
+2. **Модульні тести**:
+   - `python -m pytest test_digest_runner.py test_gist_config.py test_manual_merge.py` — 8/8 тестів пройдено успішно.

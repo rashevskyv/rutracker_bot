@@ -2,6 +2,42 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.66] - 2026-08-13
+
+### Added
+- **VitaForge & VitaDBtoo Integration (Phase 1d)**: Migrated PS Vita and PSP homebrew update tracking from the defunct Vita Homebrew Browser / VitaDB backend (`rinnegatamante.eu`) to the community-maintained **VitaDBtoo** catalog and **VitaForge** database endpoints (`DrDecki/VitaDBtoo-db`).
+- **PSP Homebrew Support**: Added `psp_apps.json` endpoint to Phase 1d, expanding homebrew update monitoring to PSP applications in addition to PS Vita homebrews, plugins, and PC tools.
+- **GET Request Protocol & Seamless State Compatibility**: Updated `collect_vitadb_updates()` to fetch static catalog JSONs using HTTP `GET` requests while maintaining 100% ID backwards compatibility with existing entries in `data/vitadb_state.json`.
+- **Documentation**: Updated `README.md` and `GEMINI.md` to reflect the new VitaForge / VitaDBtoo data source architecture.
+
+## [v0.6.65] - 2026-08-13
+
+### Added
+- **Custom Releases Collector (`boraeskicioglu`)**: Integrated Nintendo Switch port developer `boraeskicioglu` into `TARGET_USERS` in `collect_custom_releases.py`.
+- **New Manual Releases**: Automatically collected and queued 3 new Nintendo Switch port releases (`Golden Balloon (boraeskicioglu)` v1.2.1-nx, `Sonic the Hedgehog 4: Episode II (boraeskicioglu)` v0.2, and `How Many Dudes? (boraeskicioglu)` v1.0.0) to `data/manual_releases.json` with `"processed": false`.
+- **State Synchronization**: Updated `data/custom_releases_state.json` and synchronized state with GitHub Gist.
+- **Documentation & Scripts**: Updated `README.md`, `GEMINI.md`, and `run_custom_collector.bat` to include `boraeskicioglu`.
+
+## [v0.6.64] - 2026-08-11
+
+### Added
+- **Manual Release Addition (`Gen1Recomp`)**: Added Nintendo Switch native recreation release `Gen1Recomp (Pokémon Red/Blue/Yellow) (bryanthaboi)` (`0.1.77`, Switch) from [bryanthaboi/gen1recomp](https://github.com/bryanthaboi/gen1recomp) to `data/manual_releases.json` with `"processed": false` for upcoming homebrew digest publication.
+- **State Synchronization**: Synchronized and uploaded updated bot state including manual releases to GitHub Gist.
+
+## [v0.6.63] - 2026-08-08
+
+### Fixed
+- **GitHub API 401 Unauthorized Fallback**: Implemented automatic unauthenticated retries across `collect_custom_releases.py` (`fetch_user_repos`, `fetch_latest_release`), `collect_homebrew_updates.py` (`github_request`), and `sync_gist_state.py` (`upload_state` pre-merge Gist fetch). Public GitHub endpoints now seamlessly fallback to unauthenticated requests if an invalid or expired token is provided in `local_settings.json`.
+- **Subprocess Encoding Safety (`UnicodeDecodeError`)**: Updated `run_gist_sync` in `collect_custom_releases.py` to set `PYTHONIOENCODING="utf-8"` and `errors="replace"` on `subprocess.run`, preventing crashes when reading non-UTF-8 console characters on Windows.
+
+## [v0.6.62] - 2026-08-05
+
+### Added
+- **Manual Release Addition**: Downloaded current Gist state and added Ukrainian GBA localization release `Golden Sun: The Lost Age (Black Dragon Studio)` (v1.0, GBA) by author `turbodiesel` to `data/manual_releases.json` with `"processed": false` for digest announcement.
+
+### Fixed
+- **Gist Download 401 Fallback**: Updated `sync_gist_state.py` with `User-Agent` headers and automatic unauthenticated download fallback when receiving HTTP 401 Bad Credentials for public Gists. Added `GIST_ID` to `config/local_settings.json`.
+
 ## [v0.6.61] - 2026-07-28
 
 ### Fixed

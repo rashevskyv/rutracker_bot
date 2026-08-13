@@ -39,15 +39,16 @@ DESCRIPTIONS_CACHE_PATH = os.path.join('data', 'hb_descriptions.json')
 
 GPT_MODEL = 'gpt-5.4-nano'
 
-# VitaDB (PS Vita)
+# VitaDBtoo / VitaForge (PS Vita & PSP)
 VITADB_STATE_PATH = os.path.join('data', 'vitadb_state.json')
 VITADB_ENDPOINTS = [
-    ('https://rinnegatamante.eu/vitadb/list_hbs_json.php',     'vita-hb',     'PSVita'),
-    ('https://rinnegatamante.eu/vitadb/list_plugins_json.php', 'vita-plugin', 'PSVita Plugin'),
-    ('https://rinnegatamante.eu/vitadb/list_tools_json.php',   'vita-tool',   'PSVita PC Tool'),
+    ('https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/apps.json',              'vita-hb',     'PSVita'),
+    ('https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/preserved/plugins.json', 'vita-plugin', 'PSVita Plugin'),
+    ('https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/preserved/tools.json',   'vita-tool',   'PSVita PC Tool'),
+    ('https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/psp_apps.json',          'vita-psp',    'PSP'),
 ]
-# Vita entries in list_hb.json (if any) use this category
-VITA_CATEGORIES = {'Vita', 'PSVita'}
+# Vita/PSP entries in list_hb.json (if any) use this category
+VITA_CATEGORIES = {'Vita', 'PSVita', 'PSP'}
 
 # SwitchPorts (ChanseyIsTheBest/SwitchPorts)
 SWITCHPORTS_STATE_PATH = os.path.join('data', 'switchports_state.json')
@@ -407,6 +408,15 @@ class HomebrewUpdatesCollector:
                 remaining = resp.headers.get('X-RateLimit-Remaining')
                 if remaining:
                     logger.debug(f"GitHub rate limit remaining: {remaining}")
+
+                if resp.status == 401 and self.github_token:
+                    logger.warning(f"GitHub API 401 Unauthorized for {url} with token. Retrying without token...")
+                    async with self.session.get(url, headers={}, timeout=30) as retry_resp:
+                        if retry_resp.status != 200:
+                            logger.warning(f"GitHub API returned status {retry_resp.status} for {url} (unauthenticated retry)")
+                            return None
+                        self.github_requests += 1
+                        return await retry_resp.json()
 
                 if resp.status == 403:
                     reset_time = resp.headers.get('X-RateLimit-Reset')
@@ -1017,19 +1027,19 @@ class HomebrewUpdatesCollector:
         local_entries: List[Dict],
     ) -> Set[str]:
         """
-        Fetch apps from a VitaDB endpoint and detect updates.
+        Fetch apps from a VitaForge / VitaDBtoo endpoint and detect updates.
         Returns set of GitHub slugs ('owner/repo') covered by this source.
 
-        endpoint_url: one of the 3 vitadb POST endpoints
-        key_prefix: 'vita-hb', 'vita-plugin', or 'vita-tool'
-        platform_name: 'PSVita', 'PSVita Plugin', or 'PSVita PC Tool'
+        endpoint_url: one of the VitaDBtoo / VitaForge JSON endpoints
+        key_prefix: 'vita-hb', 'vita-plugin', 'vita-tool', or 'vita-psp'
+        platform_name: 'PSVita', 'PSVita Plugin', 'PSVita PC Tool', or 'PSP'
         """
         logger.info(f"=== Phase 1d [{platform_name}]: {endpoint_url} ===")
 
         # Initialize default stats
         self.source_stats[platform_name] = {'checked': 0, 'found': 0}
 
-        # Build local lookup: github_slug -> list_hb entry (Vita platform)
+        # Build local lookup: github_slug -> list_hb entry (Vita/PSP platform)
         local_by_gh_slug: Dict[str, Dict] = {}
         for entry in local_entries:
             if entry.get('platform', '') in VITA_CATEGORIES:
@@ -1038,25 +1048,25 @@ class HomebrewUpdatesCollector:
                     local_by_gh_slug[gh_slug.lower()] = entry
 
         try:
-            # VitaDB requires POST request with no body
-            async with self.session.post(endpoint_url, headers=BROWSER_HEADERS, timeout=30) as resp:
+            # VitaForge / VitaDBtoo static JSON endpoints (GET request)
+            async with self.session.get(endpoint_url, headers=BROWSER_HEADERS, timeout=30) as resp:
                 if resp.status != 200:
-                    logger.error(f"VitaDB [{platform_name}] returned {resp.status} — skipping")
+                    logger.error(f"VitaForge/VitaDBtoo [{platform_name}] returned {resp.status} — skipping")
                     self.source_stats[platform_name]['error'] = True
                     self.source_stats[platform_name]['error_msg'] = f"HTTP {resp.status}"
                     return set()
                 packages = await resp.json(content_type=None)
         except Exception as e:
-            logger.error(f"VitaDB [{platform_name}] request failed: {e} — skipping")
+            logger.error(f"VitaForge/VitaDBtoo [{platform_name}] request failed: {e} — skipping")
             self.source_stats[platform_name]['error'] = True
             self.source_stats[platform_name]['error_msg'] = str(e)
             return set()
 
         if not isinstance(packages, list):
-            logger.error(f"VitaDB [{platform_name}] unexpected response format")
+            logger.error(f"VitaForge/VitaDBtoo [{platform_name}] unexpected response format")
             return set()
 
-        logger.info(f"Fetched {len(packages)} entries from VitaDB [{platform_name}]")
+        logger.info(f"Fetched {len(packages)} entries from VitaForge/VitaDBtoo [{platform_name}]")
 
         covered_github_slugs: Set[str] = set()
         first_run_initialized = 0
@@ -1104,14 +1114,14 @@ class HomebrewUpdatesCollector:
             # Found an update!
             app_name = pkg.get('name', f"App {pkg_id}")
             if self.is_unprocessed_manual(app_name):
-                logger.info(f"Skipping VitaDB update for {app_name} — pending manual release. Updating state only.")
+                logger.info(f"Skipping VitaForge update for {app_name} — pending manual release. Updating state only.")
                 self._vitadb_state[state_key] = {
                     'version': current_version,
                     'date': current_date,
                 }
                 continue
             logger.info(
-                f"VitaDB [{platform_name}] update: {app_name} {current_version} (was {saved_version})"
+                f"VitaForge [{platform_name}] update: {app_name} {current_version} (was {saved_version})"
             )
 
             # Resolve local entry for description priority
@@ -1168,10 +1178,10 @@ class HomebrewUpdatesCollector:
 
             updates_found += 1
             self.updates_found += 1
-            self.updated_apps.append(f"{app_name} {current_version} [{platform_name}/VitaDB]")
+            self.updated_apps.append(f"{app_name} {current_version} [{platform_name}/VitaForge]")
 
         logger.info(
-            f"VitaDB [{platform_name}] complete: {updates_found} updates, "
+            f"VitaForge [{platform_name}] complete: {updates_found} updates, "
             f"{first_run_initialized} initialized, {len(covered_github_slugs)} GitHub repos covered"
         )
         self.source_stats[platform_name] = {'checked': vita_checked, 'found': updates_found}
@@ -1429,7 +1439,7 @@ class HomebrewUpdatesCollector:
             local_entries=entries,
         )
 
-        # Phase 1d: VitaDB (PS Vita) — homebrews, plugins, tools
+        # Phase 1d: VitaForge / VitaDBtoo (PS Vita, PSP) — homebrews, plugins, tools
         for endpoint_url, key_prefix, platform_name in VITADB_ENDPOINTS:
             vita_covered = await self.collect_vitadb_updates(
                 endpoint_url=endpoint_url,

@@ -1,23 +1,19 @@
-# План інтеграції FlareSolverr для обходу Cloudflare
+# План переходу на VitaForge / VitaDBtoo (v0.6.66)
 
-Цей план описує додавання підтримки FlareSolverr для вирішення JavaScript Challenge від Cloudflare при парсингу сторінок роздач RuTracker.
+Цей план описує заміну відключеного бекенду Vita Homebrew Browser (VitaDB) на сучасну базу даних **VitaForge** / **VitaDBtoo** (`DrDecki/VitaDBtoo-db`) у Phase 1d збирача оновлень [collect_homebrew_updates.py](file:///d:/git/dev/rutracker_bot/collect_homebrew_updates.py).
 
 ## Покрокові зміни
 
-### 1. Конфігурація (`core/settings_loader.py` та `config/settings.json`)
-- Додати параметр `FLARESOLVERR_URL` в `config/settings.json` (за замовчуванням `"http://localhost:8191/v1"`).
-- Зчитувати `FLARESOLVERR_URL` у `core/settings_loader.py`.
+### 1. Оновлення ендпоінтів та протоколу збору
+- [x] Оновити `VITADB_ENDPOINTS` та `VITA_CATEGORIES` у [collect_homebrew_updates.py](file:///d:/git/dev/rutracker_bot/collect_homebrew_updates.py).
+- [x] Змінити HTTP метод у `collect_vitadb_updates()` з POST на GET.
+- [x] Оновити логування та мітки на `VitaForge/VitaDBtoo`.
 
-### 2. Інтеграція у парсер (`parsers/tracker_parser.py`)
-- Створити допоміжну функцію `fetch_via_flaresolverr(url: str)` для відправки POST-запиту до FlareSolverr API (`http://localhost:8191/v1`).
-- У функції `fetch_page_content(url)`:
-  - Спершу виконувати швидкий запит через `curl_cffi`.
-  - Якщо `status_code == 403` або у відповіді виявлено сторінку Cloudflare ("Just a moment..."), виконувати резервний запит через FlareSolverr.
-  - Якщо FlareSolverr повернув новий cookie `cf_clearance`, зберегти його в пам'яті для подальших запитів.
+### 2. Тестування та перевірка збору
+- [x] Перевірити коректне зчитування та парсинг усіх категорій (`PSVita`, `PSVita Plugin`, `PSVita PC Tool`, `PSP`).
+- [x] Запустити тести паралельно (`python -m pytest test_digest_runner.py test_gist_config.py test_manual_merge.py`).
 
-### 3. Документація та README (`README.md`, `CHANGELOG.md`)
-- Оновити `README.md` з описом налаштування та використання FlareSolverr для роботи бота на сервері.
-- Додати запис про зміни в `CHANGELOG.md`.
-
-## Перевірка
-- Перевірити коректність імпорту та обробку помилок, якщо FlareSolverr недоступний.
+### 3. Документація та версіонування
+- [x] Оновити [README.md](file:///d:/git/dev/rutracker_bot/README.md) та [GEMINI.md](file:///d:/git/dev/rutracker_bot/GEMINI.md).
+- [x] Оновити [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md) (версія `v0.6.66`).
+- [x] Оновити [task.md](file:///d:/git/dev/rutracker_bot/task.md) та [walkthrough.md](file:///d:/git/dev/rutracker_bot/walkthrough.md).

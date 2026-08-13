@@ -1,7 +1,9 @@
-# Перелік завдань (Tasks)
+# Перелік завдань (Tasks) — v0.6.66
 
-- [x] Додати `FLARESOLVERR_URL` до `config/settings.json` та `core/settings_loader.py`
-- [x] Реалізувати функцію `fetch_via_flaresolverr()` у `parsers/tracker_parser.py`
-- [x] Оновити `fetch_page_content()` для автоматичного fallback на FlareSolverr при помилці HTTP 403 / Cloudflare Challenge
-- [x] Оновити документацію в `README.md` та додати інформацію про версію в `CHANGELOG.md`
-
+- [x] Оновити `VITADB_ENDPOINTS` та `VITA_CATEGORIES` у `collect_homebrew_updates.py` на джерела VitaDBtoo / VitaForge
+- [x] Змінити HTTP метод з POST на GET у `collect_vitadb_updates()` та додати підтримку PSP
+- [x] Протестувати завантаження каталогів та оновлень
+- [x] Виконати модульні тести (`pytest`)
+- [x] Оновити `README.md` та `GEMINI.md`
+- [x] Оновити `CHANGELOG.md` до версії `v0.6.66`
+- [x] Актуалізувати `plan.md`, `task.md`, `walkthrough.md`
