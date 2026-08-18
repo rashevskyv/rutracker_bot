@@ -86,6 +86,26 @@ def test_eshop_regional_formatting():
     assert "Туреччина" in msg_ua
     assert "Ціни в регіонах eShop" in msg_ua
     assert "грн" in msg_ua
+    assert "-50%" in msg_ua
+
+
+def test_no_discount_formatting():
+    from services.eshop.formatters import format_eshop_deal_message
+    from services.eshop.models import GameDeal
+
+    deal_no_sale = GameDeal(
+        fs_id="cadence_123",
+        title="Cadence of Hyrule",
+        regular_price=22.49,
+        discount_price=22.49,
+        discount_percent=0.0,
+        currency="EUR",
+    )
+    msg = format_eshop_deal_message(deal_no_sale, language="UA")
+    assert "22.49 EUR" in msg
+    assert "<s>" not in msg
+    assert "➡️" not in msg
+    assert "-0%" not in msg
 
 
 def test_overlay_platform_badge():

@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.93] - 2026-08-18
+
+### Fixed
+- **Clean Regular Price Formatting (No False 0% Strikethroughs)**:
+  - `services/eshop/formatters.py` & `eshop-prices/src/bot/formatters.py`: Games without an active discount (e.g. from `/search` queries like *Cadence of Hyrule*) now neatly render their regular price (e.g. `💰 🇪🇺 Європа: 22.49 EUR (~1165 грн / $26.06)`) without false strikethroughs (`<s>...</s> ➡️`) or confusing `(-0%)` badges.
+
 ## [v0.6.92] - 2026-08-18
 
 ### Fixed

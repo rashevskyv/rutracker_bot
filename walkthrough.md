@@ -1,21 +1,20 @@
-# Звіт про виконану роботу: Виправлення помилки 400 Bad Request при відповідях (v0.6.92)
+# Звіт про виконану роботу: Виправлення відображення цін без знижки (v0.6.93)
 
 ## Огляд задачі
-Під час запуску `bot_interactive.py` виникла помилка:
-`400 Bad Request: message to be replied not found`.
-Це стається, коли користувацьке повідомлення видалено, переміщено, або коли бот стартує і обробляє чергу старих повідомлень через `reply_to_message_id`.
+Користувач помітив, що якщо на гру немає активної знижки (наприклад, при `/search Cadence of Hyrule`), бот перекреслював ту саму ціну і писав `(-0%)`:
+`💰 🇪🇺 Європа: 22.49 EUR ➡️ 22.49 EUR (-0%) (~1165 грн / $26.06)`.
 
 ---
 
 ## Виконані кроки
 
-1. **Безпечні методи відправки (`safe_reply`, `safe_send_card`)**:
-   - Реалізовано `safe_reply()` та `safe_send_card()` у `services/eshop/bot_commands.py`.
-   - Додано прапорець `allow_sending_without_reply=True` до всіх викликів Telegram API.
-   - Додано автоматичний retry-fallback без `reply_to_message_id` у випадку помилки видаленого повідомлення.
+1. **Корекція форматування цін (`formatters.py`)**:
+   - Додано чітку перевірку `has_discount = deal.discount_percent > 0 and (deal.regular_price is None or deal.regular_price > deal.discount_price)`.
+   - Якщо знижка є: відображається перекреслена стара ціна, стрілочка `➡️`, нова ціна та бейдж відсотка знижки `(-X%)`.
+   - Якщо знижки немає: відображається чиста регулярна ціна без закреслення та без `(-0%)`:
+     `💰 🇪🇺 Європа: 22.49 EUR (~1165 грн / $26.06)`.
+   - Зміни внесено синхронно у `rutracker_bot/services/eshop/formatters.py` та `eshop-prices/src/bot/formatters.py`.
 
-2. **Оновлення всіх обробників**:
-   - Усі команди (`/deals`, `/search`, `/wishlist`, `/subscriptions`, `/sub`, `/unsub`, `/help`) переведені на `safe_reply()` та `safe_send_card()`.
-
-3. **Тестування**:
-   - Усі 13 тестів проходять паралельно (`pytest -v -n auto`).
+2. **Тестування**:
+   - Додано юніт-тест `test_no_discount_formatting` у `test_eshop_module.py`.
+   - Усі 14 тестів проходять паралельно (`pytest -v -n auto`).
