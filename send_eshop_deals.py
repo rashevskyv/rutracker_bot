@@ -497,7 +497,7 @@ async def remove_showcase_deals(remove_arg: str):
     logger.info(f"Starting deep removal of showcase deal messages with argument: '{clean_arg}'...")
 
     showcase_data = load_active_showcase()
-    cfg = load_settings()
+    cfg = load_config(local_settings_path) or load_config(default_settings_path) or {}
     eshop_cfg = cfg.get("ESHOP_DEALS", {})
 
     remove_all = clean_arg == "all"

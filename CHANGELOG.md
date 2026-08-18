@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.06] - 2026-08-18
+
+### Fixed
+- **Settings Loader Function Reference in `remove_showcase_deals`**:
+  - `send_eshop_deals.py`: Fixed `NameError: name 'load_settings' is not defined` by using `load_config(local_settings_path) or load_config(default_settings_path)` properly during topic destination resolution.
+
 ## [v0.7.05] - 2026-08-18
 
 ### Fixed
