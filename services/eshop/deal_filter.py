@@ -2,7 +2,7 @@ import os
 import json
 import asyncio
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from services.eshop.models import GameDeal, QualityCriteria
 from services.eshop.eshop_service import EShopService

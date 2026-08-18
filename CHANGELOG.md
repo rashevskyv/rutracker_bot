@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.19] - 2026-08-18
+
+### Fixed
+- **Fixed Missing `Any` Import in `deal_filter.py`**:
+  - `services/eshop/deal_filter.py`:
+    - Added missing `Any, Dict, Tuple` imports from `typing` to resolve `NameError: name 'Any' is not defined` during module initialization in interactive polling mode.
+
 ## [v0.7.18] - 2026-08-18
 
 ### Changed
