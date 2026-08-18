@@ -255,3 +255,28 @@ def test_cron_deals_deduplication():
 
     # 6. After cooldown period expires (15 days later), it can be posted again
     assert not _is_deal_already_posted(deal1, history, cooldown, now_ts + (15 * 86400))
+
+
+def test_showcase_state_management():
+    from send_eshop_deals import load_active_showcase, save_active_showcase
+    import os
+
+    test_data = {
+        "-100123456_561344": [
+            {
+                "fs_id": "fs_test",
+                "title": "Celeste",
+                "message_id": 999,
+                "posted_at": 1787050000.0,
+                "discount_percent": 75.0,
+                "discount_price": 4.99,
+                "regular_price": 19.99,
+            }
+        ]
+    }
+    save_active_showcase(test_data)
+    loaded = load_active_showcase()
+    assert "-100123456_561344" in loaded
+    assert loaded["-100123456_561344"][0]["title"] == "Celeste"
+    assert loaded["-100123456_561344"][0]["message_id"] == 999
+

@@ -59,7 +59,8 @@ Checks various platforms for homebrew updates:
 
 ### 5. Nintendo eShop Deals & Wishlist Module (`send_eshop_deals.py`, `bot_interactive.py`)
 - Automatically monitors official Nintendo eShop catalog for active game discounts on top popular franchises (Zero Shovelware).
-- Enriches games with **Metacritic** and **RAWG** ratings, original English hashtag genres, and AI synopsis translations with persistent multi-key caching.
+- **Live Deals Showcase Rotation**: Maintains an active pool of up to 20 top deals in the target forum topic (`561344`). Automatically deletes expired discounts via `bot.delete_message()` and refills slots with fresh top discounts.
+- Enriches games with **Metacritic** and **RAWG** ratings, original English hashtag genres, direct links to **eShop-Prices.com** (`🌐 eShop-Prices.com`), and AI synopsis translations with persistent multi-key caching.
 - Dynamically generates graphic platform badges directly onto game covers (`Nintendo Switch`, `Nintendo Switch 2 • EXCLUSIVE`, `Nintendo Switch 1 & 2`).
 - Real-time multi-regional price comparison:
   - 💰 **🇪🇺 Europe base catalog price**.

@@ -2,6 +2,17 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.97] - 2026-08-18
+
+### Added
+- **Live Deals Showcase Rotation (Up to 20 Active Games with Auto-Deletion of Expired Deals)**:
+  - `send_eshop_deals.py`: Implemented Showcase Rotation Manager (`data/eshop_active_showcase.json`). The bot maintains an active pool of up to 20 top deals in the target topic (`561344`).
+  - On each cron run, it checks all active showcase games: if a sale has ended, the bot automatically deletes that deal card via `bot.delete_message()` and refills the vacant slot with a fresh top-tier discounted game.
+  - `config/settings.json`: Added `"max_active_showcase": 20` and `"max_deals_per_run": 20`.
+  - `sync_gist_state.py`: Added `eshop_active_showcase.json` to state synchronization.
+- **Direct eShop-Prices.com Links on All Deal Cards**:
+  - `services/eshop/formatters.py` & `eshop-prices/src/bot/formatters.py`: Every game deal card now includes a direct link to `🌐 eShop-Prices.com` alongside the official `🛒 Nintendo eShop` store link.
+
 ## [v0.6.96] - 2026-08-18
 
 ### Fixed

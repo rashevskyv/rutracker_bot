@@ -182,11 +182,14 @@ def format_eshop_deal_message(
     platform_label = "Платформа" if is_ua else "Platform"
     platform_text = f"🕹 <b>{platform_label}:</b> {deal.platform_label}"
 
-    # Store link
-    link_text = ""
+    # Store and eShop-Prices links
+    import urllib.parse
+    eshop_prices_url = f"https://eshop-prices.com/games?q={urllib.parse.quote_plus(deal.title)}"
+    links = []
     if deal.url:
-        link_label = "Відкрити в Nintendo eShop" if is_ua else "Open in Nintendo eShop"
-        link_text = f"🛒 <a href='{deal.url}'>{link_label}</a>"
+        links.append(f"🛒 <a href='{deal.url}'>Nintendo eShop</a>")
+    links.append(f"🌐 <a href='{eshop_prices_url}'>eShop-Prices.com</a>")
+    link_text = " | ".join(links)
 
     lines = [
         f"🎮 <b>{title_escaped}</b>\n",

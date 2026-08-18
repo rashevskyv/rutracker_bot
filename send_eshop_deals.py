@@ -1,7 +1,8 @@
 """
 Send Nintendo eShop Deals Script for RuTracker Bot.
 Fetches top quality Nintendo Switch deals with regional price comparison
-(Top 3 cheapest regions, Poland, USA) and broadcasts to configured channels/groups.
+(Top 3 cheapest regions, Poland, USA, eShop-Prices link) and maintains an
+active Live Showcase of up to 20 deals (auto-deleting expired discounts).
 """
 
 import asyncio
@@ -10,8 +11,9 @@ import logging
 import os
 import re
 import sys
+import urllib.parse
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from core.logger_setup import setup_logging
 from core.settings_loader import (
@@ -40,11 +42,12 @@ from services.telegram_sender import send_message_to_admin
 logger = logging.getLogger("send_eshop_deals")
 
 STATE_FILE = os.path.join("data", "eshop_posted_deals.json")
+SHOWCASE_FILE = os.path.join("data", "eshop_active_showcase.json")
 LAST_RUN_FILE = os.path.join("data", "last_eshop_deals_run.json")
 
 
 def _normalize_title_key(title: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", title.lower())
+    return re.sub(r"[^a-z0-9]", "", title.lower()) if title else ""
 
 
 def _get_entry_timestamp(val: Any) -> float:
@@ -113,6 +116,27 @@ def save_posted_deals(data: dict) -> None:
         logger.error(f"Failed to save posted deals: {e}")
 
 
+def load_active_showcase() -> dict:
+    """Load currently active showcase messages."""
+    if os.path.exists(SHOWCASE_FILE):
+        try:
+            with open(SHOWCASE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Could not load active showcase: {e}")
+    return {}
+
+
+def save_active_showcase(data: dict) -> None:
+    """Save active showcase messages."""
+    os.makedirs("data", exist_ok=True)
+    try:
+        with open(SHOWCASE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save active showcase: {e}")
+
+
 def load_last_run() -> dict:
     """Load timestamp of last execution."""
     if os.path.exists(LAST_RUN_FILE):
@@ -135,9 +159,9 @@ def save_last_run(data: dict) -> None:
 
 
 async def send_eshop_deals(force: bool = False):
-    """Main execution function for broadcasting eShop deals."""
+    """Main execution function for broadcasting eShop deals with Live Showcase rotation."""
     setup_logging()
-    logger.info("Starting Nintendo eShop deals check...")
+    logger.info("Starting Nintendo eShop deals check with Live Showcase Rotation...")
 
     # 1. Load config options
     cfg = load_config(local_settings_path) or load_config(default_settings_path) or {}
@@ -151,7 +175,7 @@ async def send_eshop_deals(force: bool = False):
     min_discount = float(eshop_cfg.get("min_discount_percent", 30.0))
     min_metacritic = int(eshop_cfg.get("min_metacritic_score", 70))
     min_rawg = float(eshop_cfg.get("min_rawg_rating", 3.5))
-    max_deals = int(eshop_cfg.get("max_deals_per_run", 5))
+    max_active_showcase = int(eshop_cfg.get("max_active_showcase", eshop_cfg.get("max_deals_per_run", 20)))
     cooldown_days = float(eshop_cfg.get("cooldown_days", 14.0))
     rawg_key = os.environ.get("RAWG_API_KEY") or eshop_cfg.get("rawg_api_key")
 
@@ -188,41 +212,7 @@ async def send_eshop_deals(force: bool = False):
     )
 
     try:
-        # 3. Fetch candidate deals
-        logger.info(f"Fetching top deals (min discount: {min_discount}%, min rating: {min_metacritic})...")
-        deals = await filter_engine.get_best_deals(
-            criteria=criteria, limit=max_deals * 3, fetch_rows=50, include_regional_prices=True
-        )
-
-        if not deals:
-            logger.info("No deals found matching the current quality criteria.")
-            return
-
-        # 4. Filter out recently posted deals (configurable cooldown, default 14 days)
-        posted_history = load_posted_deals()
-        cooldown_seconds = cooldown_days * 86400
-
-        # Clean old entries older than 60 days
-        fresh_history = {
-            k: v for k, v in posted_history.items() if (now_ts - _get_entry_timestamp(v)) < (60 * 86400)
-        }
-
-        new_deals = []
-        for d in deals:
-            if _is_deal_already_posted(d, fresh_history, cooldown_seconds, now_ts):
-                logger.info(f"Skipping already posted deal '{d.title}' (posted within {cooldown_days:.0f} days).")
-                continue
-            new_deals.append(d)
-            if len(new_deals) >= max_deals:
-                break
-
-        if not new_deals:
-            logger.info("All found deals have already been posted recently.")
-            return
-
-        logger.info(f"Prepared {len(new_deals)} fresh deal(s) to send.")
-
-        # 5. Determine target destinations
+        # 3. Determine target destinations
         target_groups = []
         if IS_TEST_MODE:
             logger.info("TEST MODE: Sending to TEST_GROUPS only")
@@ -243,13 +233,12 @@ async def send_eshop_deals(force: bool = False):
                 if groups:
                     target_groups.extend(groups)
 
-                # If topic_id is configured for deals (e.g. 561344), route Ukrainian groups to that topic
                 deals_topic = str(eshop_cfg.get("topic_id", "561344"))
                 for g in target_groups:
                     if g.get("language", "UA") == "UA" or not g.get("topic_id"):
                         g["topic_id"] = deals_topic
 
-            # Also load dynamic subscriptions from SubscriptionService and legacy eshop_subscriptions
+            # Dynamic subscriptions
             existing_chat_ids = {str(g.get("chat_id")) for g in target_groups if g.get("chat_id")}
             try:
                 from services.subscription_service import SubscriptionService
@@ -266,33 +255,31 @@ async def send_eshop_deals(force: bool = False):
             except Exception as sub_err:
                 logger.warning(f"Could not load user subscriptions: {sub_err}")
 
-            subs_file = os.path.join("data", "eshop_subscriptions.json")
-            if os.path.exists(subs_file):
-                try:
-                    with open(subs_file, "r", encoding="utf-8") as f:
-                        dyn_subs = json.load(f)
-                        for s_id, s_info in dyn_subs.items():
-                            if str(s_info.get("chat_id")) not in existing_chat_ids and s_info.get("enabled", True):
-                                target_groups.append({
-                                    "group_name": s_info.get("title", f"Chat_{s_id}"),
-                                    "chat_id": s_info.get("chat_id"),
-                                    "topic_id": s_info.get("topic_id"),
-                                    "language": s_info.get("language", "UA"),
-                                })
-                except Exception as sub_err:
-                    logger.warning(f"Could not load dynamic subscriptions: {sub_err}")
-
         if not target_groups:
             logger.warning("No target channels or groups configured in settings.json.")
             return
 
-        # 6. Send deals to targets
-        sent_deals_count = 0
+        # 4. Load history and showcase data
+        posted_history = load_posted_deals()
+        cooldown_seconds = cooldown_days * 86400
+        fresh_history = {
+            k: v for k, v in posted_history.items() if (now_ts - _get_entry_timestamp(v)) < (60 * 86400)
+        }
+        showcase_data = load_active_showcase()
+
+        # 5. Fetch best candidates pool
+        logger.info(f"Fetching candidate deals (min discount: {min_discount}%, min rating: {min_metacritic})...")
+        candidate_deals = await filter_engine.get_best_deals(
+            criteria=criteria, limit=max_active_showcase * 2, fetch_rows=80, include_regional_prices=True
+        )
+
+        total_posted_this_run = 0
+
+        # 6. Process each group destination with Live Showcase Rotation
         for group in target_groups:
             chat_id = group.get("chat_id")
             topic_id = group.get("topic_id")
             lang = group.get("language", "UA")
-
             if not chat_id:
                 continue
 
@@ -302,39 +289,118 @@ async def send_eshop_deals(force: bool = False):
             except ValueError:
                 continue
 
-            for deal in new_deals:
-                msg_text = format_eshop_deal_message(deal, language=lang, currency_service=currency_service)
-                badged_img = await download_and_badge_cover(deal)
-                photo_payload = badged_img.getvalue() if badged_img else (deal.banner_url or deal.image_url)
+            showcase_key = f"{chat_id}_{topic_id}" if topic_id else str(chat_id)
+            current_showcase_items = showcase_data.get(showcase_key, [])
+            surviving_items = []
 
+            # Step A: Check and delete expired deals
+            logger.info(f"Checking {len(current_showcase_items)} active showcase deals in {showcase_key}...")
+            for item in current_showcase_items:
+                item_title = item.get("title", "")
+                msg_id = item.get("message_id")
+                is_still_discounted = False
                 try:
+                    results = await eshop_service.search_games(query=item_title, rows=1)
+                    if results:
+                        game_check = results[0]
+                        if game_check.discount_percent > 0 and (game_check.regular_price is None or game_check.regular_price > game_check.discount_price):
+                            is_still_discounted = True
+                except Exception as check_err:
+                    logger.debug(f"Could not verify discount for '{item_title}': {check_err}")
+                    is_still_discounted = True
+
+                if is_still_discounted:
+                    surviving_items.append(item)
+                else:
+                    # Discount has expired! Delete old message from topic
+                    if msg_id:
+                        try:
+                            await bot.delete_message(chat_id=chat_id_int, message_id=int(msg_id))
+                            logger.info(f"🗑 Deleted expired deal from showcase: '{item_title}' (msg_id: {msg_id})")
+                        except Exception as del_err:
+                            logger.debug(f"Could not delete message {msg_id}: {del_err}")
+
+            # Step B: Calculate free slots to reach max_active_showcase
+            available_slots = max(0, max_active_showcase - len(surviving_items))
+            logger.info(f"Showcase {showcase_key}: {len(surviving_items)} active, {available_slots} slot(s) available.")
+
+            if available_slots > 0 and candidate_deals:
+                # Step C: Select top fresh deals not currently in showcase
+                existing_titles = {_normalize_title_key(it.get("title", "")) for it in surviving_items}
+                existing_fsids = {str(it.get("fs_id")) for it in surviving_items if it.get("fs_id")}
+
+                deals_to_send = []
+                for d in candidate_deals:
+                    d_norm = _normalize_title_key(d.title)
+                    d_fsid = str(d.fs_id) if d.fs_id else ""
+                    if d_norm in existing_titles or (d_fsid and d_fsid in existing_fsids):
+                        continue
+                    deals_to_send.append(d)
+                    if len(deals_to_send) >= available_slots:
+                        break
+
+                # Step D: Send new deal cards and record message IDs
+                for deal in deals_to_send:
+                    enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
+                    msg_text = format_eshop_deal_message(enriched, language=lang, currency_service=currency_service)
+                    badged_img = await download_and_badge_cover(enriched)
+                    photo_payload = badged_img.getvalue() if badged_img else (enriched.banner_url or enriched.image_url)
+
+                    sent_msg = None
                     if photo_payload:
-                        await bot.send_photo(
-                            chat_id=chat_id_int,
-                            message_thread_id=topic_id_int,
-                            photo=photo_payload,
-                            caption=msg_text,
-                            parse_mode="HTML",
-                        )
-                    else:
-                        await bot.send_message(
-                            chat_id=chat_id_int,
-                            message_thread_id=topic_id_int,
-                            text=msg_text,
-                            parse_mode="HTML",
-                            disable_web_page_preview=False,
-                        )
+                        try:
+                            sent_msg = await bot.send_photo(
+                                chat_id=chat_id_int,
+                                message_thread_id=topic_id_int,
+                                photo=photo_payload,
+                                caption=msg_text,
+                                parse_mode="HTML",
+                                allow_sending_without_reply=True,
+                            )
+                        except Exception as pe:
+                            logger.debug(f"send_photo failed ({pe}), falling back to text message...")
+
+                    if not sent_msg:
+                        try:
+                            sent_msg = await bot.send_message(
+                                chat_id=chat_id_int,
+                                message_thread_id=topic_id_int,
+                                text=msg_text,
+                                parse_mode="HTML",
+                                disable_web_page_preview=False,
+                                allow_sending_without_reply=True,
+                            )
+                        except Exception as me:
+                            logger.error(f"send_message failed for '{deal.title}': {me}")
+
+                    if sent_msg:
+                        surviving_items.append({
+                            "fs_id": str(deal.fs_id) if deal.fs_id else None,
+                            "nsuid": str(deal.nsuid) if deal.nsuid else None,
+                            "title": deal.title,
+                            "message_id": sent_msg.message_id,
+                            "posted_at": now_ts,
+                            "discount_percent": deal.discount_percent,
+                            "discount_price": deal.discount_price,
+                            "regular_price": deal.regular_price,
+                            "currency": deal.currency,
+                        })
+                        _record_deal_in_history(fresh_history, deal, now_ts)
+                        total_posted_this_run += 1
                     await asyncio.sleep(1)
-                except Exception as send_err:
-                    logger.error(f"Error sending deal '{deal.title}' to chat {chat_id}: {send_err}")
 
-        # 7. Record posted history (multi-key by fs_id, nsuid, and normalized title)
-        for deal in new_deals:
-            _record_deal_in_history(fresh_history, deal, now_ts)
+            showcase_data[showcase_key] = surviving_items
+
+        # 7. Save state files
+        save_active_showcase(showcase_data)
         save_posted_deals(fresh_history)
-        save_last_run({"last_run_timestamp": now_ts, "last_run_iso": now_dt.isoformat(), "posted_count": len(new_deals)})
+        save_last_run({
+            "last_run_timestamp": now_ts,
+            "last_run_iso": now_dt.isoformat(),
+            "posted_count": total_posted_this_run,
+        })
 
-        # 8. Check Wishlists and send direct alerts for discounted games
+        # 8. Check Wishlists and send direct alerts
         try:
             from services.eshop.wishlist_service import WishlistService
             wl_service = WishlistService()
@@ -355,7 +421,7 @@ async def send_eshop_deals(force: bool = False):
                         if not results:
                             continue
                         w_deal = results[0]
-                        if w_deal.discount_percent > 0:
+                        if w_deal.discount_percent > 0 and (w_deal.regular_price is None or w_deal.regular_price > w_deal.discount_price):
                             last_notified = item.get("last_notified_discount")
                             if last_notified is None or w_deal.discount_percent > (float(last_notified) + 5.0):
                                 enriched_deal = await filter_engine.enrich_deal(w_deal, fetch_regions=True)
@@ -373,6 +439,7 @@ async def send_eshop_deals(force: bool = False):
                                         photo=photo_payload,
                                         caption=alert_text,
                                         parse_mode="HTML",
+                                        allow_sending_without_reply=True,
                                     )
                                 else:
                                     await bot.send_message(
@@ -380,6 +447,7 @@ async def send_eshop_deals(force: bool = False):
                                         message_thread_id=int(w_topic_id) if w_topic_id else None,
                                         text=alert_text,
                                         parse_mode="HTML",
+                                        allow_sending_without_reply=True,
                                     )
                                 wl_service.update_notification(wl_key, w_title, w_deal.discount_percent)
                                 logger.info(f"Sent wishlist alert for '{w_deal.title}' to {w_chat_id}")
@@ -389,7 +457,7 @@ async def send_eshop_deals(force: bool = False):
         except Exception as wl_err:
             logger.warning(f"Error processing wishlists in cron: {wl_err}")
 
-        logger.info(f"Successfully posted {len(new_deals)} eShop deal(s).")
+        logger.info(f"Showcase cycle completed. Posted {total_posted_this_run} deal(s).")
 
     finally:
         await eshop_service.close()

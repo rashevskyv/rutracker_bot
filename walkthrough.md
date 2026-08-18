@@ -1,14 +1,25 @@
-# Звіт про виконану роботу: Коректне закриття async сесій у send_eshop_deals.py (v0.6.96)
+# Звіт про виконану роботу: Жива вітрина на 20 ігор та посилання на eShop-Prices (v0.6.97)
 
 ## Огляд задачі
-Після успішного відправлення 5 знижок та завершення роботи `send_eshop_deals.py` виникало повідомлення:
-`asyncio - ERROR - Unclosed client session / Unclosed connector`.
+1. Забезпечити підтримку пулу до 20 одночасно активних знижок у топіку `561344` (Showcase Rotation).
+2. Автоматично видаляти старі повідомлення ігор, знижка на які закінчилася, та дозаповнювати вільні слоти свіжими хітами.
+3. Додати до кожної картки гри пряме посилання на її сторінку у сервісі `eShop-Prices.com`.
 
 ---
 
 ## Виконані кроки
 
-1. **Додано коректне закриття сесій (`close_clients`)**:
-   - У `send_eshop_deals.py` блок `finally:` тепер викликає `await close_clients()`, що коректно закриває `aiohttp.ClientSession` та конектори Telegram бота.
-2. **Тестування**:
-   - Усі 15 тестів проходять паралельно (`pytest -v -n auto`).
+1. **Менеджер живої вітрини (`send_eshop_deals.py`)**:
+   - Створено механізм відстеження активних карток у `data/eshop_active_showcase.json` (`message_id`, `fs_id`, `nsuid`, `title`, `discount_percent`).
+   - При кожному запуску крон перевіряє статус активних ігор у вітрині. Якщо термін знижки минув (`discount_percent <= 0`), бот видаляє це повідомлення з топіку через `bot.delete_message()`.
+   - Кількість активних ігор у темі доводиться до ліміту (за замовченням **20 ігор**).
+   - Ліміт налаштовується у `config/settings.json` через `"max_active_showcase": 20`.
+   - Файл `eshop_active_showcase.json` додано до синхронізації з GitHub Gist.
+
+2. **Прямі посилання на `eShop-Prices.com`**:
+   - Оновлено форматери карток у `rutracker_bot/services/eshop/formatters.py` та `eshop-prices/src/bot/formatters.py`.
+   - У футері кожної картки додано посилання: `🛒 Nintendo eShop | 🌐 eShop-Prices.com`.
+
+3. **Тестування**:
+   - Додано тест `test_showcase_state_management` у `test_eshop_module.py`.
+   - Усі 16 тестів проходять паралельно (`pytest -v -n auto`).
