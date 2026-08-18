@@ -490,16 +490,15 @@ async def send_eshop_deals(force: bool = False):
 async def remove_showcase_deals(remove_arg: str):
     """
     Remove specified number of active showcase deal messages (or all) from Telegram
-    and update data/eshop_active_showcase.json.
+    by scanning tracked showcase state and active topic messages, then update data/eshop_active_showcase.json.
     """
     setup_logging()
     clean_arg = remove_arg.strip().lower()
-    logger.info(f"Starting removal of showcase deal messages with argument: '{clean_arg}'...")
+    logger.info(f"Starting deep removal of showcase deal messages with argument: '{clean_arg}'...")
 
     showcase_data = load_active_showcase()
-    if not showcase_data:
-        logger.info("Showcase data is empty. Nothing to remove.")
-        return
+    cfg = load_settings()
+    eshop_cfg = cfg.get("ESHOP_DEALS", {})
 
     remove_all = clean_arg == "all"
     try:
@@ -509,7 +508,10 @@ async def remove_showcase_deals(remove_arg: str):
         return
 
     total_deleted = 0
+    deleted_msg_ids = set()
+
     try:
+        # Step 1: Delete all known tracked items from active showcase
         for showcase_key, items in list(showcase_data.items()):
             if not items:
                 continue
@@ -520,26 +522,101 @@ async def remove_showcase_deals(remove_arg: str):
             except ValueError:
                 continue
 
-            # Determine items to delete
             to_delete = items[:remove_count] if not remove_all else items[:]
             surviving = items[remove_count:] if not remove_all else []
 
             for it in to_delete:
                 msg_id = it.get("message_id")
                 title = it.get("title", "")
-                if msg_id:
+                if msg_id and msg_id not in deleted_msg_ids:
                     try:
                         await bot.delete_message(chat_id=chat_id, message_id=int(msg_id))
-                        logger.info(f"🗑 Deleted showcase message {msg_id} ('{title}') from chat {chat_id}")
+                        logger.info(f"🗑 Deleted tracked message {msg_id} ('{title}') from chat {chat_id}")
                         total_deleted += 1
-                        await asyncio.sleep(0.3)
+                        deleted_msg_ids.add(msg_id)
+                        await asyncio.sleep(0.08)
                     except Exception as e:
-                        logger.warning(f"Could not delete message {msg_id} ('{title}') from {chat_id}: {e}")
+                        logger.debug(f"Could not delete message {msg_id} ('{title}') from {chat_id}: {e}")
 
             showcase_data[showcase_key] = surviving
 
+        # Step 2: Determine all target destinations (configured eShop topic + showcase keys)
+        target_dests = []
+        if IS_TEST_MODE:
+            for g in (TEST_GROUPS or []):
+                if g.get("chat_id"):
+                    t_id = int(g["topic_id"]) if g.get("topic_id") else None
+                    target_dests.append((int(g["chat_id"]), t_id))
+        else:
+            if eshop_cfg.get("chat_id"):
+                t_id = int(eshop_cfg.get("topic_id", "561344")) if eshop_cfg.get("topic_id") else None
+                target_dests.append((int(eshop_cfg["chat_id"]), t_id))
+            else:
+                deals_topic = int(eshop_cfg.get("topic_id", "561344")) if eshop_cfg.get("topic_id") else None
+                ua_groups = [g for g in (cfg.get("GROUPS") or GROUPS or []) if g.get("language", "UA") == "UA"]
+                if ua_groups:
+                    target_dests.append((int(ua_groups[0]["chat_id"]), deals_topic))
+                elif GROUPS:
+                    target_dests.append((int(GROUPS[0]["chat_id"]), deals_topic))
+
+        for k in list(showcase_data.keys()):
+            parts = k.split("_")
+            try:
+                c_id = int(parts[0])
+                t_id = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
+                if (c_id, t_id) not in target_dests:
+                    target_dests.append((c_id, t_id))
+            except ValueError:
+                pass
+
+        # Step 3: Deep Scan & Purge untracked messages directly in target topics
+        for chat_id, topic_id in target_dests:
+            logger.info(f"Deep scanning messages in chat {chat_id}, topic {topic_id}...")
+            top_id = None
+            try:
+                probe = await bot.send_message(
+                    chat_id=chat_id,
+                    text="🧹",
+                    message_thread_id=topic_id,
+                )
+                top_id = probe.message_id
+                try:
+                    await bot.delete_message(chat_id=chat_id, message_id=top_id)
+                except Exception:
+                    pass
+            except Exception as probe_err:
+                logger.debug(f"Could not send probe to {chat_id}/{topic_id}: {probe_err}")
+
+            if not top_id:
+                continue
+
+            min_id = (topic_id + 1) if topic_id else max(1, top_id - 300)
+            scan_limit = min(500, top_id - min_id + 1)
+            deleted_in_dest = 0
+
+            for msg_id in range(top_id - 1, max(min_id - 1, top_id - scan_limit), -1):
+                if msg_id in deleted_msg_ids:
+                    continue
+                if not remove_all and (total_deleted >= remove_count):
+                    break
+                try:
+                    await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                    logger.info(f"🗑 Deleted topic message {msg_id} from chat {chat_id}")
+                    total_deleted += 1
+                    deleted_in_dest += 1
+                    deleted_msg_ids.add(msg_id)
+                    await asyncio.sleep(0.06)
+                except Exception as del_err:
+                    err_str = str(del_err).lower()
+                    if "retry_after" in err_str or "too many requests" in err_str:
+                        logger.warning(f"Rate limited: {del_err}. Sleeping 2s...")
+                        await asyncio.sleep(2.0)
+
+        if remove_all:
+            showcase_data = {}
+
         save_active_showcase(showcase_data)
-        logger.info(f"Removal complete. Successfully deleted {total_deleted} message(s).")
+        logger.info(f"Deep removal complete. Successfully deleted {total_deleted} message(s) in total.")
     finally:
         try:
             await close_clients()

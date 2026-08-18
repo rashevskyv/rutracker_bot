@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.05] - 2026-08-18
+
+### Fixed
+- **Deep Topic Message Probing & Exhaustive Purge (`--remove all`, `/remove all`)**:
+  - `send_eshop_deals.py` & `services/eshop/bot_commands.py`:
+    - Instead of only deleting tracked JSON records, `remove all` / `remove <N>` now performs an active probe into the target topic/thread, probes the current latest message ID, and sequentially scans backwards deleting all remaining messages in the thread (including untracked posts, older runs, and test messages).
+    - Rate-limiting protection: Handles 429 Too Many Requests seamlessly with backoff.
+
 ## [v0.7.04] - 2026-08-18
 
 ### Added

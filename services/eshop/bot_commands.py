@@ -702,29 +702,69 @@ def register_eshop_handlers(
         showcase_data = load_active_showcase()
         items = showcase_data.get(showcase_key, [])
 
-        if not items:
-            await safe_reply(bot, message, "ℹ️ У цьому чаті/топіку немає збережених активних повідомлень вітрини.")
-            return
-
-        to_delete = items[:remove_count] if not remove_all else items[:]
-        surviving = items[remove_count:] if not remove_all else []
-
+        deleted_msg_ids = set()
         deleted_count = 0
-        for it in to_delete:
+
+        # Delete user command message itself
+        try:
+            await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+            deleted_msg_ids.add(message.message_id)
+        except Exception:
+            pass
+
+        # 1. Delete tracked items
+        for it in items:
             msg_id = it.get("message_id")
-            if msg_id:
+            if msg_id and msg_id not in deleted_msg_ids:
+                if not remove_all and deleted_count >= remove_count:
+                    break
                 try:
                     await bot.delete_message(chat_id=message.chat.id, message_id=int(msg_id))
                     deleted_count += 1
-                    await asyncio.sleep(0.2)
+                    deleted_msg_ids.add(msg_id)
+                    await asyncio.sleep(0.06)
                 except Exception as e:
                     logger.debug(f"Could not delete message {msg_id}: {e}")
 
-        showcase_data[showcase_key] = surviving
+        # 2. Deep scan backwards in this topic/chat
+        top_id = message.message_id
+        min_id = (thread_id + 1) if thread_id else max(1, top_id - 300)
+        scan_limit = min(500, top_id - min_id + 1)
+
+        for msg_id in range(top_id - 1, max(min_id - 1, top_id - scan_limit), -1):
+            if msg_id in deleted_msg_ids:
+                continue
+            if not remove_all and deleted_count >= remove_count:
+                break
+            try:
+                await bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
+                deleted_count += 1
+                deleted_msg_ids.add(msg_id)
+                await asyncio.sleep(0.06)
+            except Exception as e:
+                err_str = str(e).lower()
+                if "retry_after" in err_str or "too many requests" in err_str:
+                    await asyncio.sleep(2.0)
+
+        # Clear/update showcase state
+        if remove_all:
+            showcase_data[showcase_key] = []
+        else:
+            showcase_data[showcase_key] = [it for it in items if it.get("message_id") not in deleted_msg_ids]
         save_active_showcase(showcase_data)
 
-        status_msg = f"🗑 <b>Успішно видалено {deleted_count} повідомлень вітрини.</b>"
-        if surviving:
-            status_msg += f"\nЗалишилося активних: {len(surviving)}"
-        await safe_reply(bot, message, status_msg)
+        # Send temporary confirmation
+        try:
+            status_msg = f"🗑 <b>Успішно видалено {deleted_count} повідомлень.</b>"
+            conf = await bot.send_message(
+                chat_id=message.chat.id,
+                text=status_msg,
+                message_thread_id=thread_id,
+                parse_mode="HTML",
+            )
+            await asyncio.sleep(4.0)
+            await bot.delete_message(chat_id=message.chat.id, message_id=conf.message_id)
+        except Exception:
+            pass
+
 
