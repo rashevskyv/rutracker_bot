@@ -10,6 +10,8 @@ _default_currency_service = CurrencyService()
 COUNTRY_NAMES_UA = {
     "PL": "Польща",
     "US": "США",
+    "TH": "Таїланд",
+    "TR": "Туреччина",
     "ZA": "ПАР",
     "JP": "Японія",
     "NO": "Норвегія",
@@ -26,6 +28,11 @@ COUNTRY_NAMES_UA = {
     "FR": "Франція",
     "ES": "Іспанія",
     "IT": "Італія",
+    "HK": "Гонконг",
+    "AR": "Аргентина",
+    "CO": "Колумбія",
+    "CL": "Чилі",
+    "PE": "Перу",
 }
 
 GENRE_TRANSLATIONS = {
@@ -121,23 +128,24 @@ def format_eshop_deal_message(
                 f"{medal} {p.flag_emoji} {c_name}: <b>{p.discount_price:.2f} {p.currency}</b>{disc_label} (<i>{conv_str}</i>)"
             )
 
-        pl_price = deal.get_price_for_country("PL")
-        if pl_price and "PL" not in cheapest_codes:
-            disc_label = f" (-{pl_price.discount_percent:.0f}%)" if pl_price.is_discount and pl_price.discount_percent > 0 else ""
-            conv_str = _format_price_conv(pl_price)
-            pl_name = "Польща" if is_ua else "Poland"
-            region_lines.append(
-                f"🇵🇱 {pl_name}: <b>{pl_price.discount_price:.2f} {pl_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
-            )
+        # Pinned regions to always show if available and not already in top 3
+        pinned_targets = [
+            ("PL", "Poland", "Польща", "🇵🇱"),
+            ("US", "USA", "США", "🇺🇸"),
+            ("TH", "Thailand", "Таїланд", "🇹🇭"),
+            ("TR", "Turkey", "Туреччина", "🇹🇷"),
+        ]
 
-        us_price = deal.get_price_for_country("US")
-        if us_price and "US" not in cheapest_codes:
-            disc_label = f" (-{us_price.discount_percent:.0f}%)" if us_price.is_discount and us_price.discount_percent > 0 else ""
-            conv_str = _format_price_conv(us_price)
-            us_name = "США" if is_ua else "USA"
-            region_lines.append(
-                f"🇺🇸 {us_name}: <b>{us_price.discount_price:.2f} {us_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
-            )
+        for code, name_en, name_ua, flag in pinned_targets:
+            if code not in cheapest_codes:
+                p_price = deal.get_price_for_country(code)
+                if p_price:
+                    disc_label = f" (-{p_price.discount_percent:.0f}%)" if p_price.is_discount and p_price.discount_percent > 0 else ""
+                    conv_str = _format_price_conv(p_price)
+                    c_name = name_ua if is_ua else name_en
+                    region_lines.append(
+                        f"{flag} {c_name}: <b>{p_price.discount_price:.2f} {p_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
+                    )
 
     regional_text = ""
     if region_lines:

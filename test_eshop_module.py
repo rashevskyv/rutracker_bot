@@ -43,6 +43,28 @@ def test_eshop_regional_formatting():
         converted_uah=124.5,
         is_discount=True,
     )
+    p3 = RegionalPrice(
+        country_code="TH",
+        country_name="Thailand",
+        currency="THB",
+        regular_price=500.0,
+        discount_price=250.0,
+        discount_percent=50.0,
+        converted_usd=6.5,
+        converted_uah=269.75,
+        is_discount=True,
+    )
+    p4 = RegionalPrice(
+        country_code="TR",
+        country_name="Turkey",
+        currency="TRY",
+        regular_price=300.0,
+        discount_price=150.0,
+        discount_percent=50.0,
+        converted_usd=4.5,
+        converted_uah=186.75,
+        is_discount=True,
+    )
 
     deal = GameDeal(
         fs_id="123",
@@ -50,12 +72,14 @@ def test_eshop_regional_formatting():
         regular_price=30.0,
         discount_price=15.0,
         discount_percent=50.0,
-        regional_prices=[p1, p2],
+        regional_prices=[p1, p2, p3, p4],
     )
 
     msg_ua = format_eshop_deal_message(deal, language="UA")
     assert "Test Game" in msg_ua
     assert "Польща" in msg_ua
     assert "ПАР" in msg_ua
+    assert "Таїланд" in msg_ua
+    assert "Туреччина" in msg_ua
     assert "Ціни в регіонах eShop" in msg_ua
     assert "грн" in msg_ua

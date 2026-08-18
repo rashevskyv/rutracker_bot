@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 TRACKED_REGIONS: Dict[str, str] = {
     "PL": "Poland",
     "US": "United States",
+    "TH": "Thailand",
+    "TR": "Turkey",
     "ZA": "South Africa",
     "JP": "Japan",
     "NO": "Norway",
@@ -24,6 +26,13 @@ TRACKED_REGIONS: Dict[str, str] = {
     "MX": "Mexico",
     "CA": "Canada",
     "NZ": "New Zealand",
+    "SE": "Sweden",
+    "CH": "Switzerland",
+    "AR": "Argentina",
+    "CO": "Colombia",
+    "CL": "Chile",
+    "HK": "Hong Kong",
+    "PE": "Peru",
 }
 
 

@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.79] - 2026-08-18
+
+### Added
+- **Permanent Key Regions Display (Poland, USA, Thailand, Turkey)**:
+  - `services/eshop/formatters.py`: Guaranteed display of **Poland 🇵🇱**, **USA 🇺🇸**, **Thailand 🇹🇭**, and **Turkey 🇹🇷** alongside the **Top 3 Cheapest Regions (🥇🥈🥉)** worldwide for every game.
+  - `services/eshop/region_price_service.py`: Added Thailand (`TH`) and Turkey (`TR`) to active tracked query regions.
+  - `services/eshop/currency_service.py`: Added fallback rates for Thai Baht (`THB`) and Turkish Lira (`TRY`).
+  - `services/eshop/models.py`: Added 🇹🇭 and 🇹🇷 flag mappings.
+
 ## [v0.6.78] - 2026-08-18
 
 ### Added

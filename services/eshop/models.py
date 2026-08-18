@@ -25,6 +25,8 @@ class RegionalPrice:
         flags = {
             "US": "🇺🇸",
             "PL": "🇵🇱",
+            "TH": "🇹🇭",
+            "TR": "🇹🇷",
             "ZA": "🇿🇦",
             "JP": "🇯🇵",
             "NO": "🇳🇴",
@@ -42,6 +44,11 @@ class RegionalPrice:
             "FR": "🇫🇷",
             "ES": "🇪🇸",
             "IT": "🇮🇹",
+            "HK": "🇭🇰",
+            "AR": "🇦🇷",
+            "CO": "🇨🇴",
+            "CL": "🇨🇱",
+            "PE": "🇵🇪",
         }
         return flags.get(self.country_code.upper(), "🌐")
 

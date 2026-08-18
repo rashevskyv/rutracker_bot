@@ -25,6 +25,8 @@ FALLBACK_USD_RATES = {
     "CHF": 0.89,
     "NZD": 1.65,
     "SEK": 10.40,
+    "THB": 36.50,
+    "TRY": 33.0,
 }
 
 
