@@ -1,7 +1,8 @@
-"""Message formatters for eShop game deal cards with regional breakdown."""
+"""Message formatters for eShop game deal cards with regional breakdown and direct regional store links."""
 
 import html
 import re
+import urllib.parse
 from typing import Optional
 from services.eshop.models import GameDeal
 from services.eshop.currency_service import CurrencyService
@@ -60,6 +61,39 @@ GENRE_TRANSLATIONS = {
 }
 
 
+def get_region_eshop_url(country_code: str, title: str, game_url: str = "") -> str:
+    """Build direct official Nintendo eShop link for a specific region."""
+    q = urllib.parse.quote_plus(title)
+    code = (country_code or "").upper()
+    if code == "US":
+        return f"https://www.nintendo.com/us/search/#q={q}"
+    elif code == "CA":
+        return f"https://www.nintendo.com/en-ca/search/#q={q}"
+    elif code in ["GB", "PL", "DE", "FR", "ES", "IT", "NL", "PT", "CZ", "SE", "NO", "CH"]:
+        return f"https://www.nintendo.com/en-gb/Search/Search-299117.html?q={q}"
+    elif code == "ZA":
+        return f"https://www.nintendo.co.za/Search/Search-299117.html?q={q}"
+    elif code == "AR":
+        return f"https://store.nintendo.com.ar/catalogsearch/result/?q={q}"
+    elif code == "CL":
+        return f"https://store.nintendo.cl/catalogsearch/result/?q={q}"
+    elif code == "PE":
+        return f"https://store.nintendo.com.pe/catalogsearch/result/?q={q}"
+    elif code == "BR":
+        return f"https://store.nintendo.com.br/catalogsearch/result/?q={q}"
+    elif code == "MX":
+        return f"https://www.nintendo.com/es-mx/search/#q={q}"
+    elif code in ["AU", "NZ"]:
+        return f"https://www.nintendo.com/au/search/#q={q}"
+    elif code == "JP":
+        return f"https://store-jp.nintendo.com/search/?q={q}"
+    elif code == "HK":
+        return f"https://www.nintendo.com.hk/search/?q={q}"
+    elif game_url:
+        return game_url
+    return f"https://www.nintendo.com/en-gb/Search/Search-299117.html?q={q}"
+
+
 def _format_genre_hashtag(genre: str) -> str:
     """Format genre into clean English hashtag without translation."""
     if not genre:
@@ -73,7 +107,7 @@ def _format_genre_hashtag(genre: str) -> str:
 def format_eshop_deal_message(
     deal: GameDeal, language: str = "UA", currency_service: Optional[CurrencyService] = None
 ) -> str:
-    """Format a GameDeal instance into an attractive HTML message for Telegram."""
+    """Format a GameDeal instance into an attractive HTML message for Telegram with clickable regional prices."""
     title_escaped = html.escape(deal.title)
     is_ua = language.upper() == "UA"
     cs = currency_service or _default_currency_service
@@ -105,14 +139,15 @@ def format_eshop_deal_message(
     prefix_label = f"💰 {region_prefix}<b>{region_name}:</b> " if region_name else "💰 "
     has_discount = deal.discount_percent > 0 and (deal.regular_price is None or deal.regular_price > deal.discount_price)
 
+    main_store_url = deal.url or get_region_eshop_url("GB" if curr.upper() == "EUR" else "US", deal.title)
     if has_discount and deal.regular_price is not None:
         price_text = (
-            f"{prefix_label}<s>{deal.regular_price:.2f} {curr}</s> ➡️ <b>{deal.discount_price:.2f} {curr}</b> "
+            f"{prefix_label}<s>{deal.regular_price:.2f} {curr}</s> ➡️ <a href='{main_store_url}'><b>{deal.discount_price:.2f} {curr}</b></a> "
             f"(<b>-{deal.discount_percent:.0f}%</b>){conv_part}"
         )
     else:
         disp_price = deal.discount_price if deal.discount_price is not None else (deal.regular_price or 0.0)
-        price_text = f"{prefix_label}<b>{disp_price:.2f} {curr}</b>{conv_part}"
+        price_text = f"{prefix_label}<a href='{main_store_url}'><b>{disp_price:.2f} {curr}</b></a>{conv_part}"
 
     # Categories / Genres (Untranslated English with Hashtags)
     categories_text = ""
@@ -122,7 +157,7 @@ def format_eshop_deal_message(
         if valid_tags:
             categories_text = f"🏷 {' '.join(valid_tags)}\n"
 
-    # Regional Price Comparison Section
+    # Regional Price Comparison Section with clickable store links
     region_lines = []
     if deal.regional_prices:
         cheapest_3 = deal.get_cheapest_regions(3)
@@ -142,8 +177,10 @@ def format_eshop_deal_message(
             disc_label = f" (-{p.discount_percent:.0f}%)" if p.is_discount and p.discount_percent > 0 else ""
             conv_str = _format_price_conv(p)
             c_name = COUNTRY_NAMES_UA.get(p.country_code.upper(), p.country_name) if is_ua else p.country_name
+            p_url = get_region_eshop_url(p.country_code, deal.title, deal.url)
+            price_link = f"<a href='{p_url}'><b>{p.discount_price:.2f} {p.currency}</b></a>"
             region_lines.append(
-                f"{medal} {p.flag_emoji} {c_name}: <b>{p.discount_price:.2f} {p.currency}</b>{disc_label} (<i>{conv_str}</i>)"
+                f"{medal} {p.flag_emoji} {c_name}: {price_link}{disc_label} (<i>{conv_str}</i>)"
             )
 
         # Pinned regions to always show if available and not already in top 3
@@ -161,8 +198,10 @@ def format_eshop_deal_message(
                     disc_label = f" (-{p_price.discount_percent:.0f}%)" if p_price.is_discount and p_price.discount_percent > 0 else ""
                     conv_str = _format_price_conv(p_price)
                     c_name = name_ua if is_ua else name_en
+                    p_url = get_region_eshop_url(code, deal.title, deal.url)
+                    price_link = f"<a href='{p_url}'><b>{p_price.discount_price:.2f} {p_price.currency}</b></a>"
                     region_lines.append(
-                        f"{flag} {c_name}: <b>{p_price.discount_price:.2f} {p_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
+                        f"{flag} {c_name}: {price_link}{disc_label} (<i>{conv_str}</i>)"
                     )
 
     regional_text = ""
@@ -183,7 +222,6 @@ def format_eshop_deal_message(
     platform_text = f"🕹 <b>{platform_label}:</b> {deal.platform_label}"
 
     # Store and eShop-Prices links
-    import urllib.parse
     eshop_prices_url = f"https://eshop-prices.com/games?q={urllib.parse.quote_plus(deal.title)}"
     links = []
     if deal.url:

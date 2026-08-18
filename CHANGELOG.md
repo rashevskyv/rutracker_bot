@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.02] - 2026-08-18
+
+### Added
+- **Clickable Regional Prices Directing to Official eShop Stores**:
+  - `services/eshop/formatters.py` & `eshop-prices/src/bot/formatters.py`: Every regional price (Base Europe, Top 3 Cheapest, Poland, USA, etc.) is now an active hyperlink. Tapping directly on any regional price takes the user straight to that game's official Nintendo eShop page in that specific regional storefront (`nintendo.com/us`, `store.nintendo.com.ar`, `nintendo.com/en-gb`, `nintendo.co.za`, `store.nintendo.cl`, etc.).
+
 ## [v0.7.01] - 2026-08-18
 
 ### Fixed
