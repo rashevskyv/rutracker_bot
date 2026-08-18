@@ -1,53 +1,54 @@
-# Звіт про виконану роботу: Інтеграція VitaForge / VitaDBtoo (v0.6.66)
+# Звіт про виконану роботу: Інтеграція модуля Nintendo eShop Deals (v0.6.72)
 
 ## Огляд задачі
-
-31 липня 2026 року оригінальний бекенд сервісу **VitaDB** (на `rinnegatamante.eu`), який використовувався клієнтом **Vita Homebrew Browser (VHBB)**, припинив свою роботу і повертає порожні дані (`[]`).
-
-На заміну полеглому VHBB спільнотою було створено сучасний хомбрю-браузер **VitaForge** ([josephinoo/vitaForge](https://github.com/josephinoo/vitaForge)), який використовує базу даних **VitaDBtoo** ([DrDecki/VitaDBtoo-db](https://github.com/DrDecki/VitaDBtoo-db)).
+Користувач поставив задачу інтегрувати створений функціонал відстеження найкращих знижок Nintendo Switch з мультирегіональним порівнянням цін (Топ-3 найдешевші регіони, Польща, США) безпосередньо в існуючий проєкт **RuTracker Bot** (`d:\git\dev\rutracker_bot`), з підтримкою як **періодичного запуску через крон (GitHub Actions)**, так і **інтерактивної відповіді на команди в чатах**.
 
 ---
 
-## Звідки VitaForge бере дані та формат API
+## 1. Схема поєднання Cron та інтерактивних команд
 
-1. **Джерело даних**:
-   - Каталог **VitaDBtoo** (`DrDecki/VitaDBtoo-db`) — це збережена та щоденно оновлювана база даних застосунків, плагінів, ПК-інструментів та PSP-хомбрю.
-   - Дані надаються як статичні JSON-файли через GitHub / GitHub Pages:
-     - `https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/apps.json` — PS Vita Homebrew застосунки та ігри (1030+ записів).
-     - `https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/preserved/plugins.json` — PS Vita плагіни (124+ записи).
-     - `https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/preserved/tools.json` — ПК-утиліти для PS Vita (33+ записи).
-     - `https://raw.githubusercontent.com/DrDecki/VitaDBtoo-db/main/psp_apps.json` — PSP Homebrew застосунки (127+ записів).
-   - Також існує REST API бекенд VitaForge `https://vitaforge.josephinoo.dev/api/v1` (який синхронізує VitaDBtoo + NPS, проте вимагає обов'язкових заголовків клієнта `X-Client-ID` та має рейт-ліміти).
-
-2. **Формат записів**:
-   - Зберігає 100% сумісність із полями VitaDB:
-     `id`, `name`, `version`, `author`, `date` (формат `YYYY-MM-DD`), `status`, `source`, `release_page`, `url`, `description`, `long_description`, `changelog`.
-   - Запити виконуються методом **GET** (замість старого порожнього POST у VitaDB).
-   - Ідентифікатори `id` збережено без змін (наприклад, `534` для Noboru), завдяки чому наявна історія в `data/vitadb_state.json` (`vita-hb:{id}`, `vita-plugin:{id}`, `vita-tool:{id}`) зберігається і плавно продовжує роботу без помилкових повторних сповіщень.
-
----
-
-## Впроваджені зміни
-
-### 1. Збирач оновлень [collect_homebrew_updates.py](file:///d:/git/dev/rutracker_bot/collect_homebrew_updates.py)
-- **Оновлено `VITADB_ENDPOINTS`**: налаштовано прямі GET URL на `apps.json`, `preserved/plugins.json`, `preserved/tools.json`, `psp_apps.json`.
-- **Розширено `VITA_CATEGORIES`**: додано підтримку категорії `PSP`.
-- **Оновлено `collect_vitadb_updates()`**:
-  - Метод HTTP-запитів змінено з `self.session.post` на `self.session.get` із таймаутом і заголовками `BROWSER_HEADERS`.
-  - Оновлено логування та мітки на `VitaForge/VitaDBtoo`.
-  - Додано підтримку префікса `vita-psp` для PSP-застосунків.
-
-### 2. Документація та версіонування
-- Оновлено [README.md](file:///d:/git/dev/rutracker_bot/README.md) та [GEMINI.md](file:///d:/git/dev/rutracker_bot/GEMINI.md) з описом нової архітектури джерел Phase 1d.
-- Оновлено [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md) (версія `v0.6.66`).
-- Оновлено [plan.md](file:///d:/git/dev/rutracker_bot/plan.md) та [task.md](file:///d:/git/dev/rutracker_bot/task.md).
+```
+                           ┌──────────────────────────────────────────────────────────┐
+                           │                     TELEGRAM BOT                         │
+                           └────────────────────────────┬─────────────────────────────┘
+                                                        │
+                   ┌────────────────────────────────────┴────────────────────────────────────┐
+                   ▼                                                                         ▼
+     [Cron / GitHub Actions]                                                   [Interactive Server/Polling]
+  (send_eshop_deals.py @ 06:00 UTC)                                                 (bot_interactive.py)
+                   │                                                                         │
+                   ├─ Опитує Nintendo Catalog Search API                                     ├─ Слухає команди в чатах:
+                   ├─ Опитує 12+ регіонів Nintendo Price API                                 │  • /deals [N] — топ знижок
+                   ├─ Фільтрує якість (знижка >= 30%, Metacritic >= 70)                      │  • /search <гра> — пошук та порівняння цін
+                   ├─ Перевіряє історію (кулдаун 7 днів)                                     │  • /subscribe_deals — підписка чату
+                   ├─ Пушить картки в DIGEST_CHANNEL / GROUPS                                │  • /set_min_discount / /set_min_rating
+                   └─ Синхронізує стан з GitHub Gist                                         └─ Миттєво відповідає користувачам
+```
 
 ---
 
-## Результати тестування
+## 2. Що було зроблено
 
-1. **Тестове завантаження Phase 1d**:
-   - Успішно завантажено та розпарсено 1033 записів PSVita, 124 плагіни, 33 ПК-інструменти та 127 PSP застосунків (покриття 618 GitHub репозиторіїв).
-   - Усі поля, дати релізів, посилання на завантаження та changelog'и коректно обробляються.
-2. **Модульні тести**:
-   - `python -m pytest test_digest_runner.py test_gist_config.py test_manual_merge.py` — 8/8 тестів пройдено успішно.
+1. **Модульний пакет `services/eshop/`**:
+   - `models.py` — дата-класи `GameDeal`, `QualityCriteria`, `RegionalPrice`.
+   - `currency_service.py` — курси валют з `open.er-api.com` та кешуванням.
+   - `region_price_service.py` — паралельне опитування цін Nintendo eShop у 12+ країнах за `NSUID`.
+   - `eshop_service.py` — пряме опитування каталогу Nintendo Store без ризику блокувань Cloudflare.
+   - `rating_service.py` — збагачення оцінками Metacritic та RAWG.
+   - `deal_filter.py` — алгоритм відбору якості угод та відсіювання сміття.
+   - `formatters.py` — україномовні картки Telegram з медалями 🥇🥈🥉, цінами в Польщі 🇵🇱 та США 🇺🇸.
+   - `bot_commands.py` — обробники команд TeleBot (`/deals`, `/search`, `/subscribe_deals`, `/deals_settings` тощо).
+
+2. **Cron розсилка (`send_eshop_deals.py`)**:
+   - Повноцінний дайджест-скрипт, інтегрований із загальною системою `core.settings_loader`.
+   - Додано крок `Run Send eShop Deals` у `.github/workflows/bot_runner.yml` (запуск о 06:00 UTC / 09:00 за Києвом, або вручну через `workflow_dispatch`).
+
+3. **Інтерактивний бот (`bot_interactive.py`)**:
+   - Скрипт для роботи в режимі polling, що дозволяє боту в реальному часі відповідати на команди користувачів у чатах та групах.
+
+4. **Синхронізація з Gist (`sync_gist_state.py`)**:
+   - `eshop_posted_deals.json` та `last_eshop_deals_run.json` додано до списку синхронізації `FILES_TO_SYNC`.
+
+5. **Конфігурація та тести**:
+   - Додано блок `ESHOP_DEALS` у `config/settings.json`.
+   - Створено `test_eshop_module.py` — усі 10 тестів у `rutracker_bot` проходять паралельно (`pytest -v -n auto`).

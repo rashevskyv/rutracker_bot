@@ -2,6 +2,58 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.72] - 2026-08-17
+
+### Added
+- **Nintendo eShop Deals Module (`services/eshop`)**:
+  - `services/eshop/eshop_service.py`: Direct client for official Nintendo Store Catalog Search API without Cloudflare barriers.
+  - `services/eshop/currency_service.py`: Real-time FX exchange rates with fallback cache (`open.er-api.com`).
+  - `services/eshop/region_price_service.py`: Multi-regional price query engine across 12+ countries.
+  - `services/eshop/rating_service.py`: RAWG & Metacritic score enrichment engine.
+  - `services/eshop/deal_filter.py`: Quality evaluation algorithm (`deal_score`, discount %, Metacritic >= 70).
+  - `services/eshop/formatters.py`: Telegram message formatter with 🥇🥈🥉 Top 3 cheapest regions, Poland 🇵🇱 (PLN), and USA 🇺🇸 (USD).
+- **eShop Deals Sender Script (`send_eshop_deals.py`)**: Standalone and scheduled broadcaster that sends top discounted Switch games to configured channels/groups (`DIGEST_CHANNEL` / `GROUPS` / `TEST_GROUPS`).
+- **Gist State Sync**: Added `eshop_posted_deals.json` and `last_eshop_deals_run.json` to `sync_gist_state.py`.
+- **Configuration**: Added `ESHOP_DEALS` settings block in `config/settings.json`.
+- **Tests**: Added `test_eshop_module.py` and `pytest.ini` with 10 passing parallel tests.
+
+## [v0.6.71] - 2026-08-17
+
+### Added
+- **Manual Releases Addition**: Added 5 new homebrew and decompilation releases to `data/manual_releases.json` with detailed, game-specific Ukrainian descriptions:
+  - `Lighthouse (Banjo-Kazooie) (HarbourMasters)` (`1.1.0`, PC) from [HarbourMasters/Lighthouse](https://github.com/HarbourMasters/Lighthouse)
+  - `Silent Hill (DerilDX)` (`1.1.0`, Switch) from [DerilDX/silent-hill-decomp-nx](https://github.com/DerilDX/silent-hill-decomp-nx)
+  - `GTA: Liberty City Stories (StevensND)` (`v1.0.3`, Switch) from [StevensND/gtalcs_nx](https://github.com/StevensND/gtalcs_nx)
+  - `Subway Surfers (StevensND)` (`1.0.2`, Switch) from [StevensND/subwaysurfers_nx](https://github.com/StevensND/subwaysurfers_nx)
+  - `Zombotron Re-Boot (StevensND)` (`v1.0.2`, Switch) from [StevensND/zombotron_nx](https://github.com/StevensND/zombotron_nx)
+- **State Synchronization**: Downloaded current state from Gist and uploaded the updated `manual_releases.json` to GitHub Gist.
+
+## [v0.6.70] - 2026-08-16
+
+### Changed
+- **Manual Releases Descriptions Translation**: Reviewed and translated all English descriptions for queued Switch homebrew releases in `data/manual_releases.json` into Ukrainian (`G-Diffuser`, `lsfg`, `porpoise`, `dekopon`, `uam`, `dynarmic`).
+- **State Synchronization**: Uploaded updated `manual_releases.json` and state files to GitHub Gist.
+
+## [v0.6.69] - 2026-08-16
+
+### Added
+- **Custom Releases Collector (`PalindromicBreadLoaf`)**: Added Nintendo Switch homebrew developer `PalindromicBreadLoaf` to `TARGET_USERS` in `collect_custom_releases.py`.
+- **New Switch Homebrew Releases**: Automatically discovered and queued 9 new Nintendo Switch homebrew releases from `PalindromicBreadLoaf` (including `G-Diffuser`, `lsfg`, `porpoise`, `dekopon`, `fzerox`, `uam`, `libultraship`, `nxvk`, `dynarmic`) and 1 new release from `ChanseyIsTheBest` (`baldi_nx`) to `data/manual_releases.json` with `"processed": false`.
+- **State Synchronization**: Updated `data/custom_releases_state.json` and synchronized state with GitHub Gist.
+- **Documentation & Scripts**: Updated `README.md`, `GEMINI.md`, and `run_custom_collector.bat` to include `PalindromicBreadLoaf`.
+
+## [v0.6.68] - 2026-08-14
+
+### Added
+- **Manual Release Addition (`The Legend of Zelda: The Minish Cap`)**: Added Nintendo 3DS native port release `The Legend of Zelda: The Minish Cap (EstebanPdN)` (`1.1`, 3DS) from [EstebanPdN/zelda-tmc-3ds](https://github.com/EstebanPdN/zelda-tmc-3ds) to `data/manual_releases.json` with `"processed": false` for upcoming homebrew digest publication.
+- **State Synchronization**: Downloaded the latest state and uploaded the updated state to GitHub Gist.
+
+## [v0.6.67] - 2026-08-13
+
+### Added
+- **Manual Release Addition (`Docklight`)**: Added Nintendo Switch native Banjo-Kazooie decompilation port release `Docklight (Banjo-Kazooie) (PalindromicBreadLoaf)` (`1.0.3`, Switch) from [PalindromicBreadLoaf/Docklight](https://github.com/PalindromicBreadLoaf/Docklight) to `data/manual_releases.json` with `"processed": false` for upcoming homebrew digest publication.
+- **State Synchronization**: Downloaded the latest state and uploaded the updated state to GitHub Gist.
+
 ## [v0.6.66] - 2026-08-13
 
 ### Added

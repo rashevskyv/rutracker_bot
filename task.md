@@ -1,9 +1,9 @@
-# Перелік завдань (Tasks) — v0.6.66
+# Список завдань (Tasks)
 
-- [x] Оновити `VITADB_ENDPOINTS` та `VITA_CATEGORIES` у `collect_homebrew_updates.py` на джерела VitaDBtoo / VitaForge
-- [x] Змінити HTTP метод з POST на GET у `collect_vitadb_updates()` та додати підтримку PSP
-- [x] Протестувати завантаження каталогів та оновлень
-- [x] Виконати модульні тести (`pytest`)
-- [x] Оновити `README.md` та `GEMINI.md`
-- [x] Оновити `CHANGELOG.md` до версії `v0.6.66`
-- [x] Актуалізувати `plan.md`, `task.md`, `walkthrough.md`
+## Виконані завдання
+- [x] Створити модульний пакет `services/eshop/` з підтримкою Nintendo Store API, конвертації валют, регіонального порівняння цін та оцінок Metacritic/RAWG.
+- [x] Створити скрипт розсилки `send_eshop_deals.py` під архітектуру RuTracker Bot.
+- [x] Додати синхронізацію файлів стану у `sync_gist_state.py`.
+- [x] Додати налаштування `ESHOP_DEALS` у `config/settings.json`.
+- [x] Написати тести `test_eshop_module.py` та налаштувати `pytest.ini`.
+- [x] Оновити документацію в `README.md` та `CHANGELOG.md` (версія `v0.6.72`).

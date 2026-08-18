@@ -21,7 +21,9 @@ FILES_TO_SYNC = [
     "last_homebrew_digest_run.json",
     "manual_releases.json",
     "list_hb.json",
-    "custom_releases_state.json"
+    "custom_releases_state.json",
+    "eshop_posted_deals.json",
+    "last_eshop_deals_run.json"
 ]
 
 DATA_DIR = "data"

@@ -1,19 +1,24 @@
-# План переходу на VitaForge / VitaDBtoo (v0.6.66)
+# План розвитку: RuTracker Bot
 
-Цей план описує заміну відключеного бекенду Vita Homebrew Browser (VitaDB) на сучасну базу даних **VitaForge** / **VitaDBtoo** (`DrDecki/VitaDBtoo-db`) у Phase 1d збирача оновлень [collect_homebrew_updates.py](file:///d:/git/dev/rutracker_bot/collect_homebrew_updates.py).
+## Загальний стан проєкту
+RuTracker Bot забезпечує моніторинг релізів трекера, збір оновлень хоумбрю, перекладів українською (SWUK), ручних релізів та знижок Nintendo eShop.
 
-## Покрокові зміни
+---
 
-### 1. Оновлення ендпоінтів та протоколу збору
-- [x] Оновити `VITADB_ENDPOINTS` та `VITA_CATEGORIES` у [collect_homebrew_updates.py](file:///d:/git/dev/rutracker_bot/collect_homebrew_updates.py).
-- [x] Змінити HTTP метод у `collect_vitadb_updates()` з POST на GET.
-- [x] Оновити логування та мітки на `VitaForge/VitaDBtoo`.
+## Етапи та модулі
 
-### 2. Тестування та перевірка збору
-- [x] Перевірити коректне зчитування та парсинг усіх категорій (`PSVita`, `PSVita Plugin`, `PSVita PC Tool`, `PSP`).
-- [x] Запустити тести паралельно (`python -m pytest test_digest_runner.py test_gist_config.py test_manual_merge.py`).
+### Модуль 1: RuTracker Feed & Updates [Виконано]
+- Моніторинг Atom-стрічки, парсинг описів, переклад RU->UA, пошук трейлерів та скріншотів.
 
-### 3. Документація та версіонування
-- [x] Оновити [README.md](file:///d:/git/dev/rutracker_bot/README.md) та [GEMINI.md](file:///d:/git/dev/rutracker_bot/GEMINI.md).
-- [x] Оновити [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md) (версія `v0.6.66`).
-- [x] Оновити [task.md](file:///d:/git/dev/rutracker_bot/task.md) та [walkthrough.md](file:///d:/git/dev/rutracker_bot/walkthrough.md).
+### Модуль 2: Збір хоумбрю та локалізацій [Виконано]
+- Підтримка Universal-DB, ForTheUsers, VitaForge, SwitchPorts, SWUK та користувацьких репозиторіїв.
+
+### Модуль 3: Щоденні дайджести (Daily, Homebrew, Swuk) [Виконано]
+- Агрегація та щоденна розсилка дайджестів у налаштовані канали/групи.
+
+### Модуль 4: Nintendo eShop Deals Module (v0.6.72) [Виконано]
+- [x] Автоматичний моніторинг офіційних знижок Nintendo Switch без блокувань Cloudflare.
+- [x] Мультирегіональне порівняння цін (топ-3 найдешевші регіони у світі, Польща 🇵🇱, США 🇺🇸).
+- [x] Інтеграція оцінок Metacritic та RAWG для відсіювання сміття.
+- [x] Автоматична розсилка через `send_eshop_deals.py`.
+- [x] Синхронізація стану історії надісланих угод через Gist.

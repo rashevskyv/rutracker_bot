@@ -12,7 +12,7 @@ DATA_DIR = "data"
 MANUAL_RELEASES_FILE = os.path.join(DATA_DIR, "manual_releases.json")
 CUSTOM_RELEASES_STATE_FILE = os.path.join(DATA_DIR, "custom_releases_state.json")
 
-TARGET_USERS = ["NaGaa95", "ChanseyIsTheBest", "delsonazevedo", "boraeskicioglu"]
+TARGET_USERS = ["NaGaa95", "ChanseyIsTheBest", "delsonazevedo", "boraeskicioglu", "PalindromicBreadLoaf"]
 NEW_AUTHOR_AGE_DAYS = 21  # Collect releases from last 3 weeks for new authors
 
 def run_gist_sync(action: str) -> bool:

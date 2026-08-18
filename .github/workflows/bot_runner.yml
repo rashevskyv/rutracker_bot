@@ -17,6 +17,7 @@ on:
           - run_collect_homebrew
           - run_swuk_digest
           - run_collect_swuk
+          - run_eshop_deals
         default: 'none'
 
 jobs:
@@ -154,6 +155,21 @@ jobs:
             python send_swuk_digest.py
           else
             echo "Skipping swuk digest (not scheduled and not forced)"
+          fi
+
+      - name: Run Send eShop Deals (if time matches or forced)
+        env:
+          FORCE_TASK: ${{ github.event.inputs.force_task }}
+        run: |
+          CURRENT_HOUR=$(date -u +%H)
+          if [ "$FORCE_TASK" = "run_eshop_deals" ]; then
+            echo "Manually forced run_eshop_deals..."
+            python send_eshop_deals.py
+          elif [ "$CURRENT_HOUR" = "06" ]; then
+            echo "Time is 09:00 Kyiv time (06:00 UTC), running eShop deals digest..."
+            python send_eshop_deals.py
+          else
+            echo "Skipping eShop deals (not scheduled and not forced)"
           fi
 
       - name: Upload state to Gist
