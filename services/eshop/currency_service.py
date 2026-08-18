@@ -74,6 +74,18 @@ class CurrencyService:
         except Exception as e:
             logger.debug(f"Failed to refresh currency exchange rates: {e}, using fallback.")
 
+    def convert(self, amount: float, from_currency: str, to_currency: str = "UAH") -> float:
+        """Convert amount between any supported currencies."""
+        if not amount:
+            return 0.0
+        if to_currency.upper() == "UAH":
+            return self.convert_to_uah(amount, from_currency)
+        if to_currency.upper() == "USD":
+            return self.convert_to_usd(amount, from_currency)
+        usd_val = self.convert_to_usd(amount, from_currency)
+        rate = self._rates.get(to_currency.upper(), 1.0)
+        return round(usd_val * rate, 2)
+
     def convert_to_usd(self, amount: float, from_currency: str) -> float:
         """Convert an amount from a given currency to USD."""
         if not amount or from_currency.upper() == "USD":

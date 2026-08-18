@@ -2,6 +2,17 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.20] - 2026-08-18
+
+### Fixed
+- **Optimized Range Querying and Real-Time Currency Conversion in `/deals` and `/random`**:
+  - `services/eshop/currency_service.py`: Added universal `convert(amount, from_curr, to_curr)` method.
+  - `services/eshop/eshop_service.py`: Added Solr-native `min_price_eur` and `max_price_eur` query filters (`price_discounted_f:[min TO max]`).
+  - `services/eshop/deal_filter.py`:
+    - Fixed zero-results issue for custom `/deals` commands (e.g. `/deals 4 1-100 100-500 cheap`) by ensuring Solr queries match popularity rank slices before applying custom Python price sorting.
+    - Improved `/random` sampling across large rank ranges (e.g. `/random 3 1-5000 50-300 грн`) by selecting random Solr window offsets and properly clamping to the available discounted catalog.
+    - Added fallback to zero minimum discount threshold if chat criteria are too strict for specific price/rank slices.
+
 ## [v0.7.19] - 2026-08-18
 
 ### Fixed

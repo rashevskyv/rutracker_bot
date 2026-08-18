@@ -184,14 +184,33 @@ class DealFilterEngine:
         import random
         min_disc = criteria.min_discount_percent if criteria else 0.0
 
+        # Convert price bounds to approximate EUR for Solr query if needed
+        min_p_eur = None
+        max_p_eur = None
+        if price_range_uah:
+            min_uah, max_uah = price_range_uah
+            min_p_eur = max(0.0, (min_uah / 55.0) - 0.5)
+            max_p_eur = (max_uah / 35.0) + 1.0
+
         # 1. Determine Solr start & rows
         if rank_range:
             start_rank, end_rank = rank_range
-            start = max(0, start_rank - 1)
-            rows = max(10, min(150, end_rank - start_rank + 1))
+            end_rank_clamped = min(3500, max(start_rank, end_rank))
+            start_rank_clamped = max(1, min(start_rank, end_rank_clamped))
+
+            if is_random and (end_rank_clamped - start_rank_clamped > 50):
+                max_rnd_start = max(start_rank_clamped - 1, end_rank_clamped - 50)
+                start = random.randint(start_rank_clamped - 1, max_rnd_start)
+                rows = max(30, min(100, end_rank_clamped - start))
+            else:
+                start = max(0, start_rank_clamped - 1)
+                rows = max(10, min(150, end_rank_clamped - start_rank_clamped + 1))
+        elif is_random:
+            start = random.randint(0, 1000)
+            rows = max(40, limit * 10)
         else:
             start = 0
-            rows = max(35, limit * 5)
+            rows = max(50, limit * 10)
 
         # 2. Determine Solr sort
         solr_sort_map = {
@@ -203,12 +222,14 @@ class DealFilterEngine:
             "rating": "popularity desc",
             "random": "popularity desc",
         }
-        solr_sort = solr_sort_map.get(sort_by, "popularity desc")
+        if rank_range or is_random:
+            solr_sort = "popularity desc"
+        else:
+            solr_sort = solr_sort_map.get(sort_by, "popularity desc")
 
         # 3. Fetch candidate batch
         deals: List[GameDeal] = []
-        if not rank_range and sort_by in ["popularity", "random"] and not price_range_uah:
-            # Use curated catalog first for default popularity queries
+        if not rank_range and not price_range_uah and sort_by == "popularity" and not is_random:
             deals = await self.eshop.fetch_popular_discounted_games(min_discount_percent=min_disc)
 
         if not deals:
@@ -217,6 +238,18 @@ class DealFilterEngine:
                 start=start,
                 sort=solr_sort,
                 min_discount_percent=min_disc,
+                min_price_eur=min_p_eur,
+                max_price_eur=max_p_eur,
+            )
+
+        if not deals and min_disc > 0:
+            deals = await self.eshop.fetch_discounted_games(
+                rows=rows,
+                start=start,
+                sort=solr_sort,
+                min_discount_percent=0.0,
+                min_price_eur=min_p_eur,
+                max_price_eur=max_p_eur,
             )
 
         if not deals:
@@ -227,9 +260,12 @@ class DealFilterEngine:
             min_p, max_p = price_range_uah
             filtered_by_price = []
             for d in deals:
-                price_val = d.discount_price
-                if currency_service and hasattr(currency_service, "convert"):
-                    price_val = currency_service.convert(d.discount_price, d.currency, "UAH")
+                price_val = d.discount_price * 45.0
+                if currency_service:
+                    if hasattr(currency_service, "convert_to_uah"):
+                        price_val = currency_service.convert_to_uah(d.discount_price, d.currency or "EUR")
+                    elif hasattr(currency_service, "convert"):
+                        price_val = currency_service.convert(d.discount_price, d.currency or "EUR", "UAH")
                 if min_p <= price_val <= max_p:
                     filtered_by_price.append(d)
             deals = filtered_by_price

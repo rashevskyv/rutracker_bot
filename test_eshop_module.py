@@ -378,6 +378,7 @@ async def test_get_flexible_deals():
     mock_eshop = AsyncMock()
     mock_ratings = AsyncMock()
     mock_currency = MagicMock()
+    mock_currency.convert_to_uah.side_effect = lambda val, c_from: val * 45.0 if c_from == "EUR" else val
     mock_currency.convert.side_effect = lambda val, c_from, c_to: val * 45.0 if c_from == "EUR" else val
 
     # Prepare dummy candidate deals
