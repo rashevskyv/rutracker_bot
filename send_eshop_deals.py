@@ -291,12 +291,21 @@ async def send_eshop_deals(force: bool = False):
             for item in current_showcase_items:
                 item_title = item.get("title", "")
                 msg_id = item.get("message_id")
+                fs_id = item.get("fs_id")
                 is_still_discounted = False
                 try:
-                    results = await eshop_service.search_games(query=item_title, rows=1)
-                    if results:
-                        game_check = results[0]
-                        if game_check.discount_percent > 0 and (game_check.regular_price is None or game_check.regular_price > game_check.discount_price):
+                    game_check = None
+                    if fs_id:
+                        game_check = await eshop_service.get_game_by_fs_id(str(fs_id))
+                    if not game_check and item_title:
+                        results = await eshop_service.search_games(query=item_title, rows=1)
+                        if results:
+                            game_check = results[0]
+
+                    if game_check:
+                        if game_check.discount_percent > 0 and (
+                            game_check.regular_price is None or game_check.regular_price > game_check.discount_price
+                        ):
                             is_still_discounted = True
                 except Exception as check_err:
                     logger.debug(f"Could not verify discount for '{item_title}': {check_err}")

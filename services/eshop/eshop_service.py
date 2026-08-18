@@ -267,3 +267,27 @@ class EShopService:
         except Exception as e:
             logger.error(f"Error searching games with query '{query}': {e}")
             return []
+
+    async def get_game_by_fs_id(self, fs_id: str) -> Optional[GameDeal]:
+        """Fetch game details directly by its unique Nintendo fs_id."""
+        if not fs_id:
+            return None
+        session = await self._get_session()
+        url = self.BASE_URL.format(locale=self.locale)
+        params = {
+            "q": "*",
+            "fq": f"type:GAME AND fs_id:{fs_id}",
+            "rows": 1,
+            "wt": "json",
+        }
+        try:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                if resp.status == 200:
+                    data = await resp.json(content_type=None)
+                    docs = data.get("response", {}).get("docs", [])
+                    if docs:
+                        return self._parse_game_doc(docs[0])
+        except Exception as e:
+            logger.debug(f"Error fetching game by fs_id '{fs_id}': {e}")
+        return None
+

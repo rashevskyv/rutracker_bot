@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.03] - 2026-08-18
+
+### Improved
+- **Exact `fs_id` Discount Verification & Automatic Cleanup**:
+  - `services/eshop/eshop_service.py` & `send_eshop_deals.py`: Added `get_game_by_fs_id()` for fast, deterministic discount checking on active showcase items.
+  - On every cron cycle, the bot queries the eShop status for all currently posted showcase games. If an active game's discount expires, the bot deletes its message via `bot.delete_message()` and refills the vacated slot with a fresh deal.
+
 ## [v0.7.02] - 2026-08-18
 
 ### Added
