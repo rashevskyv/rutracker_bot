@@ -2,6 +2,22 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.17] - 2026-08-18
+
+### Added
+- **Random Deal Roulette (`/random`, `/рандом`) & Advanced Deals Filtering & Sorting (`/deals`)**:
+  - `services/eshop/bot_commands.py`:
+    - Added `/random` (`/рандом`, `/рулетка`, `/випадкова_гра`) command with support for:
+      - `[count]`: number of games (1-15).
+      - `[rank_range]`: catalog rank slice (e.g. `1000-2000`, `1-500`).
+      - `[price_range]`: price range in UAH (e.g. `100-500`, `50-300 грн`).
+    - Enhanced `/deals` (`/знижки`) with flexible argument parsing for:
+      - Custom rank ranges (e.g. `/deals 4 1-100`).
+      - Custom price ranges (e.g. `/deals 5 100-500 грн`).
+      - Sorting modes (`cheap`/`дешеві`, `expensive`/`дорогі`, `discount`/`%`, `rating`/`рейтинг`, `new`/`нові`, `popularity`/`популярні`).
+  - `services/eshop/deal_filter.py`: Added `get_flexible_deals()` method supporting rank offsets, UAH price conversions, Solr query optimizations, and random sampling.
+  - `services/eshop/eshop_service.py`: Added `start` parameter offset to `fetch_discounted_games()`.
+
 ## [v0.7.16] - 2026-08-18
 
 ### Added

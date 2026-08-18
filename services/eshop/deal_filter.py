@@ -167,3 +167,95 @@ class DealFilterEngine:
         qualified = [d for d in deals if d.discount_percent >= criteria.min_discount_percent]
         qualified.sort(key=lambda d: (d.discount_percent, d.regular_price), reverse=True)
         return qualified[:limit]
+
+    async def get_flexible_deals(
+        self,
+        limit: int = 5,
+        rank_range: Optional[tuple] = None,
+        price_range_uah: Optional[tuple] = None,
+        sort_by: str = "popularity",
+        is_random: bool = False,
+        criteria: Optional[QualityCriteria] = None,
+        currency_service: Optional[Any] = None,
+    ) -> List[GameDeal]:
+        """
+        Fetch discounted games with flexible rank ranges, price limits, sorting orders, or random sampling.
+        """
+        import random
+        min_disc = criteria.min_discount_percent if criteria else 0.0
+
+        # 1. Determine Solr start & rows
+        if rank_range:
+            start_rank, end_rank = rank_range
+            start = max(0, start_rank - 1)
+            rows = max(10, min(150, end_rank - start_rank + 1))
+        else:
+            start = 0
+            rows = max(35, limit * 5)
+
+        # 2. Determine Solr sort
+        solr_sort_map = {
+            "price_asc": "price_discounted_f asc",
+            "price_desc": "price_discounted_f desc",
+            "discount": "price_discount_percentage_f desc",
+            "new": "pretty_date_s desc",
+            "popularity": "popularity desc",
+            "rating": "popularity desc",
+            "random": "popularity desc",
+        }
+        solr_sort = solr_sort_map.get(sort_by, "popularity desc")
+
+        # 3. Fetch candidate batch
+        deals: List[GameDeal] = []
+        if not rank_range and sort_by in ["popularity", "random"] and not price_range_uah:
+            # Use curated catalog first for default popularity queries
+            deals = await self.eshop.fetch_popular_discounted_games(min_discount_percent=min_disc)
+
+        if not deals:
+            deals = await self.eshop.fetch_discounted_games(
+                rows=rows,
+                start=start,
+                sort=solr_sort,
+                min_discount_percent=min_disc,
+            )
+
+        if not deals:
+            return []
+
+        # 4. Filter by price range (in UAH) if specified
+        if price_range_uah:
+            min_p, max_p = price_range_uah
+            filtered_by_price = []
+            for d in deals:
+                price_val = d.discount_price
+                if currency_service and hasattr(currency_service, "convert"):
+                    price_val = currency_service.convert(d.discount_price, d.currency, "UAH")
+                if min_p <= price_val <= max_p:
+                    filtered_by_price.append(d)
+            deals = filtered_by_price
+
+        if not deals:
+            return []
+
+        # 5. Selection / Sorting
+        if is_random:
+            selected = random.sample(deals, min(limit, len(deals)))
+        elif sort_by == "rating":
+            if self.ratings and self.ratings.api_key:
+                deals = await self.enrich_batch(deals[:min(20, len(deals))], fetch_regions=False)
+                deals.sort(key=self.calculate_deal_score, reverse=True)
+            selected = deals[:limit]
+        elif sort_by == "discount":
+            deals.sort(key=lambda d: d.discount_percent, reverse=True)
+            selected = deals[:limit]
+        elif sort_by == "price_asc":
+            deals.sort(key=lambda d: d.discount_price)
+            selected = deals[:limit]
+        elif sort_by == "price_desc":
+            deals.sort(key=lambda d: d.discount_price, reverse=True)
+            selected = deals[:limit]
+        else:
+            selected = deals[:limit]
+
+        return selected
+

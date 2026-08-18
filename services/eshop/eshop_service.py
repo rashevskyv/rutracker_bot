@@ -124,6 +124,7 @@ class EShopService:
     async def fetch_discounted_games(
         self,
         rows: int = 50,
+        start: int = 0,
         sort: str = "popularity desc",
         min_discount_percent: float = 0.0,
     ) -> List[GameDeal]:
@@ -139,6 +140,7 @@ class EShopService:
             "q": "*",
             "fq": fq,
             "sort": sort,
+            "start": max(0, start),
             "rows": rows,
             "wt": "json",
         }

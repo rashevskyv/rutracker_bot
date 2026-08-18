@@ -324,4 +324,95 @@ async def test_strict_deletion_guardrail():
         assert result_topic_blocked is False
 
 
+def test_parse_deal_command_args():
+    from services.eshop.bot_commands import parse_deal_command_args
+
+    # 1. Default /random
+    cnt, r_range, p_range, sort = parse_deal_command_args("/random", default_limit=1, is_random=True)
+    assert cnt == 1
+    assert r_range is None
+    assert p_range is None
+    assert sort == "random"
+
+    # 2. /random 4 1000-2000
+    cnt, r_range, p_range, sort = parse_deal_command_args("/random 4 1000-2000", default_limit=1, is_random=True)
+    assert cnt == 4
+    assert r_range == (1000, 2000)
+    assert p_range is None
+    assert sort == "random"
+
+    # 3. /random 4 1000-2000 100-500
+    cnt, r_range, p_range, sort = parse_deal_command_args("/random 4 1000-2000 100-500", default_limit=1, is_random=True)
+    assert cnt == 4
+    assert r_range == (1000, 2000)
+    assert p_range == (100.0, 500.0)
+    assert sort == "random"
+
+    # 4. /deals 5 cheap
+    cnt, r_range, p_range, sort = parse_deal_command_args("/deals 5 cheap", default_limit=5, is_random=False)
+    assert cnt == 5
+    assert r_range is None
+    assert p_range is None
+    assert sort == "price_asc"
+
+    # 5. /deals 4 1-100 200-800 discount
+    cnt, r_range, p_range, sort = parse_deal_command_args("/deals 4 1-100 200-800 discount", default_limit=5, is_random=False)
+    assert cnt == 4
+    assert r_range == (1, 100)
+    assert p_range == (200.0, 800.0)
+    assert sort == "discount"
+
+    # 6. Cyrillic command aliases
+    cnt, r_range, p_range, sort = parse_deal_command_args("/знижки 3 дешеві 50-300грн", default_limit=5, is_random=False)
+    assert cnt == 3
+    assert p_range == (50.0, 300.0)
+    assert sort == "price_asc"
+
+
+@pytest.mark.asyncio
+async def test_get_flexible_deals():
+    from services.eshop.deal_filter import DealFilterEngine
+    from services.eshop.models import GameDeal
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock_eshop = AsyncMock()
+    mock_ratings = AsyncMock()
+    mock_currency = MagicMock()
+    mock_currency.convert.side_effect = lambda val, c_from, c_to: val * 45.0 if c_from == "EUR" else val
+
+    # Prepare dummy candidate deals
+    deals = [
+        GameDeal(fs_id="1", title="Game 1", regular_price=20.0, discount_price=5.0, discount_percent=75.0, currency="EUR"),
+        GameDeal(fs_id="2", title="Game 2", regular_price=40.0, discount_price=10.0, discount_percent=75.0, currency="EUR"),
+        GameDeal(fs_id="3", title="Game 3", regular_price=60.0, discount_price=30.0, discount_percent=50.0, currency="EUR"),
+    ]
+    mock_eshop.fetch_discounted_games.return_value = deals
+    mock_eshop.fetch_popular_discounted_games.return_value = []
+
+    engine = DealFilterEngine(eshop_service=mock_eshop, rating_service=mock_ratings)
+
+    # 1. Query with price filter (5.0 EUR = 225 UAH, 10.0 EUR = 450 UAH, 30.0 EUR = 1350 UAH)
+    # Price range 200 - 500 UAH should return Game 1 and Game 2
+    res = await engine.get_flexible_deals(
+        limit=5,
+        rank_range=(1, 50),
+        price_range_uah=(200.0, 500.0),
+        sort_by="price_asc",
+        currency_service=mock_currency,
+    )
+    assert len(res) == 2
+    assert res[0].title == "Game 1"
+    assert res[1].title == "Game 2"
+
+    # 2. Query random
+    res_rnd = await engine.get_flexible_deals(
+        limit=1,
+        rank_range=(1, 50),
+        is_random=True,
+        currency_service=mock_currency,
+    )
+    assert len(res_rnd) == 1
+
+
+
 

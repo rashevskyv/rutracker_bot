@@ -192,6 +192,120 @@ async def safe_send_card(
             return False
 
 
+def parse_deal_command_args(
+    text: str,
+    default_limit: int = 5,
+    is_random: bool = False,
+) -> tuple:
+    """
+    Parse command arguments for /deals or /random:
+    [count] [rank_range] [price_range] [sort_order]
+
+    Returns:
+        (count, rank_range, price_range, sort_order)
+    """
+    import re
+    parts = text.split()[1:] if text else []
+
+    count = default_limit
+    rank_range = None
+    price_range = None
+    sort_order = "random" if is_random else "popularity"
+
+    SORT_KEYWORDS = {
+        "cheap": "price_asc", "cheapest": "price_asc", "price_asc": "price_asc",
+        "дешеві": "price_asc", "дешево": "price_asc", "дешевле": "price_asc", "min": "price_asc",
+        "expensive": "price_desc", "price_desc": "price_desc", "дорогі": "price_desc", "дорого": "price_desc", "max": "price_desc",
+        "discount": "discount", "disc": "discount", "%": "discount", "знижка": "discount", "знижки": "discount", "скидка": "discount",
+        "rating": "rating", "score": "rating", "meta": "rating", "rawg": "rating", "рейтинг": "rating", "топ": "rating", "оцінка": "rating",
+        "new": "new", "latest": "new", "recent": "new", "date": "new", "нові": "new", "новые": "new", "новинки": "new",
+        "pop": "popularity", "popular": "popularity", "popularity": "popularity", "популярні": "popularity", "хіти": "popularity",
+    }
+
+    range_tokens = []
+
+    for token in parts:
+        token_clean = token.strip().lower()
+        if not token_clean:
+            continue
+
+        # 1. Check sort keyword
+        if token_clean in SORT_KEYWORDS:
+            if not is_random:
+                sort_order = SORT_KEYWORDS[token_clean]
+            continue
+
+        # 2. Check single integer for count (1 <= int <= 15)
+        if token_clean.isdigit():
+            val = int(token_clean)
+            if 1 <= val <= 15 and count == default_limit:
+                count = val
+                continue
+            elif val > 15:
+                range_tokens.append(token_clean)
+                continue
+
+        # 3. Check range tokens like 1000-2000, 1-100, 100-500грн
+        range_match = re.match(r"^[#rRpP]?(\d+)(?:[-–—:](\d+))?([a-zA-Zа-яА-Я₴$€]+)?$", token_clean)
+        if range_match:
+            range_tokens.append(token_clean)
+            continue
+
+    # Process range tokens
+    for idx, r_tok in enumerate(range_tokens):
+        has_currency = bool(re.search(r"(грн|uah|eur|€|\$|usd|p:|price:)", r_tok))
+        m = re.search(r"(\d+)(?:[-–—:](\d+))?", r_tok)
+        if not m:
+            continue
+        v1 = float(m.group(1))
+        v2 = float(m.group(2)) if m.group(2) else v1
+        low, high = min(v1, v2), max(v1, v2)
+
+        if has_currency:
+            price_range = (low, high)
+        else:
+            if rank_range is None and (idx < len(range_tokens) - 1 or low >= 500 or (low <= 100 and high >= 200 and not price_range)):
+                rank_range = (int(low), int(high))
+            elif rank_range is None and not price_range:
+                if high >= 500 or low <= 50:
+                    rank_range = (int(low), int(high))
+                else:
+                    if is_random:
+                        rank_range = (int(low), int(high))
+                    else:
+                        price_range = (low, high)
+            elif price_range is None:
+                price_range = (low, high)
+
+    return (count, rank_range, price_range, sort_order)
+
+
+def format_search_description(count: int, rank_range: Optional[tuple], price_range: Optional[tuple], sort_order: str, is_random: bool = False) -> str:
+    """Helper to format descriptive loading status message."""
+    sort_labels = {
+        "popularity": "за популярністю",
+        "price_asc": "від найдешевших",
+        "price_desc": "від найдорожчих",
+        "discount": "за розміром знижки %",
+        "rating": "за рейтингом якості",
+        "new": "найновіші релізи",
+        "random": "випадковий вибір",
+    }
+    label = sort_labels.get(sort_order, sort_order)
+    details = []
+    if rank_range:
+        details.append(f"ранг #{rank_range[0]}–{rank_range[1]}")
+    if price_range:
+        details.append(f"ціна {price_range[0]:.0f}–{price_range[1]:.0f} грн")
+    if not is_random:
+        details.append(label)
+
+    details_str = f" ({', '.join(details)})" if details else ""
+    icon = "🎲" if is_random else "🔍"
+    action = f"Шукаю {count} випадкові ігри" if is_random else f"Шукаю топ-{count} знижок"
+    return f"{icon} <i>{action}{details_str}...</i>"
+
+
 def register_eshop_handlers(
     bot: AsyncTeleBot,
     filter_engine: DealFilterEngine,
@@ -213,11 +327,23 @@ def register_eshop_handlers(
         text = (
             "🎮 <b>RuTracker Bot — Меню команд</b>\n\n"
             "🔥 <b>Знижки Nintendo eShop:</b>\n"
-            "• <code>/deals [N]</code> — Показати топ N знижок з порівнянням цін у регіонах (наприклад: <code>/deals 5</code>)\n"
+            "• <code>/deals [N] [ранг] [ціна] [сортування]</code> — Топ знижок з гнучкими фільтрами\n"
+            "  <i>Приклади:</i>\n"
+            "  - <code>/deals 5</code> — топ 5 популярних знижок\n"
+            "  - <code>/deals 5 cheap</code> — 5 найдешевших ігор\n"
+            "  - <code>/deals 5 discount</code> — 5 ігор з найбільшим % знижки\n"
+            "  - <code>/deals 4 1-100 100-500</code> — 4 гри з топ 1-100 за ціною 100-500 грн\n\n"
+            "🎲 <b>Рандомна гра зі знижкою (Рулетка):</b>\n"
+            "• <code>/random [N] [ранг] [ціна]</code> — Випадкові ігри зі знижкою\n"
+            "  <i>Приклади:</i>\n"
+            "  - <code>/random</code> — 1 випадкова гра зі знижкою\n"
+            "  - <code>/random 4 1000-2000</code> — 4 випадкові гри з рангу 1000–2000\n"
+            "  - <code>/random 3 1-500 100-300</code> — 3 випадкові гри з топ-500 за 100–300 грн\n\n"
+            "🔍 <b>Пошук конкретної гри:</b>\n"
             "• <code>/search &lt;назва&gt;</code> — Пошук гри та порівняння цін (наприклад: <code>/search Zelda</code>)\n\n"
             "🎁 <b>Список бажань (Wishlist):</b>\n"
             "• <code>/wishlist</code> — Переглянути свій Wishlist та актуальні ціни/знижки\n"
-            "• <code>/wishlist add &lt;назва&gt;</code> — Додати гру до списку бажань (наприклад: <code>/wishlist add Hollow Knight</code>)\n"
+            "• <code>/wishlist add &lt;назва&gt;</code> — Додати гру до списку бажань\n"
             "• <code>/wishlist remove &lt;назва&gt;</code> — Видалити гру зі списку\n"
             "• <code>/wishlist clear</code> — Очистити список бажань\n\n"
             "🔔 <b>Автоматичні підписки (в приватних або групах):</b>\n"
@@ -228,7 +354,6 @@ def register_eshop_handlers(
             "• <code>/remove [N | all]</code> — Видалити повідомлення вітрини в топіку знижок\n"
             "• <code>/deals_settings</code> — Переглянути активні фільтри якості\n"
             "• <code>/set_min_discount &lt;%&gt;</code> — Встановити мін. % знижки (наприклад: <code>/set_min_discount 40</code>)\n"
-            "• <code>/set_min_rating &lt;бал&gt;</code> — Встановити мін. бал Metacritic (наприклад: <code>/set_min_rating 75</code>)\n"
         )
         await safe_reply(bot, message, text)
 
@@ -237,46 +362,40 @@ def register_eshop_handlers(
         func=lambda m: bool(m.text and m.text.lower().startswith(("/deals", "/eshop_deals", "/top_deals", "/знижки", "/знижка"))),
     )
     async def cmd_deals(message: Message):
-        args = message.text.split()[1:] if message.text else []
-        limit = 5
-        if args and args[0].isdigit():
-            limit = max(1, min(10, int(args[0])))
+        count, rank_range, price_range, sort_order = parse_deal_command_args(
+            message.text or "", default_limit=5, is_random=False
+        )
 
         thread_id = getattr(message, "message_thread_id", None)
         reply_id = message.message_id
+        loading_text = format_search_description(count, rank_range, price_range, sort_order, is_random=False)
+        loading_msg = await safe_reply(bot, message, loading_text)
 
-        loading_msg = await safe_reply(
-            bot,
-            message,
-            f"🔍 <i>Шукаю топ-{limit} знижок серед найпопулярніших хітів Nintendo Switch...</i>",
-        )
         try:
             criteria = get_chat_criteria(message.chat.id, global_criteria)
-            candidates = await filter_engine.get_candidate_deals(criteria=criteria, limit=limit)
+            if hasattr(currency_service, "refresh_rates"):
+                await currency_service.refresh_rates()
+
+            candidates = await filter_engine.get_flexible_deals(
+                limit=count,
+                rank_range=rank_range,
+                price_range_uah=price_range,
+                sort_by=sort_order,
+                is_random=False,
+                criteria=criteria,
+                currency_service=currency_service,
+            )
 
             if not candidates:
+                err_text = "😔 Не знайдено знижок за вказаними фільтрами.\nСпробуйте змінити діапазон цін чи рангу або знизити поріг знижки: <code>/set_min_discount 20</code>"
                 if loading_msg:
                     try:
-                        await bot.edit_message_text(
-                            "😔 Не знайдено знижок на популярні ігри за поточними критеріями.\n"
-                            "Спробуйте знизити поріг: <code>/set_min_discount 20</code>",
-                            chat_id=message.chat.id,
-                            message_id=loading_msg.message_id,
-                            parse_mode="HTML",
-                        )
+                        await bot.edit_message_text(err_text, chat_id=message.chat.id, message_id=loading_msg.message_id, parse_mode="HTML")
                         return
                     except Exception:
                         pass
-                await safe_reply(
-                    bot,
-                    message,
-                    "😔 Не знайдено знижок на популярні ігри за поточними критеріями.\n"
-                    "Спробуйте знизити поріг: <code>/set_min_discount 20</code>",
-                )
+                await safe_reply(bot, message, err_text)
                 return
-
-            if hasattr(currency_service, "refresh_rates"):
-                await currency_service.refresh_rates()
 
             is_first = True
             for deal in candidates:
@@ -305,6 +424,74 @@ def register_eshop_handlers(
         except Exception as e:
             logger.error(f"Error handling /deals: {e}")
             await safe_reply(bot, message, "❌ Помилка при отриманні знижок.")
+
+    @bot.message_handler(
+        commands=["random", "random_deal", "рандом", "рулетка", "випадкова_гра", "випадкова"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/random", "/random_deal", "/рандом", "/рулетка", "/випадкова_гра", "/випадкова"))),
+    )
+    async def cmd_random(message: Message):
+        count, rank_range, price_range, sort_order = parse_deal_command_args(
+            message.text or "", default_limit=1, is_random=True
+        )
+
+        thread_id = getattr(message, "message_thread_id", None)
+        reply_id = message.message_id
+        loading_text = format_search_description(count, rank_range, price_range, sort_order, is_random=True)
+        loading_msg = await safe_reply(bot, message, loading_text)
+
+        try:
+            criteria = get_chat_criteria(message.chat.id, global_criteria)
+            if hasattr(currency_service, "refresh_rates"):
+                await currency_service.refresh_rates()
+
+            candidates = await filter_engine.get_flexible_deals(
+                limit=count,
+                rank_range=rank_range,
+                price_range_uah=price_range,
+                sort_by="random",
+                is_random=True,
+                criteria=criteria,
+                currency_service=currency_service,
+            )
+
+            if not candidates:
+                err_text = "😔 Не знайдено випадкових ігор за вказаними фільтрами.\nСпробуйте розширити діапазон цін чи рангу: <code>/random 3 1-1000</code>"
+                if loading_msg:
+                    try:
+                        await bot.edit_message_text(err_text, chat_id=message.chat.id, message_id=loading_msg.message_id, parse_mode="HTML")
+                        return
+                    except Exception:
+                        pass
+                await safe_reply(bot, message, err_text)
+                return
+
+            is_first = True
+            for deal in candidates:
+                enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
+                card_text = format_eshop_deal_message(enriched, language="UA", currency_service=currency_service)
+                badged_img = await download_and_badge_cover(enriched)
+                photo_payload = badged_img.getvalue() if badged_img else (enriched.banner_url or enriched.image_url)
+
+                if is_first and loading_msg:
+                    try:
+                        await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+                    except Exception:
+                        pass
+                    is_first = False
+
+                await safe_send_card(
+                    bot=bot,
+                    chat_id=message.chat.id,
+                    text=card_text,
+                    photo_payload=photo_payload,
+                    message_thread_id=thread_id,
+                    reply_to_message_id=reply_id,
+                )
+                await asyncio.sleep(0.3)
+
+        except Exception as e:
+            logger.error(f"Error handling /random: {e}")
+            await safe_reply(bot, message, "❌ Помилка при виборі випадкової гри.")
 
     @bot.message_handler(
         commands=["search", "eshop_search", "find", "game", "пошук", "знайти", "гра"],

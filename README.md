@@ -78,7 +78,8 @@ Checks various platforms for homebrew updates:
 
 | Command | Description |
 | --- | --- |
-| `/deals [N]` | Show top N popular Switch game discounts sequentially in real time (e.g. `/deals 5`). |
+| `/deals [N] [rank] [price] [sort]` | Show top N Switch discounts with optional rank range, price range, and sort order (e.g. `/deals 5 cheap`, `/deals 4 1-100 100-500 грн`). |
+| `/random [N] [rank] [price]` | Pick N genuinely random games on sale within optional rank and price range (e.g. `/random`, `/random 4 1000-2000`, `/random 3 1-500 100-300`). |
 | `/search <title>` | Search for a specific game and display live multi-region price comparison (e.g. `/search Zelda`). |
 | `/wishlist` | View your active wishlist with live discount and price status. |
 | `/wishlist add <title>` | Add a game to your wishlist to receive automated sale alerts. |
