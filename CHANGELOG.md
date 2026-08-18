@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.81] - 2026-08-18
+
+### Added
+- **Global Persistent Translation Caching**:
+  - `services/translation.py`: Implemented SHA-256 text-hash caching (`data/translations_cache.json`) for all tracker post translations and short descriptions. Avoids re-translating unchanged posts across bot restarts and cron runs.
+  - `services/eshop/deal_filter.py`: Ensured eShop descriptions are cached by game ID in `data/eshop_descriptions.json`.
+  - `sync_gist_state.py`: Added `translations_cache.json` and `hb_descriptions.json` to state synchronization.
+
 ## [v0.6.80] - 2026-08-18
 
 ### Fixed

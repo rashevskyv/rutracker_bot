@@ -1,37 +1,83 @@
 # --- START OF FILE translation.py ---
 import asyncio
+import hashlib
+import json
+import logging
+import os
+import re
+from typing import Optional
+
 from core.settings_loader import openai_client
 from services import gpt
 from utils.html_utils import sanitize_html_for_telegram
-import re
-import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+CACHE_FILE = os.path.join("data", "translations_cache.json")
+_cache_memory: Optional[dict] = None
+
+
+def _get_cache() -> dict:
+    """Load persistent translation cache."""
+    global _cache_memory
+    if _cache_memory is None:
+        if os.path.exists(CACHE_FILE):
+            try:
+                with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                    _cache_memory = json.load(f)
+            except Exception as e:
+                logger.warning(f"Could not load translation cache: {e}")
+                _cache_memory = {}
+        else:
+            _cache_memory = {}
+    return _cache_memory
+
+
+def _save_cache() -> None:
+    """Persist translation cache to disk."""
+    if _cache_memory is not None:
+        try:
+            os.makedirs("data", exist_ok=True)
+            with open(CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(_cache_memory, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.debug(f"Failed to save translation cache: {e}")
+
 
 # Translate RU to UA function with select exact translate function
 async def translate_ru_to_ua(text: str) -> str:
     """
     Translates text from Russian to Ukrainian using the preferred method.
-    Currently set to use GPT if available, otherwise returns original text.
+    Currently set to use GPT/OpenRouter if available, otherwise returns original text.
     """
     if openai_client:
-        logger.info("Translating text RU -> UA using GPT...")
+        logger.info("Translating text RU -> UA using OpenRouter/GPT...")
         return await translate_ru_to_ua_gpt(text)
     else:
-        logger.warning("OpenAI client not available for translation. Returning original text.")
-        return text # Fallback if GPT client failed initialization
+        logger.warning("OpenAI/OpenRouter client not available for translation. Returning original text.")
+        return text  # Fallback if client failed initialization
+
 
 async def translate_ru_to_ua_gpt(text: str, model: str = gpt.DEFAULT_MODEL) -> str:
     """
     Translates text from Russian to Ukrainian using OpenRouter/GPT, requesting logical formatting
-    and allowing light emphasis for readability.
+    and allowing light emphasis for readability. Uses persistent disk cache.
 
     :param text: Text to translate.
     :param model: Model to use. Defaults to gpt.DEFAULT_MODEL (openai/gpt-5.6-luna).
     :return: Translated text or original text on error.
     """
-    logger.info(f"Translating text RU -> UA using GPT model: {model}...")
+    if not text or not text.strip():
+        return text
+
+    # Check persistent cache
+    cache = _get_cache()
+    text_hash = hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
+    if text_hash in cache:
+        logger.info("Translation found in persistent cache. Skipping LLM request.")
+        return cache[text_hash]
+
+    logger.info(f"Translating text RU -> UA using model: {model}...")
 
     # Check if text contains GAP markers
     has_gap_markers = "###GAP###" in text
@@ -83,24 +129,21 @@ async def translate_ru_to_ua_gpt(text: str, model: str = gpt.DEFAULT_MODEL) -> s
     cleaned_text = re.sub(r'\s*XBQEX\s*', '\nXBQEX\n', cleaned_text)
 
     # 2. Snap floating colons back to the bold tags outside the blockquote
-    # If the bold header has no colon, but there is a leading colon inside the blockquote
     cleaned_text = re.sub(
         r'(<b>[^<:]+</b>)\s*\n*XBQSX\s*\n*\s*:\s*',
         r'\1:\nXBQSX\n',
         cleaned_text
     )
-    # If the bold header already has a colon, and there is also a colon inside the blockquote
     cleaned_text = re.sub(
         r'(<b>[^<]+:</b>|<b>[^<]+</b>:)\s*\n*XBQSX\s*\n*\s*:\s*',
         r'\1\nXBQSX\n',
         cleaned_text
     )
-    # ---------------------------------------------
 
     # FINAL SANITIZATION: Clean any unsupported tags from GPT response
     logger.debug(f"GPT Response (cleaned bytes {len(cleaned_text)}): {cleaned_text[:300]}...")
 
-    # Replace accidental BBCode with HTML (GPT sometimes hallucinates [b] instead of <b>)
+    # Replace accidental BBCode with HTML
     cleaned_text = re.sub(r'\[b\](.*?)\[/b\]', r'<b>\1</b>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
     cleaned_text = re.sub(r'\[i\](.*?)\[/i\]', r'<i>\1</i>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
     cleaned_text = re.sub(r'\[u\](.*?)\[/u\]', r'<u>\1</u>', cleaned_text, flags=re.IGNORECASE | re.DOTALL)
@@ -116,19 +159,32 @@ async def translate_ru_to_ua_gpt(text: str, model: str = gpt.DEFAULT_MODEL) -> s
     final_text = re.sub(r'</blockquote>[ \t\n\r]*<blockquote>', '</blockquote><blockquote>', final_text, flags=re.IGNORECASE)
     final_text = re.sub(r'\n{3,}', '\n\n', final_text).strip()
 
+    # Save to persistent cache
+    cache[text_hash] = final_text
+    _save_cache()
+
     logger.debug(f"GPT Response (final bytes {len(final_text)}): {final_text[:300]}...")
     return final_text
+
 
 async def translate_short_description(text: str, model: str = gpt.DEFAULT_MODEL) -> str:
     """
     Summarizes and translates a homebrew app description into 1 concise Ukrainian sentence.
-    Focuses on what the app IS and DOES, not implementation details.
-    Falls back to deepseek/deepseek-v4-flash-0731 if the primary model fails.
+    Uses persistent disk cache.
 
     :param text: App description text (any language).
     :param model: Model to use (primary).
     :return: 1-sentence Ukrainian description, or original text on error.
     """
+    if not text or not text.strip():
+        return text
+
+    cache = _get_cache()
+    short_hash = f"short_{hashlib.sha256(text.strip().encode('utf-8')).hexdigest()}"
+    if short_hash in cache:
+        logger.info("Short description found in cache. Skipping LLM request.")
+        return cache[short_hash]
+
     prompt = (
         f"Summarize the following app description into exactly ONE short sentence in Ukrainian.\n\n"
         f"**Rules:**\n"
@@ -147,7 +203,7 @@ async def translate_short_description(text: str, model: str = gpt.DEFAULT_MODEL)
         f"**App description:**\n{text}\n\n**One-sentence Ukrainian summary:**"
     )
 
-    logger.info(f"Summarizing description using GPT model: {model}...")
+    logger.info(f"Summarizing description using model: {model}...")
     translated_text = await gpt.complete(prompt, max_tokens=100, model=model, temperature=0.3,
                                          label="Description summarization")
     if translated_text is None:
@@ -155,5 +211,9 @@ async def translate_short_description(text: str, model: str = gpt.DEFAULT_MODEL)
 
     # Clean any markdown artifacts
     translated_text = re.sub(r"^(```html|```)", "", translated_text.strip()).strip()
-    return re.sub(r"```$", "", translated_text).strip()
+    result = re.sub(r"```$", "", translated_text).strip()
+
+    cache[short_hash] = result
+    _save_cache()
+    return result
 # --- END OF FILE translation.py ---
