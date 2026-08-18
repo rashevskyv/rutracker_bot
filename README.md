@@ -57,22 +57,41 @@ Checks various platforms for homebrew updates:
 - Evaluates releases over the last 3 weeks (21 days) for newly added authors, and since `last_run` for existing authors.
 - Uses LLM verification to confirm that repositories are valid Nintendo Switch homebrew software before queueing them to `data/manual_releases.json`.
 
-### 5. Nintendo eShop Deals Module (`send_eshop_deals.py`)
-- Automatically monitors official Nintendo eShop catalog for active game discounts.
-- Enriches games with **Metacritic** and **RAWG** ratings to filter out low-quality shovelware.
-- Performs real-time multi-regional price comparison across 12+ regions:
-  - 🥇 🥈 🥉 Top 3 cheapest regions worldwide.
-  - 🇵🇱 Poland (PLN) price.
-  - 🇺🇸 United States (USD) price.
-- Live FX rate conversion via `open.er-api.com`.
-- Posts structured deal cards with artwork, savings %, ratings, and direct eShop store links.
+### 5. Nintendo eShop Deals & Wishlist Module (`send_eshop_deals.py`, `bot_interactive.py`)
+- Automatically monitors official Nintendo eShop catalog for active game discounts on top popular franchises (Zero Shovelware).
+- Enriches games with **Metacritic** and **RAWG** ratings, original English hashtag genres, and AI synopsis translations with persistent multi-key caching.
+- Dynamically generates graphic platform badges directly onto game covers (`Nintendo Switch`, `Nintendo Switch 2 • EXCLUSIVE`, `Nintendo Switch 1 & 2`).
+- Real-time multi-regional price comparison:
+  - 💰 **🇪🇺 Europe base catalog price**.
+  - 🥇 🥈 🥉 **Top 3 cheapest regions worldwide** with currency conversion (~₴ UAH / $ USD).
+  - 🇵🇱 **Poland (PLN)** and 🇺🇸 **United States (USD)** guaranteed regional prices.
+- **Personal & Chat Wishlists (`/wishlist`)**:
+  - Track individual games and check real-time discounts.
+  - Automated cron discount alerts sent directly to users/topics when wishlisted games go on sale.
+
+### Interactive Bot Commands
+
+| Command | Description |
+| --- | --- |
+| `/deals [N]` | Show top N popular Switch game discounts sequentially in real time (e.g. `/deals 5`). |
+| `/search <title>` | Search for a specific game and display live multi-region price comparison (e.g. `/search Zelda`). |
+| `/wishlist` | View your active wishlist with live discount and price status. |
+| `/wishlist add <title>` | Add a game to your wishlist to receive automated sale alerts. |
+| `/wishlist remove <title>` | Remove a game from your wishlist. |
+| `/wishlist clear` | Clear your entire wishlist. |
+| `/subscribe_deals` | Subscribe the current chat or forum topic to automated deals broadcasts. |
+| `/unsubscribe_deals` | Unsubscribe from automated deals broadcasts. |
+| `/deals_settings` | View active quality filters for the chat. |
+| `/set_min_discount <%>` | Adjust minimum discount percentage (e.g. `/set_min_discount 40`). |
+| `/set_min_rating <score>` | Adjust minimum Metacritic score (e.g. `/set_min_rating 75`). |
+| `/help` | Display command help and usage instructions. |
 
 ### 6. Daily Digests (`send_*_digest.py`)
 Sends aggregated digests to configured Telegram channels once a day (scheduled at 09:00 Kyiv time, 06:00 UTC):
 - **Daily Digest**: Combines new and updated tracker posts.
 - **Homebrew Digest**: Groups homebrew updates by platform.
 - **Swuk Digest**: Ukrainian Switch translation updates.
-- **eShop Deals Digest**: Top Nintendo Switch discounts and regional price comparisons.
+- **eShop Deals Digest**: Top Nintendo Switch discounts and regional price comparisons (targets configured topic ID `561344`).
 
 ---
 

@@ -101,15 +101,23 @@ def register_eshop_handlers(
     eshop_service: EShopService,
     global_criteria: QualityCriteria,
     currency_service: Optional[CurrencyService] = None,
+    wishlist_service: Optional[WishlistService] = None,
 ) -> None:
     """Register eShop command handlers on TeleBot instance."""
+    wl_service = wishlist_service or WishlistService()
 
-    @bot.message_handler(commands=["eshop_help", "deals_help"])
+    @bot.message_handler(commands=["help", "start", "eshop_help", "deals_help"])
     async def cmd_eshop_help(message: Message):
         text = (
-            "🎮 <b>Nintendo eShop Deals Commands</b>\n\n"
+            "🎮 <b>Nintendo eShop Deals & Wishlist Commands</b>\n\n"
             "• <code>/deals [N]</code> — Показати топ N знижок з порівнянням цін у регіонах (наприклад: <code>/deals 5</code>)\n"
-            "• <code>/search &lt;назва&gt;</code> — Пошук гри та порівняння цін (наприклад: <code>/search Zelda</code>)\n"
+            "• <code>/search &lt;назва&gt;</code> — Пошук гри та порівняння цін (наприклад: <code>/search Zelda</code>)\n\n"
+            "🎁 <b>Список бажань (Wishlist):</b>\n"
+            "• <code>/wishlist</code> — Переглянути свій Wishlist та актуальні ціни/знижки\n"
+            "• <code>/wishlist add &lt;назва&gt;</code> — Додати гру до списку бажань (наприклад: <code>/wishlist add Hollow Knight</code>)\n"
+            "• <code>/wishlist remove &lt;назва&gt;</code> — Видалити гру зі списку\n"
+            "• <code>/wishlist clear</code> — Очистити список бажань\n\n"
+            "⚙️ <b>Налаштування та підписка:</b>\n"
             "• <code>/subscribe_deals</code> — Підписати цей чат/канал/гілку на автоматичну розсилку знижок\n"
             "• <code>/unsubscribe_deals</code> — Відписати чат від розсилки\n"
             "• <code>/deals_settings</code> — Переглянути активні фільтри якості\n"
@@ -320,3 +328,158 @@ def register_eshop_handlers(
         val = int(parts[1])
         update_chat_criteria(message.chat.id, min_metacritic_score=val)
         await bot.reply_to(message, f"✅ Мінімальний рейтинг Metacritic встановлено на <b>{val}/100</b>", parse_mode="HTML")
+
+    @bot.message_handler(commands=["wishlist"])
+    async def cmd_wishlist(message: Message):
+        thread_id = getattr(message, "message_thread_id", None)
+        parts = message.text.split(maxsplit=2) if message.text else []
+        subcmd = parts[1].lower() if len(parts) > 1 else "list"
+        query = parts[2].strip() if len(parts) > 2 else ""
+
+        # --- Subcommand: ADD ---
+        if subcmd in ["add", "+"]:
+            if not query:
+                await bot.reply_to(
+                    message,
+                    "ℹ️ Вкажіть назву гри, наприклад: <code>/wishlist add Hollow Knight</code>",
+                    parse_mode="HTML",
+                    message_thread_id=thread_id,
+                )
+                return
+
+            loading = await bot.reply_to(
+                message,
+                f"🔍 <i>Шукаю '{query}' для додавання до списку бажань...</i>",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
+            try:
+                results = await eshop_service.search_games(query=query, rows=1)
+                if results:
+                    deal = results[0]
+                    wl_service.add_game(
+                        message.chat.id,
+                        title=deal.title,
+                        nsuid=deal.nsuid,
+                        fs_id=deal.fs_id,
+                        topic_id=thread_id,
+                    )
+                    status_text = (
+                        f"🔥 <b>Зараз зі знижкою:</b> <s>{deal.regular_price:.2f} {deal.currency}</s> ➡️ "
+                        f"<b>{deal.discount_price:.2f} {deal.currency} (-{deal.discount_percent:.0f}%)</b>"
+                        if deal.discount_percent > 0
+                        else f"💵 Поточна ціна: <b>{deal.regular_price:.2f} {deal.currency}</b> (без знижки)"
+                    )
+                    await bot.edit_message_text(
+                        f"✅ Гру <b>{deal.title}</b> успішно додано до вашого Wishlist!\n\n{status_text}\n\n"
+                        "<i>Бот автоматично сповістить вас, щойно з'явиться знижка!</i>",
+                        chat_id=message.chat.id,
+                        message_id=loading.message_id,
+                        parse_mode="HTML",
+                    )
+                else:
+                    wl_service.add_game(message.chat.id, title=query, topic_id=thread_id)
+                    await bot.edit_message_text(
+                        f"✅ Гру <b>{query}</b> додано до Wishlist!\n"
+                        "<i>Бот автоматично сповістить вас про знижки.</i>",
+                        chat_id=message.chat.id,
+                        message_id=loading.message_id,
+                        parse_mode="HTML",
+                    )
+            except Exception as err:
+                logger.error(f"Wishlist add error: {err}")
+                wl_service.add_game(message.chat.id, title=query, topic_id=thread_id)
+                await bot.edit_message_text(
+                    f"✅ Гру <b>{query}</b> додано до Wishlist!",
+                    chat_id=message.chat.id,
+                    message_id=loading.message_id,
+                    parse_mode="HTML",
+                )
+            return
+
+        # --- Subcommand: REMOVE / DEL ---
+        if subcmd in ["remove", "del", "delete", "-"]:
+            if not query:
+                await bot.reply_to(
+                    message,
+                    "ℹ️ Вкажіть назву гри для видалення, наприклад: <code>/wishlist remove Hollow Knight</code>",
+                    parse_mode="HTML",
+                    message_thread_id=thread_id,
+                )
+                return
+
+            if wl_service.remove_game(message.chat.id, title=query, topic_id=thread_id):
+                await bot.reply_to(
+                    message,
+                    f"🗑 Гру <b>{query}</b> видалено з вашого Wishlist.",
+                    parse_mode="HTML",
+                    message_thread_id=thread_id,
+                )
+            else:
+                await bot.reply_to(
+                    message,
+                    f"ℹ️ Гру '{query}' не знайдено у вашому Wishlist.",
+                    parse_mode="HTML",
+                    message_thread_id=thread_id,
+                )
+            return
+
+        # --- Subcommand: CLEAR ---
+        if subcmd == "clear":
+            wl_service.clear_wishlist(message.chat.id, topic_id=thread_id)
+            await bot.reply_to(
+                message,
+                "🧹 <b>Ваш Wishlist повністю очищено.</b>",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
+            return
+
+        # --- Subcommand: LIST (Default) ---
+        items = wl_service.get_wishlist(message.chat.id, topic_id=thread_id)
+        if not items:
+            await bot.reply_to(
+                message,
+                "🎁 <b>Ваш Wishlist порожній.</b>\n\n"
+                "Щоб додати гру та отримувати сповіщення про знижки:\n"
+                "• <code>/wishlist add &lt;назва гри&gt;</code>\n"
+                "<i>Наприклад: <code>/wishlist add Hollow Knight</code> або <code>/wishlist add Persona 5</code></i>",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
+            return
+
+        loading = await bot.reply_to(
+            message,
+            "🔍 <i>Перевіряю актуальні ціни та знижки для ігор із вашого Wishlist...</i>",
+            parse_mode="HTML",
+            message_thread_id=thread_id,
+        )
+
+        lines = ["🎁 <b>Ваш список бажань (Wishlist):</b>\n"]
+        for idx, it in enumerate(items, 1):
+            title = it.get("title", "Unknown")
+            try:
+                found = await eshop_service.search_games(query=title, rows=1)
+                if found:
+                    deal = found[0]
+                    if deal.discount_percent > 0:
+                        uah_conv = f" (~{currency_service.convert_to_uah(deal.discount_price, deal.currency):.0f} грн)" if currency_service else ""
+                        lines.append(
+                            f"{idx}. 🔥 <b>{deal.title}</b> — <s>{deal.regular_price:.2f}</s> ➡️ "
+                            f"<b>{deal.discount_price:.2f} {deal.currency} (-{deal.discount_percent:.0f}%)</b>{uah_conv}"
+                        )
+                    else:
+                        lines.append(f"{idx}. <b>{deal.title}</b> — {deal.regular_price:.2f} {deal.currency} <i>(без знижки)</i>")
+                else:
+                    lines.append(f"{idx}. <b>{title}</b>")
+            except Exception:
+                lines.append(f"{idx}. <b>{title}</b>")
+
+        lines.append("\n<i>Керування: <code>/wishlist add &lt;гра&gt;</code> | <code>/wishlist remove &lt;гра&gt;</code></i>")
+        await bot.edit_message_text(
+            "\n".join(lines),
+            chat_id=message.chat.id,
+            message_id=loading.message_id,
+            parse_mode="HTML",
+        )

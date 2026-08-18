@@ -2,6 +2,20 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.90] - 2026-08-18
+
+### Added
+- **Interactive Wishlist & Automated Discount Alerts**:
+  - `services/eshop/wishlist_service.py`: Implemented full wishlist tracking engine (`WishlistService`) with persistent JSON storage in `data/eshop_wishlist.json` (synced via Gist).
+  - `services/eshop/bot_commands.py`: Added interactive commands:
+    - `/wishlist` / `/wishlist list` — View tracked games with live discount percentage and currency conversions.
+    - `/wishlist add <title>` — Search and add games to personal/chat wishlist.
+    - `/wishlist remove <title>` — Remove games from wishlist.
+    - `/wishlist clear` — Clear all items.
+    - Added `/help`, `/start`, and `/eshop_help` descriptions.
+  - `send_eshop_deals.py`: Automated cron check scans all wishlists and sends direct alert notifications whenever a wishlisted game gets discounted.
+  - `README.md`: Documented all interactive commands and wishlist features.
+
 ## [v0.6.89] - 2026-08-18
 
 ### Changed

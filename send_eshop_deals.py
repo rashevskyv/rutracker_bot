@@ -267,6 +267,61 @@ async def send_eshop_deals(force: bool = False):
         save_posted_deals(fresh_history)
         save_last_run({"last_run_timestamp": now_ts, "last_run_iso": now_dt.isoformat(), "posted_count": len(new_deals)})
 
+        # 8. Check Wishlists and send direct alerts for discounted games
+        try:
+            from services.eshop.wishlist_service import WishlistService
+            wl_service = WishlistService()
+            all_wishlists = wl_service.get_all_wishlists()
+            for wl_key, wl_data in all_wishlists.items():
+                w_chat_id = wl_data.get("chat_id")
+                w_topic_id = wl_data.get("topic_id")
+                w_items = wl_data.get("items", [])
+                if not w_chat_id or not w_items:
+                    continue
+
+                for item in w_items:
+                    w_title = item.get("title")
+                    if not w_title:
+                        continue
+                    try:
+                        results = await eshop_service.search_games(query=w_title, rows=1)
+                        if not results:
+                            continue
+                        w_deal = results[0]
+                        if w_deal.discount_percent > 0:
+                            last_notified = item.get("last_notified_discount")
+                            if last_notified is None or w_deal.discount_percent > (float(last_notified) + 5.0):
+                                enriched_deal = await filter_engine.enrich_deal(w_deal, fetch_regions=True)
+                                alert_prefix = "🔔 <b>Знижка на гру з вашого списку бажань (Wishlist)!</b>\n\n"
+                                alert_text = alert_prefix + format_eshop_deal_message(
+                                    enriched_deal, language="UA", currency_service=currency_service
+                                )
+                                badged_img = await download_and_badge_cover(enriched_deal)
+                                photo_payload = badged_img.getvalue() if badged_img else (enriched_deal.banner_url or enriched_deal.image_url)
+
+                                if photo_payload:
+                                    await bot.send_photo(
+                                        chat_id=int(w_chat_id),
+                                        message_thread_id=int(w_topic_id) if w_topic_id else None,
+                                        photo=photo_payload,
+                                        caption=alert_text,
+                                        parse_mode="HTML",
+                                    )
+                                else:
+                                    await bot.send_message(
+                                        chat_id=int(w_chat_id),
+                                        message_thread_id=int(w_topic_id) if w_topic_id else None,
+                                        text=alert_text,
+                                        parse_mode="HTML",
+                                    )
+                                wl_service.update_notification(wl_key, w_title, w_deal.discount_percent)
+                                logger.info(f"Sent wishlist alert for '{w_deal.title}' to {w_chat_id}")
+                                await asyncio.sleep(1)
+                    except Exception as wl_item_err:
+                        logger.debug(f"Error checking wishlist item '{w_title}': {wl_item_err}")
+        except Exception as wl_err:
+            logger.warning(f"Error processing wishlists in cron: {wl_err}")
+
         logger.info(f"Successfully posted {len(new_deals)} eShop deal(s).")
 
     finally:

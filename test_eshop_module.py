@@ -121,3 +121,33 @@ def test_overlay_platform_badge():
     out2 = overlay_platform_badge(raw_bytes, deal2)
     assert out2 is not None
     assert len(out2.getvalue()) > 0
+
+
+def test_wishlist_service(tmp_path):
+    from services.eshop.wishlist_service import WishlistService
+    test_file = str(tmp_path / "test_wishlist.json")
+    wl = WishlistService(filepath=test_file)
+
+    # 1. Add game
+    item = wl.add_game(chat_id=12345, title="Hollow Knight", nsuid="70010000003208", topic_id=561344)
+    assert item["title"] == "Hollow Knight"
+    assert item["nsuid"] == "70010000003208"
+
+    # 2. Get wishlist
+    items = wl.get_wishlist(chat_id=12345, topic_id=561344)
+    assert len(items) == 1
+    assert items[0]["title"] == "Hollow Knight"
+
+    # 3. Add duplicate (should not duplicate)
+    wl.add_game(chat_id=12345, title="hollow knight", topic_id=561344)
+    assert len(wl.get_wishlist(chat_id=12345, topic_id=561344)) == 1
+
+    # 4. Update notification
+    wl.update_notification("12345_561344", "Hollow Knight", 50.0)
+    items = wl.get_wishlist(chat_id=12345, topic_id=561344)
+    assert items[0]["last_notified_discount"] == 50.0
+
+    # 5. Remove game
+    removed = wl.remove_game(chat_id=12345, title="Hollow", topic_id=561344)
+    assert removed is True
+    assert len(wl.get_wishlist(chat_id=12345, topic_id=561344)) == 0
