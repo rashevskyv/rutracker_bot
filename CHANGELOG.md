@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.76] - 2026-08-18
+
+### Fixed
+- **eShop Formatter Import**: Restored missing `GameDeal` import in `services/eshop/formatters.py` to fix `NameError: name 'GameDeal' is not defined` during bot startup.
+
 ## [v0.6.75] - 2026-08-18
 
 ### Added

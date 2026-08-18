@@ -1,27 +1,19 @@
-# Звіт про виконану роботу: Переведення ШІ-модулів на OpenRouter з моделями GPT-5.6 Luna та DeepSeek V4 Flash (v0.6.75)
+# Звіт про виконану роботу: Виправлення імпорту GameDeal у formatters.py (v0.6.76)
 
-## Огляд задачі
-Користувач поставив задачу: перевести всі ШІ-запити проєкту (переклад релізів RU->UA, перевірку трейлерів YouTube, самаризацію описів та ченджлогів) на **OpenRouter API**, використовуючи **`openai/gpt-5.6-luna`** ($0.10/M) як основну найдешевшу модель та **`deepseek/deepseek-v4-flash-0731`** ($0.14/M) як надійний fallback.
+## Огляд проблеми
+Під час запуску `python bot_interactive.py` на сервері виникала помилка:
+```text
+NameError: name 'GameDeal' is not defined
+```
+через відсутність імпорту `from services.eshop.models import GameDeal` у файлі [`services/eshop/formatters.py`](file:///d:/git/dev/rutracker_bot/services/eshop/formatters.py).
 
 ---
 
 ## Виконані кроки
 
-1. **Підтримка OpenRouter у `core/settings_loader.py`**:
-   - Додано обробку ключа `OPENROUTER_API_KEY` (з `config/local_settings.json`, `config/settings.json` або змінних оточення).
-   - При виявленні ключа OpenRouter (`sk-or-...` або `OPENROUTER_API_KEY`) автоматично ініціалізується `AsyncOpenAI` з `base_url="https://openrouter.ai/api/v1"` та заголовками `HTTP-Referer` і `X-Title`.
+1. **Виправлення імпорту**:
+   - Додано `from services.eshop.models import GameDeal` у [`services/eshop/formatters.py`](file:///d:/git/dev/rutracker_bot/services/eshop/formatters.py).
 
-2. **Ієрархія моделей у `services/gpt.py`**:
-   - **Primary Model**: `openai/gpt-5.6-luna` ($0.10 / 1M токенів).
-   - **Fallback Model**: `deepseek/deepseek-v4-flash-0731` ($0.14 / 1M токенів).
-   - **Secondary Fallback**: `google/gemini-3.5-flash-lite`.
-
-3. **Оновлення всіх ШІ-сервісів**:
-   - `services/translation.py`: переклад релізів трекера та самаризація описів додатків.
-   - `services/ai_validator.py`: валідація трейлерів YouTube та стиснення довгих описів.
-   - `collect_homebrew_updates.py`: підсумок оновлень хоумбрю в одне речення.
-   - `collect_custom_releases.py`: аналіз сторонніх Switch-репозиторіїв.
-
-4. **Тестування та конфігурація**:
-   - Оновлено `.github/workflows/bot_runner.yml` для підтримки `OPENROUTER_API_KEY`.
+2. **Тестування**:
+   - Успішно протестовано імпорт та запуск `bot_interactive.py`.
    - Усі 10 паралельних тестів пройшли успішно (`pytest -v -n auto`).

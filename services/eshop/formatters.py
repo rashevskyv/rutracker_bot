@@ -2,6 +2,7 @@
 
 import html
 from typing import Optional
+from services.eshop.models import GameDeal
 from services.eshop.currency_service import CurrencyService
 
 _default_currency_service = CurrencyService()
