@@ -2,6 +2,20 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.12] - 2026-08-18
+
+### Added
+- **Guaranteed Pinned Regions in Deal Cards (South Africa, Thailand, Poland, Norway)**:
+  - `services/eshop/formatters.py` & `eshop-prices/src/bot/formatters.py`:
+    - Pinned target regions are now explicitly configured to guarantee:
+      - 🇿🇦 **ПАР (South Africa - ZA)**
+      - 🇹🇭 **Тайланд (Thailand - TH)**
+      - 🇵🇱 **Польща (Poland - PL)**
+      - 🇳🇴 **Норвегія (Norway - NO)**
+    - If any of these regions is not in the Top 3 cheapest globally, it is guaranteed to be appended in the pinned regional breakdown with direct clickable regional store links and UAH conversions.
+  - `services/eshop/region_price_service.py`:
+    - Expanded tracked regions to include Asian eShop regions (`TH`, `HK`, `JP`).
+
 ## [v0.7.11] - 2026-08-18
 
 ### Fixed

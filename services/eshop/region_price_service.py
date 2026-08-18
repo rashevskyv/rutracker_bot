@@ -41,7 +41,13 @@ AMERICA_REGIONS: Dict[str, str] = {
     "PE": "Peru",
 }
 
-TRACKED_REGIONS: Dict[str, str] = {**EUROPE_PAL_REGIONS, **AMERICA_REGIONS}
+ASIA_OTHER_REGIONS: Dict[str, str] = {
+    "TH": "Thailand",
+    "HK": "Hong Kong",
+    "JP": "Japan",
+}
+
+TRACKED_REGIONS: Dict[str, str] = {**EUROPE_PAL_REGIONS, **AMERICA_REGIONS, **ASIA_OTHER_REGIONS}
 
 
 def _load_cache() -> Dict[str, Any]:

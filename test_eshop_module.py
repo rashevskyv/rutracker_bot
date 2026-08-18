@@ -55,14 +55,25 @@ def test_eshop_regional_formatting():
         is_discount=True,
     )
     p4 = RegionalPrice(
-        country_code="TR",
-        country_name="Turkey",
-        currency="TRY",
-        regular_price=300.0,
-        discount_price=150.0,
+        country_code="NO",
+        country_name="Norway",
+        currency="NOK",
+        regular_price=200.0,
+        discount_price=100.0,
         discount_percent=50.0,
-        converted_usd=4.5,
-        converted_uah=186.75,
+        converted_usd=9.5,
+        converted_uah=394.25,
+        is_discount=True,
+    )
+    p5 = RegionalPrice(
+        country_code="US",
+        country_name="USA",
+        currency="USD",
+        regular_price=20.0,
+        discount_price=10.0,
+        discount_percent=50.0,
+        converted_usd=10.0,
+        converted_uah=415.0,
         is_discount=True,
     )
 
@@ -73,7 +84,7 @@ def test_eshop_regional_formatting():
         discount_price=15.0,
         discount_percent=50.0,
         categories=["Puzzle", "Action-Adventure"],
-        regional_prices=[p1, p2, p3, p4],
+        regional_prices=[p1, p2, p3, p4, p5],
     )
 
     msg_ua = format_eshop_deal_message(deal, language="UA")
@@ -82,8 +93,8 @@ def test_eshop_regional_formatting():
     assert "#ActionAdventure" in msg_ua
     assert "Польща" in msg_ua
     assert "ПАР" in msg_ua
-    assert "Таїланд" in msg_ua
-    assert "Туреччина" in msg_ua
+    assert "Тайланд" in msg_ua
+    assert "Норвегія" in msg_ua
     assert "Ціни в регіонах eShop" in msg_ua
     assert "грн" in msg_ua
     assert "-50%" in msg_ua

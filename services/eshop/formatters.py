@@ -12,7 +12,7 @@ _default_currency_service = CurrencyService()
 COUNTRY_NAMES_UA = {
     "PL": "Польща",
     "US": "США",
-    "TH": "Таїланд",
+    "TH": "Тайланд",
     "TR": "Туреччина",
     "ZA": "ПАР",
     "JP": "Японія",
@@ -73,6 +73,8 @@ def get_region_eshop_url(country_code: str, title: str, game_url: str = "") -> s
         return f"https://www.nintendo.com/en-gb/Search/Search-299117.html?q={q}"
     elif code == "ZA":
         return f"https://www.nintendo.co.za/Search/Search-299117.html?q={q}"
+    elif code == "TH":
+        return f"https://store.nintendo.com/th/search/?q={q}"
     elif code == "AR":
         return f"https://store.nintendo.com.ar/catalogsearch/result/?q={q}"
     elif code == "CL":
@@ -183,12 +185,14 @@ def format_eshop_deal_message(
                 f"{medal} {p.flag_emoji} {c_name}: {price_link}{disc_label} (<i>{conv_str}</i>)"
             )
 
-        # Pinned regions to always show if available and not already in top 3
+        # Pinned regions to always show if available and not already in top 3:
+        # ПАР (ZA), Тайланд (TH), Польща (PL), Норвегія (NO)
         pinned_targets = [
+            ("ZA", "South Africa", "ПАР", "🇿🇦"),
+            ("TH", "Thailand", "Тайланд", "🇹🇭"),
             ("PL", "Poland", "Польща", "🇵🇱"),
+            ("NO", "Norway", "Норвегія", "🇳🇴"),
             ("US", "USA", "США", "🇺🇸"),
-            ("TH", "Thailand", "Таїланд", "🇹🇭"),
-            ("TR", "Turkey", "Туреччина", "🇹🇷"),
         ]
 
         for code, name_en, name_ua, flag in pinned_targets:
