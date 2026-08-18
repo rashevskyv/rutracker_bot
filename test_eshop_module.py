@@ -288,3 +288,29 @@ def test_clickable_regional_store_links():
     assert "nintendo.com/en-gb" in get_region_eshop_url("PL", "Persona 5")
 
 
+@pytest.mark.asyncio
+async def test_strict_deletion_guardrail():
+    from send_eshop_deals import safe_delete_showcase_message
+    from unittest.mock import AsyncMock, patch
+
+    # 1. Attempt delete on unauthorized chat -> MUST BE BLOCKED
+    with patch("send_eshop_deals.IS_TEST_MODE", False):
+        result_blocked = await safe_delete_showcase_message(
+            chat_id=-1001277664260,  # Kefir_new_games (RuTracker chat)
+            topic_id=29459,
+            message_id=12345,
+            title="Test Game",
+        )
+        assert result_blocked is False
+
+        # 2. Attempt delete on unauthorized topic in Kefir_ukr -> MUST BE BLOCKED
+        result_topic_blocked = await safe_delete_showcase_message(
+            chat_id=-1001790782971,  # Kefir_ukr
+            topic_id=25501,          # RuTracker topic, NOT deals topic
+            message_id=12345,
+            title="Test Game",
+        )
+        assert result_topic_blocked is False
+
+
+

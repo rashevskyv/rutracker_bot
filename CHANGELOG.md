@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.08] - 2026-08-18
+
+### Security
+- **Centralized Security Layer (`safe_delete_showcase_message`)**:
+  - `send_eshop_deals.py` & `services/eshop/bot_commands.py`:
+    - Introduced `safe_delete_showcase_message()` wrapper enforcing a hardcoded security gate: any deletion request outside `chat_id: -1001790782971` and `topic_id: 561344` (https://t.me/kefir_ukr/561344) is immediately blocked with a security log before any Telegram network request is made.
+    - Added automated test `test_strict_deletion_guardrail` in `test_eshop_module.py` verifying that unauthorized chat and topic deletion attempts are rejected.
+
 ## [v0.7.07] - 2026-08-18
 
 ### Fixed

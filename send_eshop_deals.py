@@ -44,6 +44,40 @@ STATE_FILE = os.path.join("data", "eshop_posted_deals.json")
 SHOWCASE_FILE = os.path.join("data", "eshop_active_showcase.json")
 LAST_RUN_FILE = os.path.join("data", "last_eshop_deals_run.json")
 
+# Strict Security Lock: Deletions are hard-locked to this exact chat and topic
+AUTHORIZED_SHOWCASE_CHAT_ID = -1001790782971
+AUTHORIZED_SHOWCASE_TOPIC_ID = 561344
+
+
+async def safe_delete_showcase_message(
+    chat_id: int,
+    topic_id: Optional[int],
+    message_id: int,
+    title: str = "",
+) -> bool:
+    """
+    Strict security guardrail:
+    ABSOLUTELY PREVENTS deleting any message outside https://t.me/kefir_ukr/561344.
+    """
+    is_authorized = (
+        IS_TEST_MODE
+        or (int(chat_id) == AUTHORIZED_SHOWCASE_CHAT_ID and int(topic_id or 0) == AUTHORIZED_SHOWCASE_TOPIC_ID)
+    )
+    if not is_authorized:
+        logger.error(
+            f"🚫 [SECURITY BLOCK] Refusing to delete message {message_id} in chat {chat_id}, topic {topic_id}! "
+            f"Deletion is strictly restricted to chat {AUTHORIZED_SHOWCASE_CHAT_ID}, topic {AUTHORIZED_SHOWCASE_TOPIC_ID} (https://t.me/kefir_ukr/561344)."
+        )
+        return False
+
+    try:
+        await bot.delete_message(chat_id=chat_id, message_id=int(message_id))
+        logger.info(f"🗑 [SAFE DELETE] Deleted showcase message {message_id} ('{title}') from topic {topic_id} in chat {chat_id}")
+        return True
+    except Exception as e:
+        logger.debug(f"Could not delete message {message_id} ('{title}'): {e}")
+        return False
+
 
 def _normalize_title_key(title: str) -> str:
     return re.sub(r"[^a-z0-9]", "", title.lower()) if title else ""
@@ -315,20 +349,15 @@ async def send_eshop_deals(force: bool = False):
                     surviving_items.append(item)
                 else:
                     if msg_id:
-                        # Hard guardrail: ONLY delete inside dedicated eShop topic (561344 in -1001790782971 or test group)
-                        is_safe_dest = (
-                            IS_TEST_MODE
-                            or (str(chat_id) == "-1001790782971" and str(topic_id) == "561344")
-                            or (eshop_cfg.get("chat_id") and str(chat_id) == str(eshop_cfg.get("chat_id")) and str(topic_id) == str(eshop_cfg.get("topic_id", "561344")))
+                        deleted = await safe_delete_showcase_message(
+                            chat_id=chat_id_int,
+                            topic_id=topic_id_int,
+                            message_id=int(msg_id),
+                            title=item_title,
                         )
-                        if is_safe_dest:
-                            try:
-                                await bot.delete_message(chat_id=chat_id_int, message_id=int(msg_id))
-                                logger.info(f"🗑 Deleted expired deal from showcase: '{item_title}' (msg_id: {msg_id}) in topic {topic_id}")
-                            except Exception as del_err:
-                                logger.debug(f"Could not delete message {msg_id}: {del_err}")
-                        else:
-                            logger.warning(f"Skipping deletion of msg {msg_id}: chat {chat_id}/topic {topic_id} is not authorized for message deletion.")
+                        if not deleted:
+                            # If not deleted (e.g. unauthorized destination), keep item to prevent churn
+                            surviving_items.append(item)
 
             # Step B: Calculate free slots
             available_slots = max(0, max_active_showcase - len(surviving_items))
@@ -553,14 +582,16 @@ async def remove_showcase_deals(remove_arg: str):
             msg_id = it.get("message_id")
             title = it.get("title", "")
             if msg_id and msg_id not in deleted_msg_ids:
-                try:
-                    await bot.delete_message(chat_id=target_chat, message_id=int(msg_id))
-                    logger.info(f"🗑 Deleted showcase message {msg_id} ('{title}') from topic {target_topic} in chat {target_chat}")
+                deleted = await safe_delete_showcase_message(
+                    chat_id=target_chat,
+                    topic_id=target_topic,
+                    message_id=int(msg_id),
+                    title=title,
+                )
+                if deleted:
                     total_deleted += 1
                     deleted_msg_ids.add(msg_id)
-                    await asyncio.sleep(0.1)
-                except Exception as e:
-                    logger.debug(f"Could not delete message {msg_id} ('{title}'): {e}")
+                await asyncio.sleep(0.1)
 
         showcase_data[showcase_key] = surviving
         save_active_showcase(showcase_data)

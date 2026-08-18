@@ -712,7 +712,7 @@ def register_eshop_handlers(
 
         showcase_key = f"{message.chat.id}_{thread_id}" if thread_id else str(message.chat.id)
 
-        from send_eshop_deals import load_active_showcase, save_active_showcase
+        from send_eshop_deals import load_active_showcase, save_active_showcase, safe_delete_showcase_message
         showcase_data = load_active_showcase()
         items = showcase_data.get(showcase_key, [])
 
@@ -721,7 +721,12 @@ def register_eshop_handlers(
 
         # Delete user command message itself
         try:
-            await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+            await safe_delete_showcase_message(
+                chat_id=message.chat.id,
+                topic_id=thread_id,
+                message_id=message.message_id,
+                title="user_command",
+            )
             deleted_msg_ids.add(message.message_id)
         except Exception:
             pass
@@ -732,14 +737,18 @@ def register_eshop_handlers(
 
         for it in to_delete:
             msg_id = it.get("message_id")
+            title = it.get("title", "")
             if msg_id and msg_id not in deleted_msg_ids:
-                try:
-                    await bot.delete_message(chat_id=message.chat.id, message_id=int(msg_id))
+                deleted = await safe_delete_showcase_message(
+                    chat_id=message.chat.id,
+                    topic_id=thread_id,
+                    message_id=int(msg_id),
+                    title=title,
+                )
+                if deleted:
                     deleted_count += 1
                     deleted_msg_ids.add(msg_id)
-                    await asyncio.sleep(0.08)
-                except Exception as e:
-                    logger.debug(f"Could not delete message {msg_id}: {e}")
+                await asyncio.sleep(0.08)
 
         # Clear/update showcase state
         showcase_data[showcase_key] = surviving
