@@ -1,11 +1,6 @@
 # Список завдань (Tasks)
 
 ## Виконані завдання
-- [x] Створити `SubscriptionService` з гранулярним керуванням категоріями (`deals`, `rutracker`, `digests`).
-- [x] Встановити значення за замовченням — вимкнено для всіх категорій у приватних повідомленнях.
-- [x] Додати команди `/subscriptions`, `/settings`, `/sub`, `/unsub` до `services/eshop/bot_commands.py`.
-- [x] Підключити підписників до `send_to_telegram()` у `services/telegram_sender.py`.
-- [x] Підключити підписників до `collect_target_groups()` у `digest/runner.py`.
-- [x] Підключити підписників до `send_eshop_deals.py`.
-- [x] Додати `user_subscriptions.json` до `sync_gist_state.py`.
-- [x] Написати юніт-тести та випустити реліз `v0.6.91`.
+- [x] Виправити помилку `400 Bad Request: message to be replied not found` через додавання `allow_sending_without_reply=True` та fallback без `reply_to_message_id`.
+- [x] Оновити всі команди на `safe_reply` і `safe_send_card`.
+- [x] Прогнати тести та випустити реліз `v0.6.92`.

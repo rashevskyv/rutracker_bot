@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.92] - 2026-08-18
+
+### Fixed
+- **Robust Telegram Reply & Message Delivery (`allow_sending_without_reply`)**:
+  - `services/eshop/bot_commands.py`: Added `safe_reply()` and `safe_send_card()` with `allow_sending_without_reply=True` and multi-tier exception retry handling. Eliminates Telegram `400 Bad Request: message to be replied not found` error when original user commands or messages are deleted/ephemeral during polling.
+
 ## [v0.6.91] - 2026-08-18
 
 ### Added

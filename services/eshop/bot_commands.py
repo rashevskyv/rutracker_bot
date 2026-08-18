@@ -1,9 +1,10 @@
 """Interactive Telegram command handlers for eShop Deals in RuTracker Bot."""
 
+import asyncio
 import json
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import Message
 
@@ -97,6 +98,100 @@ def remove_subscription(chat_id: int, topic_id: Optional[int] = None) -> bool:
     return False
 
 
+async def safe_reply(
+    bot: AsyncTeleBot,
+    message: Message,
+    text: str,
+    parse_mode: str = "HTML",
+    message_thread_id: Optional[int] = None,
+) -> Optional[Message]:
+    """Safely reply to a message, falling back to sending without reply if message is deleted/missing."""
+    thread_id = message_thread_id if message_thread_id is not None else getattr(message, "message_thread_id", None)
+    try:
+        return await bot.send_message(
+            chat_id=message.chat.id,
+            text=text,
+            parse_mode=parse_mode,
+            message_thread_id=thread_id,
+            reply_to_message_id=message.message_id,
+            allow_sending_without_reply=True,
+        )
+    except Exception as e:
+        logger.debug(f"safe_reply with reply_to_message_id failed: {e}. Retrying without reply...")
+        try:
+            return await bot.send_message(
+                chat_id=message.chat.id,
+                text=text,
+                parse_mode=parse_mode,
+                message_thread_id=thread_id,
+            )
+        except Exception as send_err:
+            logger.error(f"Failed to send message to {message.chat.id}: {send_err}")
+            return None
+
+
+async def safe_send_card(
+    bot: AsyncTeleBot,
+    chat_id: int,
+    text: str,
+    photo_payload: Optional[Any] = None,
+    message_thread_id: Optional[int] = None,
+    reply_to_message_id: Optional[int] = None,
+) -> bool:
+    """Send photo or text deal card with robust fallbacks and allow_sending_without_reply."""
+    if photo_payload:
+        try:
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_payload,
+                caption=text,
+                parse_mode="HTML",
+                message_thread_id=message_thread_id,
+                reply_to_message_id=reply_to_message_id,
+                allow_sending_without_reply=True,
+            )
+            return True
+        except Exception as photo_err:
+            logger.debug(f"safe_send_card send_photo failed ({photo_err}), attempting without reply...")
+            try:
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo_payload,
+                    caption=text,
+                    parse_mode="HTML",
+                    message_thread_id=message_thread_id,
+                )
+                return True
+            except Exception as photo_err2:
+                logger.debug(f"safe_send_card photo fallback failed ({photo_err2}), falling back to text...")
+
+    try:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            parse_mode="HTML",
+            disable_web_page_preview=False,
+            message_thread_id=message_thread_id,
+            reply_to_message_id=reply_to_message_id,
+            allow_sending_without_reply=True,
+        )
+        return True
+    except Exception as msg_err:
+        logger.debug(f"safe_send_card send_message failed ({msg_err}), attempting without reply...")
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode="HTML",
+                disable_web_page_preview=False,
+                message_thread_id=message_thread_id,
+            )
+            return True
+        except Exception as final_err:
+            logger.error(f"safe_send_card final send_message failed: {final_err}")
+            return False
+
+
 def register_eshop_handlers(
     bot: AsyncTeleBot,
     filter_engine: DealFilterEngine,
@@ -131,7 +226,7 @@ def register_eshop_handlers(
             "• <code>/set_min_discount &lt;%&gt;</code> — Встановити мін. % знижки (наприклад: <code>/set_min_discount 40</code>)\n"
             "• <code>/set_min_rating &lt;бал&gt;</code> — Встановити мін. бал Metacritic (наприклад: <code>/set_min_rating 75</code>)\n"
         )
-        await bot.reply_to(message, text, parse_mode="HTML")
+        await safe_reply(bot, message, text)
 
     @bot.message_handler(commands=["deals", "eshop_deals"])
     async def cmd_deals(message: Message):
@@ -143,22 +238,33 @@ def register_eshop_handlers(
         thread_id = getattr(message, "message_thread_id", None)
         reply_id = message.message_id
 
-        loading_msg = await bot.reply_to(
+        loading_msg = await safe_reply(
+            bot,
             message,
             f"🔍 <i>Шукаю топ-{limit} знижок серед найпопулярніших хітів Nintendo Switch...</i>",
-            parse_mode="HTML",
         )
         try:
             criteria = get_chat_criteria(message.chat.id, global_criteria)
             candidates = await filter_engine.get_candidate_deals(criteria=criteria, limit=limit)
 
             if not candidates:
-                await bot.edit_message_text(
+                if loading_msg:
+                    try:
+                        await bot.edit_message_text(
+                            "😔 Не знайдено знижок на популярні ігри за поточними критеріями.\n"
+                            "Спробуйте знизити поріг: <code>/set_min_discount 20</code>",
+                            chat_id=message.chat.id,
+                            message_id=loading_msg.message_id,
+                            parse_mode="HTML",
+                        )
+                        return
+                    except Exception:
+                        pass
+                await safe_reply(
+                    bot,
+                    message,
                     "😔 Не знайдено знижок на популярні ігри за поточними критеріями.\n"
                     "Спробуйте знизити поріг: <code>/set_min_discount 20</code>",
-                    chat_id=message.chat.id,
-                    message_id=loading_msg.message_id,
-                    parse_mode="HTML",
                 )
                 return
 
@@ -172,64 +278,53 @@ def register_eshop_handlers(
                 badged_img = await download_and_badge_cover(enriched)
                 photo_payload = badged_img.getvalue() if badged_img else (enriched.banner_url or enriched.image_url)
 
-                if is_first:
+                if is_first and loading_msg:
                     try:
                         await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
                     except Exception:
                         pass
                     is_first = False
 
-                sent = False
-                if photo_payload:
-                    try:
-                        await bot.send_photo(
-                            chat_id=message.chat.id,
-                            photo=photo_payload,
-                            caption=card_text,
-                            parse_mode="HTML",
-                            message_thread_id=thread_id,
-                            reply_to_message_id=reply_id,
-                        )
-                        sent = True
-                    except Exception as err:
-                        logger.debug(f"Could not send photo for '{deal.title}': {err}")
-
-                if not sent:
-                    await bot.send_message(
-                        chat_id=message.chat.id,
-                        text=card_text,
-                        parse_mode="HTML",
-                        disable_web_page_preview=False,
-                        message_thread_id=thread_id,
-                        reply_to_message_id=reply_id,
-                    )
+                await safe_send_card(
+                    bot=bot,
+                    chat_id=message.chat.id,
+                    text=card_text,
+                    photo_payload=photo_payload,
+                    message_thread_id=thread_id,
+                    reply_to_message_id=reply_id,
+                )
                 await asyncio.sleep(0.3)
 
         except Exception as e:
             logger.error(f"Error handling /deals: {e}")
-            await bot.send_message(
-                message.chat.id,
-                "❌ Помилка при отриманні знижок.",
-                message_thread_id=thread_id,
-                reply_to_message_id=reply_id,
-            )
+            await safe_reply(bot, message, "❌ Помилка при отриманні знижок.")
 
     @bot.message_handler(commands=["search", "eshop_search"])
     async def cmd_search(message: Message):
         parts = message.text.split(maxsplit=1) if message.text else []
         if len(parts) < 2 or not parts[1].strip():
-            await bot.reply_to(message, "ℹ️ Вкажіть назву гри, наприклад: <code>/search Mario Odyssey</code>", parse_mode="HTML")
+            await safe_reply(bot, message, "ℹ️ Вкажіть назву гри, наприклад: <code>/search Mario Odyssey</code>")
             return
 
         query = parts[1].strip()
         thread_id = getattr(message, "message_thread_id", None)
         reply_id = message.message_id
-        loading_msg = await bot.reply_to(message, f"🔍 <i>Шукаю '{query}' в Nintendo eShop...</i>", parse_mode="HTML")
+        loading_msg = await safe_reply(bot, message, f"🔍 <i>Шукаю '{query}' в Nintendo eShop...</i>")
 
         try:
             results = await eshop_service.search_games(query=query, rows=3)
             if not results:
-                await bot.edit_message_text(f"❌ Нічого не знайдено за запитом '{query}'.", chat_id=message.chat.id, message_id=loading_msg.message_id)
+                if loading_msg:
+                    try:
+                        await bot.edit_message_text(
+                            f"❌ Нічого не знайдено за запитом '{query}'.",
+                            chat_id=message.chat.id,
+                            message_id=loading_msg.message_id,
+                        )
+                        return
+                    except Exception:
+                        pass
+                await safe_reply(bot, message, f"❌ Нічого не знайдено за запитом '{query}'.")
                 return
 
             if hasattr(currency_service, "refresh_rates"):
@@ -242,65 +337,45 @@ def register_eshop_handlers(
                 badged_img = await download_and_badge_cover(enriched)
                 photo_payload = badged_img.getvalue() if badged_img else (enriched.banner_url or enriched.image_url)
 
-                if is_first:
+                if is_first and loading_msg:
                     try:
                         await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
                     except Exception:
                         pass
                     is_first = False
 
-                sent = False
-                if photo_payload:
-                    try:
-                        await bot.send_photo(
-                            chat_id=message.chat.id,
-                            photo=photo_payload,
-                            caption=card_text,
-                            parse_mode="HTML",
-                            message_thread_id=thread_id,
-                            reply_to_message_id=reply_id,
-                        )
-                        sent = True
-                    except Exception as err:
-                        logger.debug(f"Could not send photo for '{deal.title}': {err}")
-
-                if not sent:
-                    await bot.send_message(
-                        chat_id=message.chat.id,
-                        text=card_text,
-                        parse_mode="HTML",
-                        message_thread_id=thread_id,
-                        reply_to_message_id=reply_id,
-                    )
+                await safe_send_card(
+                    bot=bot,
+                    chat_id=message.chat.id,
+                    text=card_text,
+                    photo_payload=photo_payload,
+                    message_thread_id=thread_id,
+                    reply_to_message_id=reply_id,
+                )
                 await asyncio.sleep(0.3)
         except Exception as e:
             logger.error(f"Search error: {e}")
-            await bot.send_message(
-                message.chat.id,
-                "❌ Помилка під час пошуку.",
-                message_thread_id=thread_id,
-                reply_to_message_id=reply_id,
-            )
+            await safe_reply(bot, message, "❌ Помилка під час пошуку.")
 
     @bot.message_handler(commands=["subscribe_deals"])
     async def cmd_subscribe(message: Message):
         chat_title = message.chat.title or message.chat.username or f"Chat_{message.chat.id}"
         topic_id = getattr(message, "message_thread_id", None)
         add_subscription(message.chat.id, message.chat.type, chat_title, topic_id=topic_id)
-        await bot.reply_to(
+        await safe_reply(
+            bot,
             message,
             "✅ <b>Цей чат/гілку підписано на автоматичну розсилку знижок Nintendo eShop!</b>\n"
             "Коли з'являтимуться нові хіти зі знижками, бот надішле їх у цю тему/чат.",
-            parse_mode="HTML",
         )
 
     @bot.message_handler(commands=["unsubscribe_deals"])
     async def cmd_unsubscribe(message: Message):
         topic_id = getattr(message, "message_thread_id", None)
         if remove_subscription(message.chat.id, topic_id=topic_id):
-            await bot.reply_to(message, "🛑 <b>Відписано від розсилки знижок eShop.</b>", parse_mode="HTML")
+            await safe_reply(bot, message, "🛑 <b>Відписано від розсилки знижок eShop.</b>")
         else:
-            await bot.reply_to(message, "ℹ️ Цей чат не був підписаний на розсилку.", parse_mode="HTML")
+            await safe_reply(bot, message, "ℹ️ Цей чат не був підписаний на розсилку.")
 
     @bot.message_handler(commands=["deals_settings"])
     async def cmd_settings(message: Message):
@@ -314,27 +389,27 @@ def register_eshop_handlers(
             f"• <code>/set_min_discount 40</code>\n"
             f"• <code>/set_min_rating 75</code>\n"
         )
-        await bot.reply_to(message, text, parse_mode="HTML")
+        await safe_reply(bot, message, text)
 
     @bot.message_handler(commands=["set_min_discount"])
     async def cmd_set_discount(message: Message):
         parts = message.text.split()
         if len(parts) < 2 or not parts[1].replace(".", "", 1).isdigit():
-            await bot.reply_to(message, "Вкажіть число, наприклад: <code>/set_min_discount 40</code>", parse_mode="HTML")
+            await safe_reply(bot, message, "Вкажіть число, наприклад: <code>/set_min_discount 40</code>")
             return
         val = float(parts[1])
         update_chat_criteria(message.chat.id, min_discount_percent=val)
-        await bot.reply_to(message, f"✅ Мінімальну знижку встановлено на <b>{val:.0f}%</b>", parse_mode="HTML")
+        await safe_reply(bot, message, f"✅ Мінімальну знижку встановлено на <b>{val:.0f}%</b>")
 
     @bot.message_handler(commands=["set_min_rating"])
     async def cmd_set_rating(message: Message):
         parts = message.text.split()
         if len(parts) < 2 or not parts[1].isdigit():
-            await bot.reply_to(message, "Вкажіть число від 0 до 100, наприклад: <code>/set_min_rating 75</code>", parse_mode="HTML")
+            await safe_reply(bot, message, "Вкажіть число від 0 до 100, наприклад: <code>/set_min_rating 75</code>")
             return
         val = int(parts[1])
         update_chat_criteria(message.chat.id, min_metacritic_score=val)
-        await bot.reply_to(message, f"✅ Мінімальний рейтинг Metacritic встановлено на <b>{val}/100</b>", parse_mode="HTML")
+        await safe_reply(bot, message, f"✅ Мінімальний рейтинг Metacritic встановлено на <b>{val}/100</b>")
 
     @bot.message_handler(commands=["wishlist"])
     async def cmd_wishlist(message: Message):
@@ -346,19 +421,17 @@ def register_eshop_handlers(
         # --- Subcommand: ADD ---
         if subcmd in ["add", "+"]:
             if not query:
-                await bot.reply_to(
+                await safe_reply(
+                    bot,
                     message,
                     "ℹ️ Вкажіть назву гри, наприклад: <code>/wishlist add Hollow Knight</code>",
-                    parse_mode="HTML",
-                    message_thread_id=thread_id,
                 )
                 return
 
-            loading = await bot.reply_to(
+            loading = await safe_reply(
+                bot,
                 message,
                 f"🔍 <i>Шукаю '{query}' для додавання до списку бажань...</i>",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
             )
             try:
                 results = await eshop_service.search_games(query=query, rows=1)
@@ -377,91 +450,76 @@ def register_eshop_handlers(
                         if deal.discount_percent > 0
                         else f"💵 Поточна ціна: <b>{deal.regular_price:.2f} {deal.currency}</b> (без знижки)"
                     )
-                    await bot.edit_message_text(
+                    resp_text = (
                         f"✅ Гру <b>{deal.title}</b> успішно додано до вашого Wishlist!\n\n{status_text}\n\n"
-                        "<i>Бот автоматично сповістить вас, щойно з'явиться знижка!</i>",
-                        chat_id=message.chat.id,
-                        message_id=loading.message_id,
-                        parse_mode="HTML",
+                        "<i>Бот автоматично сповістить вас, щойно з'явиться знижка!</i>"
                     )
+                    if loading:
+                        try:
+                            await bot.edit_message_text(resp_text, chat_id=message.chat.id, message_id=loading.message_id, parse_mode="HTML")
+                            return
+                        except Exception:
+                            pass
+                    await safe_reply(bot, message, resp_text)
                 else:
                     wl_service.add_game(message.chat.id, title=query, topic_id=thread_id)
-                    await bot.edit_message_text(
-                        f"✅ Гру <b>{query}</b> додано до Wishlist!\n"
-                        "<i>Бот автоматично сповістить вас про знижки.</i>",
-                        chat_id=message.chat.id,
-                        message_id=loading.message_id,
-                        parse_mode="HTML",
-                    )
+                    resp_text = f"✅ Гру <b>{query}</b> додано до Wishlist!\n<i>Бот автоматично сповістить вас про знижки.</i>"
+                    if loading:
+                        try:
+                            await bot.edit_message_text(resp_text, chat_id=message.chat.id, message_id=loading.message_id, parse_mode="HTML")
+                            return
+                        except Exception:
+                            pass
+                    await safe_reply(bot, message, resp_text)
             except Exception as err:
                 logger.error(f"Wishlist add error: {err}")
                 wl_service.add_game(message.chat.id, title=query, topic_id=thread_id)
-                await bot.edit_message_text(
-                    f"✅ Гру <b>{query}</b> додано до Wishlist!",
-                    chat_id=message.chat.id,
-                    message_id=loading.message_id,
-                    parse_mode="HTML",
-                )
+                resp_text = f"✅ Гру <b>{query}</b> додано до Wishlist!"
+                if loading:
+                    try:
+                        await bot.edit_message_text(resp_text, chat_id=message.chat.id, message_id=loading.message_id, parse_mode="HTML")
+                        return
+                    except Exception:
+                        pass
+                await safe_reply(bot, message, resp_text)
             return
 
         # --- Subcommand: REMOVE / DEL ---
         if subcmd in ["remove", "del", "delete", "-"]:
             if not query:
-                await bot.reply_to(
+                await safe_reply(
+                    bot,
                     message,
                     "ℹ️ Вкажіть назву гри для видалення, наприклад: <code>/wishlist remove Hollow Knight</code>",
-                    parse_mode="HTML",
-                    message_thread_id=thread_id,
                 )
                 return
 
             if wl_service.remove_game(message.chat.id, title=query, topic_id=thread_id):
-                await bot.reply_to(
-                    message,
-                    f"🗑 Гру <b>{query}</b> видалено з вашого Wishlist.",
-                    parse_mode="HTML",
-                    message_thread_id=thread_id,
-                )
+                await safe_reply(bot, message, f"🗑 Гру <b>{query}</b> видалено з вашого Wishlist.")
             else:
-                await bot.reply_to(
-                    message,
-                    f"ℹ️ Гру '{query}' не знайдено у вашому Wishlist.",
-                    parse_mode="HTML",
-                    message_thread_id=thread_id,
-                )
+                await safe_reply(bot, message, f"ℹ️ Гру '{query}' не знайдено у вашому Wishlist.")
             return
 
         # --- Subcommand: CLEAR ---
         if subcmd == "clear":
             wl_service.clear_wishlist(message.chat.id, topic_id=thread_id)
-            await bot.reply_to(
-                message,
-                "🧹 <b>Ваш Wishlist повністю очищено.</b>",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
-            )
+            await safe_reply(bot, message, "🧹 <b>Ваш Wishlist повністю очищено.</b>")
             return
 
         # --- Subcommand: LIST (Default) ---
         items = wl_service.get_wishlist(message.chat.id, topic_id=thread_id)
         if not items:
-            await bot.reply_to(
+            await safe_reply(
+                bot,
                 message,
                 "🎁 <b>Ваш Wishlist порожній.</b>\n\n"
                 "Щоб додати гру та отримувати сповіщення про знижки:\n"
                 "• <code>/wishlist add &lt;назва гри&gt;</code>\n"
                 "<i>Наприклад: <code>/wishlist add Hollow Knight</code> або <code>/wishlist add Persona 5</code></i>",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
             )
             return
 
-        loading = await bot.reply_to(
-            message,
-            "🔍 <i>Перевіряю актуальні ціни та знижки для ігор із вашого Wishlist...</i>",
-            parse_mode="HTML",
-            message_thread_id=thread_id,
-        )
+        loading = await safe_reply(bot, message, "🔍 <i>Перевіряю актуальні ціни та знижки для ігор із вашого Wishlist...</i>")
 
         lines = ["🎁 <b>Ваш список бажань (Wishlist):</b>\n"]
         for idx, it in enumerate(items, 1):
@@ -484,12 +542,19 @@ def register_eshop_handlers(
                 lines.append(f"{idx}. <b>{title}</b>")
 
         lines.append("\n<i>Керування: <code>/wishlist add &lt;гра&gt;</code> | <code>/wishlist remove &lt;гра&gt;</code></i>")
-        await bot.edit_message_text(
-            "\n".join(lines),
-            chat_id=message.chat.id,
-            message_id=loading.message_id,
-            parse_mode="HTML",
-        )
+        summary_text = "\n".join(lines)
+        if loading:
+            try:
+                await bot.edit_message_text(
+                    summary_text,
+                    chat_id=message.chat.id,
+                    message_id=loading.message_id,
+                    parse_mode="HTML",
+                )
+                return
+            except Exception:
+                pass
+        await safe_reply(bot, message, summary_text)
 
     @bot.message_handler(commands=["subscriptions", "settings", "notify"])
     async def cmd_subscriptions(message: Message):
@@ -515,27 +580,26 @@ def register_eshop_handlers(
             "• <code>/sub all</code> / <code>/unsub all</code> — увімкнути/вимкнути все\n\n"
             "ℹ️ <i>Команди (/deals, /search, /wishlist) завжди доступні вручну незалежно від підписок.</i>"
         )
-        await bot.reply_to(message, text, parse_mode="HTML", message_thread_id=thread_id)
+        await safe_reply(bot, message, text)
 
     @bot.message_handler(commands=["sub", "subscribe"])
     async def cmd_sub(message: Message):
-        thread_id = getattr(message, "message_thread_id", None)
         parts = message.text.split()
         if len(parts) < 2:
-            await bot.reply_to(
+            await safe_reply(
+                bot,
                 message,
                 "ℹ️ Вкажіть категорію для підписки:\n"
                 "• <code>/sub deals</code> — знижки Nintendo eShop\n"
                 "• <code>/sub rutracker</code> — репост роздач RuTracker\n"
                 "• <code>/sub digests</code> — щоденні дайджести\n"
                 "• <code>/sub all</code> — увімкнути все",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
             )
             return
 
         category = parts[1].lower().strip()
         chat_title = message.chat.title or message.chat.username or f"User_{message.chat.id}"
+        thread_id = getattr(message, "message_thread_id", None)
         try:
             sub_service.set_subscription(
                 chat_id=message.chat.id,
@@ -552,40 +616,37 @@ def register_eshop_handlers(
                 "all": "Всі категорії",
             }
             cat_label = cat_names.get(category, category)
-            await bot.reply_to(
+            await safe_reply(
+                bot,
                 message,
                 f"✅ <b>Підписку на '{cat_label}' успішно увімкнено!</b>\n\n"
                 "Перевірити статус усіх підписок: <code>/subscriptions</code>",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
             )
         except ValueError:
-            await bot.reply_to(
+            await safe_reply(
+                bot,
                 message,
                 "❌ Невідома категорія. Доступні: <code>deals</code>, <code>rutracker</code>, <code>digests</code>, <code>all</code>",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
             )
 
     @bot.message_handler(commands=["unsub", "unsubscribe"])
     async def cmd_unsub(message: Message):
-        thread_id = getattr(message, "message_thread_id", None)
         parts = message.text.split()
         if len(parts) < 2:
-            await bot.reply_to(
+            await safe_reply(
+                bot,
                 message,
                 "ℹ️ Вкажіть категорію для відписки:\n"
                 "• <code>/unsub deals</code> — знижки Nintendo eShop\n"
                 "• <code>/unsub rutracker</code> — репост роздач RuTracker\n"
                 "• <code>/unsub digests</code> — щоденні дайджести\n"
                 "• <code>/unsub all</code> — вимкнути все",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
             )
             return
 
         category = parts[1].lower().strip()
         chat_title = message.chat.title or message.chat.username or f"User_{message.chat.id}"
+        thread_id = getattr(message, "message_thread_id", None)
         try:
             sub_service.set_subscription(
                 chat_id=message.chat.id,
@@ -602,17 +663,15 @@ def register_eshop_handlers(
                 "all": "Всі категорії",
             }
             cat_label = cat_names.get(category, category)
-            await bot.reply_to(
+            await safe_reply(
+                bot,
                 message,
                 f"🛑 <b>Підписку на '{cat_label}' вимкнено.</b>\n\n"
                 "Перевірити статус усіх підписок: <code>/subscriptions</code>",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
             )
         except ValueError:
-            await bot.reply_to(
+            await safe_reply(
+                bot,
                 message,
                 "❌ Невідома категорія. Доступні: <code>deals</code>, <code>rutracker</code>, <code>digests</code>, <code>all</code>",
-                parse_mode="HTML",
-                message_thread_id=thread_id,
             )
