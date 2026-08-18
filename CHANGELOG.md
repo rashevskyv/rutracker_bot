@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.13] - 2026-08-18
+
+### Added
+- **Full Showcase Reset & Fresh Repopulation CLI Flag (`--reset`, `--refresh`, `reset`)**:
+  - `send_eshop_deals.py`:
+    - Added `--reset` (and `--refresh` / positional `reset` / `refresh`) to completely reset the local showcase state database (`data/eshop_active_showcase.json`) and posted deals history, forcing a full broadcast of 20 fresh top deals into the designated topic (`561344`).
+
 ## [v0.7.12] - 2026-08-18
 
 ### Added

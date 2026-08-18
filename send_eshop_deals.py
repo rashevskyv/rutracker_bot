@@ -191,10 +191,12 @@ def save_last_run(data: dict) -> None:
         pass
 
 
-async def send_eshop_deals(force: bool = False):
+async def send_eshop_deals(force: bool = False, reset: bool = False):
     """Main execution function for broadcasting eShop deals with Live Showcase rotation."""
     setup_logging()
-    logger.info("Starting Nintendo eShop deals check with Live Showcase Rotation...")
+    if reset:
+        force = True
+    logger.info(f"Starting Nintendo eShop deals check with Live Showcase Rotation (force={force}, reset={reset})...")
 
     # 1. Load config options
     cfg = load_config(local_settings_path) or load_config(default_settings_path) or {}
@@ -295,11 +297,19 @@ async def send_eshop_deals(force: bool = False):
 
         # 4. Load history and showcase data
         posted_history = load_posted_deals()
+        showcase_data = load_active_showcase()
+
+        if reset:
+            logger.info("🔄 [RESET] Resetting showcase database and posted history to force full 20 deals broadcast...")
+            showcase_data = {}
+            save_active_showcase(showcase_data)
+            posted_history = {}
+            save_posted_deals(posted_history)
+
         cooldown_seconds = cooldown_days * 86400
         fresh_history = {
             k: v for k, v in posted_history.items() if (now_ts - _get_entry_timestamp(v)) < (60 * 86400)
         }
-        showcase_data = load_active_showcase()
         total_posted_this_run = 0
 
         # 5. Process each group destination with Showcase verification
@@ -605,6 +615,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Nintendo eShop Deals broadcaster & Showcase Manager.")
     parser.add_argument("--force", "-f", action="store_true", help="Force deals broadcast regardless of interval.")
+    parser.add_argument("--reset", action="store_true", help="Reset active showcase and history, broadcasting 20 fresh deals.")
+    parser.add_argument("--refresh", action="store_true", help="Alias for --reset.")
     parser.add_argument(
         "--remove",
         "-r",
@@ -614,6 +626,13 @@ if __name__ == "__main__":
     )
 
     args, unknown = parser.parse_known_args()
+
+    # Detect reset / refresh from flags or positional arguments
+    reset_run = (
+        args.reset
+        or args.refresh
+        or any(a.lower() in ["reset", "--reset", "refresh", "--refresh"] for a in sys.argv[1:])
+    )
 
     remove_target = args.remove
     if not remove_target:
@@ -625,5 +644,10 @@ if __name__ == "__main__":
     if remove_target:
         asyncio.run(remove_showcase_deals(remove_target))
     else:
-        force_run = args.force or ("--force" in sys.argv) or (os.environ.get("FORCE_ESHOP_DEALS", "").lower() == "true")
-        asyncio.run(send_eshop_deals(force=force_run))
+        force_run = (
+            reset_run
+            or args.force
+            or ("--force" in sys.argv)
+            or (os.environ.get("FORCE_ESHOP_DEALS", "").lower() == "true")
+        )
+        asyncio.run(send_eshop_deals(force=force_run, reset=reset_run))
