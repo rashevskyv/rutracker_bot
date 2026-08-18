@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.87] - 2026-08-18
+
+### Changed
+- **Unified Multi-Key Translation Caching**:
+  - `services/translation.py`: Added `translate_eshop_synopsis()` with multi-key persistent disk caching (by normalized title, fs_id, and SHA-256 content hash).
+  - Added explicit log output `⚡ [CACHE HIT]` / `🌐 [CACHE MISS]` for every translation request to make caching transparent and verifiable.
+  - `services/eshop/deal_filter.py`: Routed eShop description translations through the unified translation cache in `data/translations_cache.json`.
+
 ## [v0.6.86] - 2026-08-18
 
 ### Changed

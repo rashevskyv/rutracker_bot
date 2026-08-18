@@ -216,4 +216,46 @@ async def translate_short_description(text: str, model: str = gpt.DEFAULT_MODEL)
     cache[short_hash] = result
     _save_cache()
     return result
+
+
+async def translate_eshop_synopsis(title: str, synopsis: str, fs_id: Optional[str] = None) -> str:
+    """
+    Translates a Nintendo Switch game synopsis into Ukrainian.
+    Uses multi-key persistent disk cache (by title, fs_id, and content hash)
+    to guarantee zero redundant LLM requests.
+    """
+    if not synopsis or not synopsis.strip():
+        return ""
+
+    cache = _get_cache()
+    content_hash = f"eshop_hash_{hashlib.sha256(synopsis.strip().encode('utf-8')).hexdigest()}"
+    title_key = f"eshop_title_{title.lower().strip()}"
+    fsid_key = f"eshop_fsid_{fs_id}" if fs_id else None
+
+    # Check cache
+    for k in [content_hash, title_key, fsid_key]:
+        if k and k in cache and cache[k]:
+            logger.info(f"⚡ [CACHE HIT] Using cached translation for '{title}' (key: {k})")
+            return cache[k]
+
+    prompt = (
+        "Translate the following Nintendo Switch game synopsis into natural, engaging Ukrainian in 1-2 short sentences for a Telegram post.\n"
+        "Keep it concise, clear, and output ONLY the Ukrainian text without markdown formatting, quotes, or notes.\n\n"
+        f"Game Title: {title}\n"
+        f"Original Synopsis:\n{synopsis.strip()}"
+    )
+
+    logger.info(f"🌐 [CACHE MISS] Requesting translation for '{title}' via OpenRouter...")
+    trans = await gpt.complete(prompt, max_tokens=250, label="eShop Excerpt")
+    if trans and trans.strip():
+        cleaned = trans.strip().replace('"', '').replace('«', '').replace('»', '')
+        # Store in cache under all keys
+        cache[content_hash] = cleaned
+        cache[title_key] = cleaned
+        if fsid_key:
+            cache[fsid_key] = cleaned
+        _save_cache()
+        return cleaned
+
+    return synopsis
 # --- END OF FILE translation.py ---

@@ -68,27 +68,13 @@ class DealFilterEngine:
 
         # Translate game description to Ukrainian if present
         if deal.excerpt and deal.excerpt.strip():
-            cache = _load_descriptions_cache()
-            key = deal.fs_id or deal.title
-            if key in cache and cache[key]:
-                deal.excerpt = cache[key]
-            else:
-                try:
-                    from services import gpt
-                    prompt = (
-                        "Translate the following Nintendo Switch game synopsis into natural, engaging Ukrainian in 1-2 short sentences for a Telegram post.\n"
-                        "Keep it concise, clear, and output ONLY the Ukrainian text without markdown formatting, quotes, or notes.\n\n"
-                        f"Game Title: {deal.title}\n"
-                        f"Original Synopsis:\n{deal.excerpt.strip()}"
-                    )
-                    trans = await gpt.complete(prompt, max_tokens=250, label="eShop Excerpt")
-                    if trans and trans.strip():
-                        cleaned_trans = trans.strip().replace('"', '').replace('«', '').replace('»', '')
-                        deal.excerpt = cleaned_trans
-                        cache[key] = cleaned_trans
-                        _save_descriptions_cache(cache)
-                except Exception as e:
-                    logger.debug(f"Failed to translate excerpt for {deal.title}: {e}")
+            try:
+                from services.translation import translate_eshop_synopsis
+                deal.excerpt = await translate_eshop_synopsis(
+                    title=deal.title, synopsis=deal.excerpt, fs_id=deal.fs_id
+                )
+            except Exception as e:
+                logger.debug(f"Failed to translate excerpt for {deal.title}: {e}")
 
         return deal
 
