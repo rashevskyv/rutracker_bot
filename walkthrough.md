@@ -1,29 +1,22 @@
-# Звіт про виконану роботу: Накладання бейджів платформ на обкладинки (v0.6.83)
+# Звіт про виконану роботу: Перехід на каталог найпопулярніших ігор Switch (v0.6.84)
 
 ## Огляд задачі
-Користувач попросив накладати на обкладинку гри значок відповідної платформи:
-- Nintendo Switch (1)
-- Nintendo Switch 2 (Ексклюзив)
-- Обидві платформи (Nintendo Switch 1 & 2)
+Користувач звернув увагу на те, що стандартний пошук знижок у магазині Nintendo видавав невідомі дешеві інді-ігри («сміття» за 1 євро без оцінок) замість хітів, якими реально цікавляться гравці (Persona, Wolfenstein, Witcher, Batman, Sonic тощо).
 
 ---
 
 ## Виконані кроки
 
-1. **Сервіс генерації бейджів (`services/eshop/banner_service.py`)**:
-   - Реалізовано функцію `overlay_platform_badge(image_bytes, deal)` на базі Pillow.
-   - Бейдж малюється у верхньому кутку обкладинки:
-     - Округлена плашка зі стильною тінню та рамкою.
-     - Векторні міні-іконки Joy-Con.
-     - Для **Switch 1**: червоний фірмовий бейдж Nintendo (`Nintendo Switch`).
-     - Для **Switch 2 (Exclusive)**: темно-малиновий бейдж із золотою рамкою (`Nintendo Switch 2 • EXCLUSIVE`).
-     - Для **Switch 1 & 2**: бейдж `Nintendo Switch 1 & 2`.
+1. **Каталог найпопулярніших ігор Switch (`services/eshop/popular_catalog.py`)**:
+   - Створено каталог з понад 200 топових франшиз та визнаних хітів платформи:
+     - **AAA & Хіти**: Persona (3, 4, 5), Wolfenstein, DOOM, The Witcher 3, Dark Souls, Monster Hunter, Resident Evil, Batman Arkham Trilogy, Hogwarts Legacy, Mortal Kombat, Sonic, Assassin's Creed, NieR:Automata, Diablo, Bioshock, Borderlands тощо.
+     - **Культові Інді-шедеври**: Hollow Knight, Hades, Celeste, Dead Cells, Disco Elysium, Slay the Spire, Stardew Valley, Cuphead, Balatro, Dave the Diver, Cult of the Lamb, Outer Wilds тощо.
+     - **Топ-видавці**: Nintendo, Capcom, SEGA, Ubisoft, Bethesda, Square Enix, WB Games, 2K, Devolver Digital тощо.
 
-2. **Інтеграція в розсилку та команди**:
-   - `send_eshop_deals.py`: автоматично відправляє обкладинку з накладеним бейджем.
-   - `bot_commands.py`: команди `/deals` та `/search` генерують та відправляють фото з бейджем платформи.
+2. **Новий алгоритм перевірки знижок (`fetch_popular_discounted_games`)**:
+   - Бот перевіряє актуальні знижки саме серед списку **найпопулярніших ігор платформи**.
+   - Невідомі ігри без оцінок та дешевий мотлох за 1 євро повністю відфільтровуються.
+   - Команда `/deals` тепер виводить виключно справжні, відомі ігри з максимальними знижками (наприклад: Mortal Kombat 1 -86%, Persona 5 Royal -70%, Disco Elysium -70%, Celeste -75%, Sonic Superstars -73%).
 
-3. **Залежності та тести**:
-   - Додано `Pillow>=10.0` до `requirements.txt`.
-   - Додано юніт-тест `test_overlay_platform_badge` у `test_eshop_module.py`.
-   - Усі 11 тестів проходять успішно (`pytest -v -n auto`).
+3. **Тестування**:
+   - Усі 11 тестів проходять паралельно (`pytest -v -n auto`).

@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.84] - 2026-08-18
+
+### Changed
+- **Popular Hits & AAA Deals Algorithm (Zero Shovelware)**:
+  - `services/eshop/popular_catalog.py`: Added curated catalog of 200+ top popular AAA franchises and critically acclaimed indie masterpieces on Nintendo Switch (Persona, Wolfenstein, Witcher, DOOM, Dark Souls, Monster Hunter, Resident Evil, Batman, Hogwarts Legacy, Mortal Kombat, Sonic, Celeste, Dead Cells, Disco Elysium, etc.) plus major reputable publishers (SEGA, Capcom, Ubisoft, WB Games, Bethesda, Square Enix, Devolver, etc.).
+  - `services/eshop/eshop_service.py`: Added `fetch_popular_discounted_games()` to query discounts directly against genuine popular games, eliminating 100% of $0.99 shovelware and unrated clutter.
+  - `services/eshop/deal_filter.py`: Routed `/deals` and scheduled deal broadcasts through the popular catalog engine.
+
 ## [v0.6.83] - 2026-08-18
 
 ### Added

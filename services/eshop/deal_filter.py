@@ -133,11 +133,18 @@ class DealFilterEngine:
         Fetch deals, enrich with ratings, filter by quality criteria,
         sort by overall score, and attach regional price comparisons.
         """
-        deals = await self.eshop.fetch_discounted_games(
-            rows=fetch_rows,
-            sort="popularity desc",
-            min_discount_percent=criteria.min_discount_percent,
+        # 1. Fetch genuine popular hits and major publisher releases on sale
+        deals = await self.eshop.fetch_popular_discounted_games(
+            min_discount_percent=criteria.min_discount_percent
         )
+
+        # Fallback if catalog check was empty
+        if not deals:
+            deals = await self.eshop.fetch_discounted_games(
+                rows=fetch_rows,
+                sort="popularity desc",
+                min_discount_percent=criteria.min_discount_percent,
+            )
 
         if not deals:
             return []

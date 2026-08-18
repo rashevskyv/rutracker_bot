@@ -1,5 +1,6 @@
 """Service for querying Nintendo eShop catalog and active deals."""
 
+import asyncio
 import logging
 import ssl
 from typing import Any, Dict, List, Optional
@@ -154,6 +155,81 @@ class EShopService:
         except Exception as e:
             logger.error(f"Error fetching discounted games from Nintendo API: {e}")
             return []
+
+    async def fetch_popular_discounted_games(
+        self, min_discount_percent: float = 0.0, concurrency: int = 15
+    ) -> List[GameDeal]:
+        """
+        Check discounts specifically across the curated catalog of famous/popular Switch games
+        and major publisher releases, eliminating shovelware.
+        """
+        from services.eshop.popular_catalog import POPULAR_SWITCH_GAMES, MAJOR_PUBLISHERS
+
+        session = await self._get_session()
+        url = self.BASE_URL.format(locale=self.locale)
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def _check_title(title: str) -> Optional[GameDeal]:
+            params = {
+                "q": f'"{title}"',
+                "rows": 1,
+                "fq": "type:GAME AND system_type:nintendoswitch*",
+                "wt": "json",
+            }
+            async with semaphore:
+                try:
+                    async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                        if resp.status == 200:
+                            data = await resp.json(content_type=None)
+                            docs = data.get("response", {}).get("docs", [])
+                            if docs:
+                                doc = docs[0]
+                                if doc.get("price_has_discount_b", False):
+                                    deal = self._parse_game_doc(doc)
+                                    if deal and (min_discount_percent == 0 or deal.discount_percent >= min_discount_percent):
+                                        return deal
+                except Exception as err:
+                    logger.debug(f"Error checking popular title '{title}': {err}")
+            return None
+
+        # 1. Query curated top games list
+        tasks = [_check_title(t) for t in POPULAR_SWITCH_GAMES]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        deals: List[GameDeal] = [r for r in results if isinstance(r, GameDeal)]
+
+        # 2. Also fetch top publisher discounted games (regular price >= 14.99)
+        try:
+            pub_query = " OR ".join([f'publisher:"{p}"' for p in MAJOR_PUBLISHERS[:12]])
+            fq = f"type:GAME AND system_type:nintendoswitch* AND price_has_discount_b:true AND price_regular_f:[14.99 TO 100] AND ({pub_query})"
+            if min_discount_percent > 0:
+                fq += f" AND price_discount_percentage_f:[{min_discount_percent} TO 100]"
+            params = {
+                "q": "*",
+                "fq": fq,
+                "sort": "popularity desc",
+                "rows": 30,
+                "wt": "json",
+            }
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status == 200:
+                    data = await resp.json(content_type=None)
+                    for doc in data.get("response", {}).get("docs", []):
+                        deal = self._parse_game_doc(doc)
+                        if deal:
+                            deals.append(deal)
+        except Exception as e:
+            logger.debug(f"Error fetching publisher deals: {e}")
+
+        # Deduplicate by fs_id / title
+        seen = set()
+        unique_deals = []
+        for d in deals:
+            key = d.fs_id or d.title.lower()
+            if key not in seen:
+                seen.add(key)
+                unique_deals.append(d)
+
+        return unique_deals
 
     async def search_games(self, query: str, rows: int = 10) -> List[GameDeal]:
         """Search specifically for Nintendo Switch games by name/keyword."""
