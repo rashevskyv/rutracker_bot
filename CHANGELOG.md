@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.07] - 2026-08-18
+
+### Fixed
+- **Strict Topic Deletion Security Lock (`https://t.me/kefir_ukr/561344`)**:
+  - `send_eshop_deals.py` & `services/eshop/bot_commands.py`:
+    - Hardcoded strict guardrails ensuring message deletions can **only ever occur** inside the dedicated eShop Deals topic (`561344` in chat `-1001790782971`).
+    - Completely disabled raw message ID range scanning across supergroup to prevent touching any messages in other forum topics (e.g. topic `25501` / RuTracker releases).
+    - `remove_showcase_deals` and expiration cleanup delete strictly the tracked showcase cards belonging to topic `561344`.
+
 ## [v0.7.06] - 2026-08-18
 
 ### Fixed
