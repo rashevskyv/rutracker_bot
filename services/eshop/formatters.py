@@ -134,7 +134,7 @@ def format_eshop_deal_message(
 
     conv_part = ""
     if uah_val > 0 and usd_val > 0 and curr.upper() not in ["UAH"]:
-        conv_part = f" (<i>~{uah_val:.0f} грн / ${usd_val:.2f}</i>)"
+        conv_part = f" (<b>~{uah_val:.0f} грн</b> / ${usd_val:.2f})"
 
     region_prefix = "🇪🇺 " if curr.upper() == "EUR" else ("🇺🇸 " if curr.upper() == "USD" else "")
     region_name = "Європа" if (curr.upper() == "EUR" and is_ua) else ("Europe" if curr.upper() == "EUR" else "")
@@ -168,10 +168,10 @@ def format_eshop_deal_message(
 
         def _format_price_conv(p) -> str:
             if p.converted_uah > 0 and p.converted_usd > 0:
-                return f"~{p.converted_uah:.0f} грн / ${p.converted_usd:.2f}"
+                return f"<b>~{p.converted_uah:.0f} грн</b> / ${p.converted_usd:.2f}"
             if p.converted_uah > 0:
-                return f"~{p.converted_uah:.0f} грн"
-            return f"~${p.converted_usd:.2f}"
+                return f"<b>~{p.converted_uah:.0f} грн</b>"
+            return f"${p.converted_usd:.2f}"
 
         for idx, p in enumerate(cheapest_3):
             cheapest_codes.add(p.country_code.upper())
@@ -182,7 +182,7 @@ def format_eshop_deal_message(
             p_url = get_region_eshop_url(p.country_code, deal.title, deal.url)
             price_link = f"<a href='{p_url}'><b>{p.discount_price:.2f} {p.currency}</b></a>"
             region_lines.append(
-                f"{medal} {p.flag_emoji} {c_name}: {price_link}{disc_label} (<i>{conv_str}</i>)"
+                f"{medal} {p.flag_emoji} {c_name}: {price_link}{disc_label} ({conv_str})"
             )
 
         # Pinned regions to always show if available and not already in top 3:
@@ -205,7 +205,7 @@ def format_eshop_deal_message(
                     p_url = get_region_eshop_url(code, deal.title, deal.url)
                     price_link = f"<a href='{p_url}'><b>{p_price.discount_price:.2f} {p_price.currency}</b></a>"
                     region_lines.append(
-                        f"{flag} {c_name}: {price_link}{disc_label} (<i>{conv_str}</i>)"
+                        f"{flag} {c_name}: {price_link}{disc_label} ({conv_str})"
                     )
 
     regional_text = ""

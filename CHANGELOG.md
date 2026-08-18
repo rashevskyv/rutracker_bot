@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.18] - 2026-08-18
+
+### Changed
+- **Bold UAH Price Highlighting in Deal Cards**:
+  - `services/eshop/formatters.py` & `eshop-prices/src/bot/formatters.py`:
+    - Converted UAH prices are now formatted in bold `<b>~435 грн</b>` across both the base catalog price and all regional price rows (Top 3 and pinned regions) for improved readability and instant visibility.
+
 ## [v0.7.17] - 2026-08-18
 
 ### Added
