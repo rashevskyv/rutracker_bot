@@ -210,7 +210,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
     min_discount = float(eshop_cfg.get("min_discount_percent", 30.0))
     min_metacritic = int(eshop_cfg.get("min_metacritic_score", 70))
     min_rawg = float(eshop_cfg.get("min_rawg_rating", 3.5))
-    max_active_showcase = int(eshop_cfg.get("max_active_showcase", eshop_cfg.get("max_deals_per_run", 20)))
+    max_active_showcase = int(eshop_cfg.get("max_active_showcase", eshop_cfg.get("max_deals_per_run", 30)))
     cooldown_days = float(eshop_cfg.get("cooldown_days", 14.0))
     rawg_key = os.environ.get("RAWG_API_KEY") or eshop_cfg.get("rawg_api_key")
 

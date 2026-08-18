@@ -59,13 +59,13 @@ Checks various platforms for homebrew updates:
 
 ### 5. Nintendo eShop Deals & Wishlist Module (`send_eshop_deals.py`, `bot_interactive.py`)
 - Automatically monitors official Nintendo eShop catalog for active game discounts on top popular franchises (Zero Shovelware).
-- **Live Deals Showcase Rotation**: Maintains an active pool of up to 20 top deals in the target forum topic (`561344`). Automatically deletes expired discounts via `bot.delete_message()` and refills slots with fresh top discounts.
+- **Live Deals Showcase Rotation**: Maintains an active pool of up to 30 top deals in the target forum topic (`561344`). Automatically deletes expired discounts via `safe_delete_showcase_message()` and refills slots with fresh top discounts.
 - Enriches games with **Metacritic** and **RAWG** ratings, original English hashtag genres, direct links to **eShop-Prices.com** (`🌐 eShop-Prices.com`), and AI synopsis translations with persistent multi-key caching.
 - Dynamically generates graphic platform badges directly onto game covers (`Nintendo Switch`, `Nintendo Switch 2 • EXCLUSIVE`, `Nintendo Switch 1 & 2`).
 - Real-time multi-regional price comparison:
   - 💰 **🇪🇺 Europe base catalog price**.
   - 🥇 🥈 🥉 **Top 3 cheapest regions worldwide** with currency conversion (~₴ UAH / $ USD).
-  - 🇵🇱 **Poland (PLN)** and 🇺🇸 **United States (USD)** guaranteed regional prices.
+  - 🇿🇦 **South Africa (ZAR)**, 🇹🇭 **Thailand (THB)**, 🇵🇱 **Poland (PLN)**, 🇳🇴 **Norway (NOK)**, and 🇺🇸 **United States (USD)** guaranteed regional prices with active store links.
 - **Personal & Chat Wishlists (`/wishlist`)**:
   - Track individual games and check real-time discounts.
   - Automated cron discount alerts sent directly to users/topics when wishlisted games go on sale.
@@ -89,13 +89,14 @@ Checks various platforms for homebrew updates:
 | `/unsub <category>` | Unsubscribe from automated broadcasts (`deals`, `rutracker`, `digests`, `all`). |
 | `/deals_settings` | View active quality filters for the chat. |
 | `/set_min_discount <%>` | Adjust minimum discount percentage (e.g. `/set_min_discount 40`). |
-| `/remove [N\|all]` | Delete N or all active showcase deal messages from the current topic (e.g. `/remove 20`, `/remove all`). |
+| `/remove [N\|all]` | Delete N or all active showcase deal messages from the current topic (e.g. `/remove 30`, `/remove all`). |
 | `/help` | Display command help and usage instructions. |
 
 ### CLI Commands (`send_eshop_deals.py`)
-- `python send_eshop_deals.py --force` — Force cron broadcast cycle immediately.
-- `python send_eshop_deals.py --remove 20` (or `remove 20`) — Delete 20 messages from active showcase.
-- `python send_eshop_deals.py --remove all` (or `remove all`) — Delete all messages from active showcase and reset state.
+- `python send_eshop_deals.py --force` — Force cron broadcast cycle immediately (up to 30 deals).
+- `python send_eshop_deals.py --reset` (or `reset`) — Reset showcase database and history, broadcasting 30 fresh deals from scratch.
+- `python send_eshop_deals.py --remove 30` (or `remove 30`) — Delete 30 messages from active showcase.
+- `python send_eshop_deals.py --remove all` (or `remove all`) — Delete all messages from active showcase and release cooldowns.
 
 ### 6. Daily Digests (`send_*_digest.py`)
 Sends aggregated digests to configured Telegram channels once a day (scheduled at 09:00 Kyiv time, 06:00 UTC):

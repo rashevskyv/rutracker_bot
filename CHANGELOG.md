@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.15] - 2026-08-18
+
+### Changed
+- **Increased Live Showcase Capacity to 30 Games**:
+  - `config/settings.json`: Updated default `max_active_showcase` and `max_deals_per_run` from `20` to `30`.
+  - `send_eshop_deals.py`: Default showcase pool size updated to `30` games per rotation cycle.
+  - `README.md`: Updated documentation and command examples for 30-game showcase rotation.
+
 ## [v0.7.14] - 2026-08-18
 
 ### Improved
