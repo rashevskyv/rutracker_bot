@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.82] - 2026-08-18
+
+### Changed
+- **Untranslated Genre Hashtags**:
+  - `services/eshop/formatters.py`: Kept game genres untranslated in clean English hashtag format (e.g. `🏷 #Lifestyle #Other #Puzzle`, `🏷 #Action #Adventure #RPG`).
+
 ## [v0.6.81] - 2026-08-18
 
 ### Added

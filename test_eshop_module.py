@@ -72,11 +72,14 @@ def test_eshop_regional_formatting():
         regular_price=30.0,
         discount_price=15.0,
         discount_percent=50.0,
+        categories=["Puzzle", "Action-Adventure"],
         regional_prices=[p1, p2, p3, p4],
     )
 
     msg_ua = format_eshop_deal_message(deal, language="UA")
     assert "Test Game" in msg_ua
+    assert "#Puzzle" in msg_ua
+    assert "#ActionAdventure" in msg_ua
     assert "Польща" in msg_ua
     assert "ПАР" in msg_ua
     assert "Таїланд" in msg_ua

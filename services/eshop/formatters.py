@@ -1,6 +1,7 @@
 """Message formatters for eShop game deal cards with regional breakdown."""
 
 import html
+import re
 from typing import Optional
 from services.eshop.models import GameDeal
 from services.eshop.currency_service import CurrencyService
@@ -59,6 +60,16 @@ GENRE_TRANSLATIONS = {
 }
 
 
+def _format_genre_hashtag(genre: str) -> str:
+    """Format genre into clean English hashtag without translation."""
+    if not genre:
+        return ""
+    clean = re.sub(r"[^a-zA-Z0-9]", "", genre.title().replace(" ", "").replace("-", ""))
+    if clean.lower() in ["roleplaying", "roleplayinggame"]:
+        clean = "RPG"
+    return f"#{clean}" if clean else ""
+
+
 def format_eshop_deal_message(
     deal: GameDeal, language: str = "UA", currency_service: Optional[CurrencyService] = None
 ) -> str:
@@ -94,15 +105,13 @@ def format_eshop_deal_message(
         f"(<b>-{deal.discount_percent:.0f}%</b>){conv_part}"
     )
 
-    # Categories
+    # Categories / Genres (Untranslated English with Hashtags)
     categories_text = ""
     if deal.categories:
-        clean_cats = []
-        for c in deal.categories[:3]:
-            cat_name = GENRE_TRANSLATIONS.get(c, c) if is_ua else c
-            clean_cats.append(html.escape(cat_name))
-        genre_label = "Жанри" if is_ua else "Genres"
-        categories_text = f"🏷 <b>{genre_label}:</b> {', '.join(clean_cats)}\n"
+        hashtags = [_format_genre_hashtag(c) for c in deal.categories[:4]]
+        valid_tags = [t for t in hashtags if t]
+        if valid_tags:
+            categories_text = f"🏷 {' '.join(valid_tags)}\n"
 
     # Regional Price Comparison Section
     region_lines = []
