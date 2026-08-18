@@ -152,6 +152,10 @@ def format_eshop_deal_message(
             clean_excerpt = clean_excerpt[:297] + "..."
         desc_text = f"📝 <i>{clean_excerpt}</i>\n"
 
+    # Platform
+    platform_label = "Платформа" if is_ua else "Platform"
+    platform_text = f"🕹 <b>{platform_label}:</b> {deal.platform_label}"
+
     # Store link
     link_text = ""
     if deal.url:
@@ -162,6 +166,7 @@ def format_eshop_deal_message(
         f"🎮 <b>{title_escaped}</b>\n",
         price_text,
         f"📊 {rating_text}",
+        platform_text,
         categories_text,
         regional_text,
         desc_text,

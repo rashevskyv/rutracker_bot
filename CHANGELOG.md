@@ -2,6 +2,16 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.78] - 2026-08-18
+
+### Added
+- **Switch 1 & Switch 2 Platform Detection**:
+  - `services/eshop/models.py`: Added `system_names`, `platform_label`, and `is_switch_2_exclusive` property to detect Nintendo Switch 1 vs Switch 2 vs Switch 1 & 2 games.
+  - `services/eshop/eshop_service.py`: Extracted `system_names_txt` from Nintendo Solr catalog responses.
+  - `services/eshop/formatters.py`: Added explicit platform badge line (e.g. `🕹 Платформа: Nintendo Switch` or `🕹 Платформа: 🌟 Nintendo Switch 2 (Ексклюзив)`).
+- **Configurable Cron & Interval Broadcaster**:
+  - `send_eshop_deals.py`: Added support for configurable `interval_hours` (e.g. 2 hours), `--force` CLI parameter, and execution state tracking in `data/last_eshop_deals_run.json`.
+
 ## [v0.6.77] - 2026-08-18
 
 ### Added

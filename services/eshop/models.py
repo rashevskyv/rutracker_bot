@@ -92,7 +92,29 @@ class GameDeal:
     metacritic_score: Optional[int] = None
     rawg_rating: Optional[float] = None
     rawg_ratings_count: int = 0
+    system_names: List[str] = field(default_factory=list)
     regional_prices: List[RegionalPrice] = field(default_factory=list)
+
+    @property
+    def is_switch_2_exclusive(self) -> bool:
+        """True if the game is exclusively for Nintendo Switch 2."""
+        names = [n.strip() for n in self.system_names if n.strip()]
+        has_switch_1 = any("switch" in n.lower() and "2" not in n for n in names) or ("Nintendo Switch" in names)
+        has_switch_2 = any("switch 2" in n.lower() or "nintendoswitch2" in n.lower() for n in names)
+        return has_switch_2 and not has_switch_1
+
+    @property
+    def platform_label(self) -> str:
+        """Returns readable platform indicator in Ukrainian/English."""
+        names = [n.strip() for n in self.system_names if n.strip()]
+        has_switch_1 = any("switch" in n.lower() and "2" not in n for n in names) or ("Nintendo Switch" in names)
+        has_switch_2 = any("switch 2" in n.lower() or "nintendoswitch2" in n.lower() for n in names)
+
+        if has_switch_2 and not has_switch_1:
+            return "🌟 Nintendo Switch 2 (Ексклюзив)"
+        if has_switch_1 and has_switch_2:
+            return "Nintendo Switch 1 & 2"
+        return "Nintendo Switch"
 
     @property
     def savings(self) -> float:

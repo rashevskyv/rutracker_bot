@@ -61,7 +61,28 @@ def save_posted_deals(data: dict) -> None:
         logger.error(f"Failed to save posted deals: {e}")
 
 
-async def send_eshop_deals():
+def load_last_run() -> dict:
+    """Load timestamp of last execution."""
+    if os.path.exists(LAST_RUN_FILE):
+        try:
+            with open(LAST_RUN_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_last_run(data: dict) -> None:
+    """Save execution timestamp."""
+    os.makedirs("data", exist_ok=True)
+    try:
+        with open(LAST_RUN_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+async def send_eshop_deals(force: bool = False):
     """Main execution function for broadcasting eShop deals."""
     setup_logging()
     logger.info("Starting Nintendo eShop deals check...")
@@ -70,11 +91,29 @@ async def send_eshop_deals():
     cfg = load_config(local_settings_path) or load_config(default_settings_path) or {}
     eshop_cfg = cfg.get("ESHOP_DEALS", {})
 
+    if not eshop_cfg.get("enabled", True) and not force:
+        logger.info("eShop deals broadcast is disabled in config.")
+        return
+
+    interval_hours = float(eshop_cfg.get("interval_hours", 2.0))
     min_discount = float(eshop_cfg.get("min_discount_percent", 30.0))
     min_metacritic = int(eshop_cfg.get("min_metacritic_score", 70))
     min_rawg = float(eshop_cfg.get("min_rawg_rating", 3.5))
     max_deals = int(eshop_cfg.get("max_deals_per_run", 5))
+    cooldown_days = float(eshop_cfg.get("cooldown_days", 7.0))
     rawg_key = os.environ.get("RAWG_API_KEY") or eshop_cfg.get("rawg_api_key")
+
+    now_dt = datetime.now(timezone.utc)
+    now_ts = now_dt.timestamp()
+
+    # Check interval since last run unless forced
+    last_run_info = load_last_run()
+    last_ts = last_run_info.get("last_run_timestamp", 0)
+    if not force and last_ts > 0:
+        elapsed_hours = (now_ts - last_ts) / 3600.0
+        if elapsed_hours < interval_hours:
+            logger.info(f"Skipping run: only {elapsed_hours:.2f}h elapsed since last run (interval: {interval_hours}h).")
+            return
 
     criteria = QualityCriteria(
         min_discount_percent=min_discount,
@@ -210,6 +249,7 @@ async def send_eshop_deals():
         for deal in new_deals:
             fresh_history[deal.fs_id] = now_ts
         save_posted_deals(fresh_history)
+        save_last_run({"last_run_timestamp": now_ts, "last_run_iso": now_dt.isoformat(), "posted_count": len(new_deals)})
 
         logger.info(f"Successfully posted {len(new_deals)} eShop deal(s).")
 
@@ -221,4 +261,5 @@ async def send_eshop_deals():
 
 
 if __name__ == "__main__":
-    asyncio.run(send_eshop_deals())
+    force_run = "--force" in sys.argv or os.environ.get("FORCE_ESHOP_DEALS", "").lower() == "true"
+    asyncio.run(send_eshop_deals(force=force_run))

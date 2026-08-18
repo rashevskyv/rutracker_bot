@@ -1,22 +1,23 @@
-# Звіт про виконану роботу: Повна українізація карток знижок eShop (v0.6.77)
+# Звіт про виконану роботу: Платформи (Switch 1 & 2) та гнучкий крон (v0.6.78)
 
 ## Огляд задачі
-Користувач звернув увагу на те, що опис гри (`deal.excerpt`), а також назви жанрів та країн у блоці регіональних цін відображалися англійською мовою.
+Користувач поставив питання щодо всіх доступних команд бота, а також запитав про:
+1. Можливість гнучкого запуску по крону публікації топу знижок (наприклад, кожні 2 години або раз на добу).
+2. Відображення платформи (Nintendo Switch, Nintendo Switch 2, або ексклюзив Switch 2).
 
 ---
 
 ## Виконані кроки
 
-1. **Автоматичний переклад описів через OpenRouter**:
-   - У `services/eshop/deal_filter.py` додано автоматичний переклад синопсису/опису ігор (`deal.excerpt`) українською мовою за допомогою `gpt.complete` (OpenRouter: Luna / DeepSeek).
-   - Створено постійний кеш перекладених описів `data/eshop_descriptions.json`, щоб не витрачати токени на повторний переклад однакових ігор.
+1. **Розпізнавання та маркування платформи (Switch 1 vs Switch 2)**:
+   - У `services/eshop/models.py` додано поля `system_names`, властивості `is_switch_2_exclusive` та `platform_label`.
+   - У `services/eshop/eshop_service.py` додано парсинг `system_names_txt` з офіційного API Nintendo.
+   - У `services/eshop/formatters.py` додано рядок платформи:
+     `🕹 <b>Платформа:</b> Nintendo Switch` або `🕹 <b>Платформа:</b> 🌟 Nintendo Switch 2 (Ексклюзив)`.
 
-2. **Переклад жанрів та країн**:
-   - У `services/eshop/formatters.py` додано словник українських жанрів (`GENRE_TRANSLATIONS`): `Lifestyle` $\rightarrow$ `Лайфстайл`, `Puzzle` $\rightarrow$ `Головоломка`, `Action` $\rightarrow$ `Екшен` тощо.
-   - Додано переклад назв країн у регіональному блоці (`COUNTRY_NAMES_UA`): `New Zealand` $\rightarrow$ `Нова Зеландія`, `Norway` $\rightarrow$ `Норвегія`, `Poland` $\rightarrow$ `Польща`, `USA` $\rightarrow$ `США`.
+2. **Налаштування інтервального крону для знижок**:
+   - У `send_eshop_deals.py` реалізовано перевірку часу останнього запуску за `data/last_eshop_deals_run.json`.
+   - Додано параметр `interval_hours` (за замовчуванням кожні 2 години) та прапорець `--force` для примусового запуску.
 
-3. **Синхронізація Gist**:
-   - Додано `eshop_descriptions.json` та `eshop_subscriptions.json` до `sync_gist_state.py`.
-
-4. **Тестування**:
-   - Оновлено модульні тести, усі 10 тестів проходять паралельно (`pytest -v -n auto`).
+3. **Тестування**:
+   - Усі 10 тестів проходять успішно (`pytest -v -n auto`).

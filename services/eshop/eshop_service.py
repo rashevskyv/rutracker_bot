@@ -89,6 +89,7 @@ class EShopService:
             excerpt = doc.get("excerpt") or doc.get("product_catalog_description_s") or ""
             categories = doc.get("pretty_game_categories_txt") or doc.get("game_categories_txt") or []
             publishers = [doc.get("publisher")] if doc.get("publisher") else []
+            system_names = doc.get("system_names_txt") or ["Nintendo Switch"]
 
             downloads_rank = doc.get("downloads_rank_i")
             hits = doc.get("hits_i")
@@ -109,6 +110,7 @@ class EShopService:
                 release_date=doc.get("pretty_date_s"),
                 downloads_rank=downloads_rank,
                 hits=hits,
+                system_names=system_names,
             )
         except Exception as e:
             logger.debug(f"Failed to parse game doc: {e}")
