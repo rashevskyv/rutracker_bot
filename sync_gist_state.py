@@ -23,7 +23,9 @@ FILES_TO_SYNC = [
     "list_hb.json",
     "custom_releases_state.json",
     "eshop_posted_deals.json",
-    "last_eshop_deals_run.json"
+    "last_eshop_deals_run.json",
+    "eshop_descriptions.json",
+    "eshop_subscriptions.json"
 ]
 
 DATA_DIR = "data"

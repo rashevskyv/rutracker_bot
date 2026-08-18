@@ -55,7 +55,7 @@ def test_eshop_regional_formatting():
 
     msg_ua = format_eshop_deal_message(deal, language="UA")
     assert "Test Game" in msg_ua
-    assert "Poland" in msg_ua
-    assert "South Africa" in msg_ua
+    assert "Польща" in msg_ua
+    assert "ПАР" in msg_ua
     assert "Ціни в регіонах eShop" in msg_ua
     assert "грн" in msg_ua

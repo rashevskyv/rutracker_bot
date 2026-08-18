@@ -1,5 +1,5 @@
-"""Deal filtering and ranking engine based on quality criteria."""
-
+import os
+import json
 import asyncio
 import logging
 from typing import List, Optional
@@ -10,6 +10,27 @@ from services.eshop.rating_service import RatingService
 from services.eshop.region_price_service import RegionPriceService
 
 logger = logging.getLogger(__name__)
+
+DESCRIPTIONS_CACHE_FILE = os.path.join("data", "eshop_descriptions.json")
+
+
+def _load_descriptions_cache() -> dict:
+    if os.path.exists(DESCRIPTIONS_CACHE_FILE):
+        try:
+            with open(DESCRIPTIONS_CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_descriptions_cache(data: dict) -> None:
+    try:
+        os.makedirs("data", exist_ok=True)
+        with open(DESCRIPTIONS_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
 
 class DealFilterEngine:
@@ -26,7 +47,7 @@ class DealFilterEngine:
         self.region_prices = region_price_service
 
     async def enrich_deal(self, deal: GameDeal, fetch_regions: bool = True) -> GameDeal:
-        """Enrich a single deal with ratings and regional prices."""
+        """Enrich a single deal with ratings, regional prices, and Ukrainian description."""
         if self.ratings.api_key:
             info = await self.ratings.get_game_rating(deal.title)
             if info:
@@ -44,6 +65,30 @@ class DealFilterEngine:
             prices = await self.region_prices.get_regional_prices_for_game(deal.nsuid)
             if prices:
                 deal.regional_prices = prices
+
+        # Translate game description to Ukrainian if present
+        if deal.excerpt and deal.excerpt.strip():
+            cache = _load_descriptions_cache()
+            key = deal.fs_id or deal.title
+            if key in cache and cache[key]:
+                deal.excerpt = cache[key]
+            else:
+                try:
+                    from services import gpt
+                    prompt = (
+                        "Translate the following Nintendo Switch game synopsis into natural, engaging Ukrainian in 1-2 short sentences for a Telegram post.\n"
+                        "Keep it concise, clear, and output ONLY the Ukrainian text without markdown formatting, quotes, or notes.\n\n"
+                        f"Game Title: {deal.title}\n"
+                        f"Original Synopsis:\n{deal.excerpt.strip()}"
+                    )
+                    trans = await gpt.complete(prompt, max_tokens=250, label="eShop Excerpt")
+                    if trans and trans.strip():
+                        cleaned_trans = trans.strip().replace('"', '').replace('«', '').replace('»', '')
+                        deal.excerpt = cleaned_trans
+                        cache[key] = cleaned_trans
+                        _save_descriptions_cache(cache)
+                except Exception as e:
+                    logger.debug(f"Failed to translate excerpt for {deal.title}: {e}")
 
         return deal
 

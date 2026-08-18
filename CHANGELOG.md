@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.77] - 2026-08-18
+
+### Added
+- **Full Ukrainian Localization for eShop Deals**:
+  - `services/eshop/deal_filter.py`: Automated translation of game descriptions / synopses into Ukrainian using OpenRouter (`openai/gpt-5.6-luna` / `deepseek/deepseek-v4-flash-0731`) with persistent local caching in `data/eshop_descriptions.json`.
+  - `services/eshop/formatters.py`: Localized genre names (e.g. `Lifestyle` $\rightarrow$ `Лайфстайл`, `Puzzle` $\rightarrow$ `Головоломка`, `Action` $\rightarrow$ `Екшен`).
+  - `services/eshop/formatters.py`: Localized regional country names in comparison lines (e.g. `New Zealand` $\rightarrow$ `Нова Зеландія`, `Norway` $\rightarrow$ `Норвегія`, `Poland` $\rightarrow$ `Польща`, `USA` $\rightarrow$ `США`).
+  - `sync_gist_state.py`: Added `eshop_descriptions.json` and `eshop_subscriptions.json` to state synchronization.
+
 ## [v0.6.76] - 2026-08-18
 
 ### Fixed

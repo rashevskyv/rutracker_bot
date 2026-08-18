@@ -7,6 +7,50 @@ from services.eshop.currency_service import CurrencyService
 
 _default_currency_service = CurrencyService()
 
+COUNTRY_NAMES_UA = {
+    "PL": "Польща",
+    "US": "США",
+    "ZA": "ПАР",
+    "JP": "Японія",
+    "NO": "Норвегія",
+    "GB": "Велика Британія",
+    "AU": "Австралія",
+    "CZ": "Чехія",
+    "BR": "Бразилія",
+    "MX": "Мексика",
+    "CA": "Канада",
+    "NZ": "Нова Зеландія",
+    "SE": "Швеція",
+    "CH": "Швейцарія",
+    "DE": "Німеччина",
+    "FR": "Франція",
+    "ES": "Іспанія",
+    "IT": "Італія",
+}
+
+GENRE_TRANSLATIONS = {
+    "Action": "Екшен",
+    "Adventure": "Пригоди",
+    "Role-Playing": "RPG",
+    "Strategy": "Стратегія",
+    "Puzzle": "Головоломка",
+    "Platformer": "Платформер",
+    "Arcade": "Аркада",
+    "Simulation": "Симулятор",
+    "Sports": "Спорт",
+    "Racing": "Гонки",
+    "Fighting": "Файтинг",
+    "Shooter": "Шутер",
+    "Music": "Музика",
+    "Party": "Вечірка",
+    "Board Game": "Настільні",
+    "Education": "Освіта",
+    "Communication": "Спілкування",
+    "Lifestyle": "Лайфстайл",
+    "Utility": "Утиліти",
+    "Other": "Інше",
+}
+
 
 def format_eshop_deal_message(
     deal: GameDeal, language: str = "UA", currency_service: Optional[CurrencyService] = None
@@ -46,7 +90,10 @@ def format_eshop_deal_message(
     # Categories
     categories_text = ""
     if deal.categories:
-        clean_cats = [html.escape(c) for c in deal.categories[:3]]
+        clean_cats = []
+        for c in deal.categories[:3]:
+            cat_name = GENRE_TRANSLATIONS.get(c, c) if is_ua else c
+            clean_cats.append(html.escape(cat_name))
         genre_label = "Жанри" if is_ua else "Genres"
         categories_text = f"🏷 <b>{genre_label}:</b> {', '.join(clean_cats)}\n"
 
@@ -69,24 +116,27 @@ def format_eshop_deal_message(
             medal = medals[idx] if idx < len(medals) else "•"
             disc_label = f" (-{p.discount_percent:.0f}%)" if p.is_discount and p.discount_percent > 0 else ""
             conv_str = _format_price_conv(p)
+            c_name = COUNTRY_NAMES_UA.get(p.country_code.upper(), p.country_name) if is_ua else p.country_name
             region_lines.append(
-                f"{medal} {p.flag_emoji} {p.country_name}: <b>{p.discount_price:.2f} {p.currency}</b>{disc_label} (<i>{conv_str}</i>)"
+                f"{medal} {p.flag_emoji} {c_name}: <b>{p.discount_price:.2f} {p.currency}</b>{disc_label} (<i>{conv_str}</i>)"
             )
 
         pl_price = deal.get_price_for_country("PL")
         if pl_price and "PL" not in cheapest_codes:
             disc_label = f" (-{pl_price.discount_percent:.0f}%)" if pl_price.is_discount and pl_price.discount_percent > 0 else ""
             conv_str = _format_price_conv(pl_price)
+            pl_name = "Польща" if is_ua else "Poland"
             region_lines.append(
-                f"🇵🇱 Poland: <b>{pl_price.discount_price:.2f} {pl_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
+                f"🇵🇱 {pl_name}: <b>{pl_price.discount_price:.2f} {pl_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
             )
 
         us_price = deal.get_price_for_country("US")
         if us_price and "US" not in cheapest_codes:
             disc_label = f" (-{us_price.discount_percent:.0f}%)" if us_price.is_discount and us_price.discount_percent > 0 else ""
             conv_str = _format_price_conv(us_price)
+            us_name = "США" if is_ua else "USA"
             region_lines.append(
-                f"🇺🇸 USA: <b>{us_price.discount_price:.2f} {us_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
+                f"🇺🇸 {us_name}: <b>{us_price.discount_price:.2f} {us_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
             )
 
     regional_text = ""
@@ -98,8 +148,8 @@ def format_eshop_deal_message(
     desc_text = ""
     if deal.excerpt:
         clean_excerpt = html.escape(deal.excerpt.strip())
-        if len(clean_excerpt) > 200:
-            clean_excerpt = clean_excerpt[:197] + "..."
+        if len(clean_excerpt) > 300:
+            clean_excerpt = clean_excerpt[:297] + "..."
         desc_text = f"📝 <i>{clean_excerpt}</i>\n"
 
     # Store link
