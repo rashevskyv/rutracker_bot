@@ -27,6 +27,7 @@ from services.eshop import (
     CurrencyService,
     DealFilterEngine,
     EShopService,
+    GameDeal,
     QualityCriteria,
     RatingService,
     RegionPriceService,

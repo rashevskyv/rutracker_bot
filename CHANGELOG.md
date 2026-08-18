@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.95] - 2026-08-18
+
+### Fixed
+- **Missing `GameDeal` Import in `send_eshop_deals.py`**:
+  - Fixed `NameError: name 'GameDeal' is not defined` on top-level execution of `send_eshop_deals.py`.
+
 ## [v0.6.94] - 2026-08-18
 
 ### Added
