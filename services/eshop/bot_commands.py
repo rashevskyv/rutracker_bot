@@ -90,6 +90,7 @@ def register_eshop_handlers(
     filter_engine: DealFilterEngine,
     eshop_service: EShopService,
     global_criteria: QualityCriteria,
+    currency_service: Optional[CurrencyService] = None,
 ) -> None:
     """Register eShop command handlers on TeleBot instance."""
 
@@ -134,7 +135,7 @@ def register_eshop_handlers(
             await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
 
             for deal in deals:
-                card_text = format_eshop_deal_message(deal, language="UA")
+                card_text = format_eshop_deal_message(deal, language="UA", currency_service=currency_service)
                 img = deal.banner_url or deal.image_url
                 if img:
                     try:
@@ -178,7 +179,7 @@ def register_eshop_handlers(
             await bot.delete_message(chat_id=message.chat.id, message_id=loading.message_id)
 
             for deal in results:
-                card_text = format_eshop_deal_message(deal, language="UA")
+                card_text = format_eshop_deal_message(deal, language="UA", currency_service=currency_service)
                 img = deal.banner_url or deal.image_url
                 if img:
                     try:

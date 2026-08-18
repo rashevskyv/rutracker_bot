@@ -65,6 +65,7 @@ async def main():
         filter_engine=filter_engine,
         eshop_service=eshop_service,
         global_criteria=global_criteria,
+        currency_service=currency_service,
     )
 
     logger.info("Interactive handlers registered. Starting bot polling...")

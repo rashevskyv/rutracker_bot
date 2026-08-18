@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.74] - 2026-08-18
+
+### Added
+- **Base Price Line UAH Conversion**:
+  - `services/eshop/formatters.py`: Updated the top base price line (e.g. `💰 6.99 EUR ➡️ 1.39 EUR (-80%)`) to also display the UAH and USD equivalents: `💰 6.99 EUR ➡️ 1.39 EUR (-80%) (~62 грн / $1.51)`.
+  - `services/eshop/formatters.py`: Filtered out unranked popularity placeholder values (`#999999`) to show clean unrated status instead.
+  - `services/eshop/bot_commands.py` & `send_eshop_deals.py`: Connected `currency_service` instance directly to deal formatting.
+
 ## [v0.6.73] - 2026-08-18
 
 ### Added

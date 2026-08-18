@@ -2,13 +2,18 @@
 
 import html
 from typing import Optional
-from services.eshop.models import GameDeal
+from services.eshop.currency_service import CurrencyService
+
+_default_currency_service = CurrencyService()
 
 
-def format_eshop_deal_message(deal: GameDeal, language: str = "UA") -> str:
+def format_eshop_deal_message(
+    deal: GameDeal, language: str = "UA", currency_service: Optional[CurrencyService] = None
+) -> str:
     """Format a GameDeal instance into an attractive HTML message for Telegram."""
     title_escaped = html.escape(deal.title)
     is_ua = language.upper() == "UA"
+    cs = currency_service or _default_currency_service
 
     # Rating lines
     ratings = []
@@ -16,7 +21,7 @@ def format_eshop_deal_message(deal: GameDeal, language: str = "UA") -> str:
         ratings.append(f"⭐ <b>Metacritic:</b> {deal.metacritic_score}/100")
     if deal.rawg_rating is not None and deal.rawg_rating > 0:
         ratings.append(f"🌟 <b>RAWG:</b> {deal.rawg_rating:.1f}/5.0")
-    if not ratings and deal.downloads_rank:
+    if not ratings and deal.downloads_rank and deal.downloads_rank < 90000:
         rank_label = "Популярність" if is_ua else "Popularity Rank"
         ratings.append(f"🔥 <b>{rank_label}:</b> #{deal.downloads_rank}")
 
@@ -25,9 +30,16 @@ def format_eshop_deal_message(deal: GameDeal, language: str = "UA") -> str:
 
     # Price and discount
     curr = deal.currency if deal.currency else "EUR"
+    uah_val = cs.convert_to_uah(deal.discount_price, curr)
+    usd_val = cs.convert_to_usd(deal.discount_price, curr)
+
+    conv_part = ""
+    if uah_val > 0 and usd_val > 0 and curr.upper() not in ["UAH"]:
+        conv_part = f" (<i>~{uah_val:.0f} грн / ${usd_val:.2f}</i>)"
+
     price_text = (
         f"💰 <s>{deal.regular_price:.2f} {curr}</s> ➡️ <b>{deal.discount_price:.2f} {curr}</b> "
-        f"(<b>-{deal.discount_percent:.0f}%</b>)"
+        f"(<b>-{deal.discount_percent:.0f}%</b>){conv_part}"
     )
 
     # Categories

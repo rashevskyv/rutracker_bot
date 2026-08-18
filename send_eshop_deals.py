@@ -182,7 +182,7 @@ async def send_eshop_deals():
                 continue
 
             for deal in new_deals:
-                msg_text = format_eshop_deal_message(deal, language=lang)
+                msg_text = format_eshop_deal_message(deal, language=lang, currency_service=currency_service)
                 img = deal.banner_url or deal.image_url
 
                 try:
