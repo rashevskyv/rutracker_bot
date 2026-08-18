@@ -79,12 +79,16 @@ class EShopService:
             image_url = (
                 doc.get("image_url_sq_s")
                 or doc.get("image_url")
+                or doc.get("pack_art_image_url_s")
                 or doc.get("wishlist_email_square_image_url_s")
             )
             banner_url = (
-                doc.get("wishlist_email_banner640w_image_url_s")
-                or doc.get("image_url_h2x1_s")
+                doc.get("image_url_h2x1_s")
+                or doc.get("image_url_h16x9_s")
+                or doc.get("horizontal_cover_image_url_s")
+                or doc.get("wishlist_email_banner640w_image_url_s")
                 or doc.get("wishlist_email_banner460w_image_url_s")
+                or image_url
             )
 
             excerpt = doc.get("excerpt") or doc.get("product_catalog_description_s") or ""

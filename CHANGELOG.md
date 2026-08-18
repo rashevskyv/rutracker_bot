@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.98] - 2026-08-18
+
+### Improved
+- **Crystal-Clear HD Cover Assets & Redesigned Modern Platform Badge**:
+  - `services/eshop/banner_service.py` & `services/eshop/eshop_service.py`:
+    - **High-Res CDN Fetching**: Automatically upgrades Nintendo CDN URLs from low-res email banners (500w / 460w / 640w) to crystal-clear 1600w / 1200w master assets, eliminating low-resolution compression artifacts.
+    - **2x Supersampling Vector Badge**: Redesigned the platform badge to be sleek, elegant, and modern with anti-aliased rounded pill contours, crisp white Joy-Con controller emblems, and refined typography.
+    - **Lossless Color Encoding**: Output JPEG images are now saved at `quality=96`, `subsampling=0` (4:4:4 chroma preservation) with Lanczos upscaling, ensuring completely artifact-free cards on Telegram mobile & desktop.
+
 ## [v0.6.97] - 2026-08-18
 
 ### Added
