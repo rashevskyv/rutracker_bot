@@ -2,6 +2,21 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.01] - 2026-08-18
+
+### Fixed
+- **Dedicated eShop Deals Topic Routing**:
+  - `send_eshop_deals.py`: Routed eShop deals broadcasts strictly to the designated target group and topic (`561344`) or user subscribers, preventing the accidental duplication of 20-deal showcases across multiple RuTracker tracker channels (`Kefir_new_games`, etc.).
+
+## [v0.7.00] - 2026-08-18
+
+### Optimized
+- **Zero-Redundancy Lazy Deals Enrichment & Showcase-First Workflow**:
+  - `send_eshop_deals.py`:
+    - **Showcase-First Check**: The cron script now immediately checks the active showcase (`data/eshop_active_showcase.json`). If the showcase is already full (e.g. 20/20 active deals), it terminates instantly without fetching candidates, querying translations, or hitting AI models.
+    - **Lazy Enrichment**: When slots become available (e.g. $N$ expired sales deleted), the bot filters candidate deals by title and cooldown history *before* enrichment. AI translations and regional price calculations are executed **only once and only for the exact $N$ games to be posted**.
+    - **Eliminated Double-Translations**: Removed redundant pre-enrichment loop that previously translated 40+ games before destination routing.
+
 ## [v0.6.99] - 2026-08-18
 
 ### Fixed
