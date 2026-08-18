@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.10] - 2026-08-18
+
+### Fixed
+- **Guaranteed Target Topic `561344` Purge & Probing**:
+  - `send_eshop_deals.py`:
+    - Fixed topic resolution in `remove_showcase_deals` so `target_topic` is always resolved to `561344` (and `chat_id` `-1001790782971`).
+    - Implemented targeted probe and backwards deletion strictly inside topic `561344` (from top of thread down to `561345`) to completely purge all remaining untracked or existing messages physically present in the topic.
+
 ## [v0.7.09] - 2026-08-18
 
 ### Improved

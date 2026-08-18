@@ -538,36 +538,20 @@ async def remove_showcase_deals(remove_arg: str):
 
     # Determine the single designated target chat and topic for eShop deals
     if IS_TEST_MODE:
-        target_chat = int(TEST_GROUPS[0]["chat_id"]) if TEST_GROUPS else None
-        target_topic = int(TEST_GROUPS[0]["topic_id"]) if TEST_GROUPS and TEST_GROUPS[0].get("topic_id") else None
+        target_chat = int(TEST_GROUPS[0]["chat_id"]) if TEST_GROUPS else -1001790782971
+        target_topic = int(TEST_GROUPS[0]["topic_id"]) if TEST_GROUPS and TEST_GROUPS[0].get("topic_id") else 561344
     elif eshop_cfg.get("chat_id"):
         target_chat = int(eshop_cfg["chat_id"])
-        target_topic = int(eshop_cfg.get("topic_id", "561344")) if eshop_cfg.get("topic_id") else None
+        target_topic = int(eshop_cfg.get("topic_id") or 561344)
     else:
-        deals_topic = int(eshop_cfg.get("topic_id", "561344")) if eshop_cfg.get("topic_id") else None
-        ua_groups = [g for g in (cfg.get("GROUPS") or GROUPS or []) if g.get("language", "UA") == "UA"]
-        if ua_groups:
-            target_chat = int(ua_groups[0]["chat_id"])
-            target_topic = deals_topic
-        elif GROUPS:
-            target_chat = int(GROUPS[0]["chat_id"])
-            target_topic = deals_topic
-        else:
-            target_chat = None
-            target_topic = None
+        target_chat = -1001790782971
+        target_topic = int(eshop_cfg.get("topic_id") or 561344)
 
-    if not target_chat:
-        logger.warning("No target chat configured for eShop deals.")
-        return
+    logger.info(f"Targeting eShop topic {target_topic} in chat {target_chat} for clean-up...")
 
     showcase_key = f"{target_chat}_{target_topic}" if target_topic else str(target_chat)
     showcase_data = load_active_showcase()
     items = showcase_data.get(showcase_key, [])
-
-    if not items:
-        logger.info(f"ℹ️ У топіку {target_topic} (чат {target_chat}) наразі 0 повідомлень вітрини. Немає повідомлень для видалення.")
-        print(f"ℹ️ Showcase topic {target_topic} is empty (0 active messages). Everything is clean, nothing to delete.")
-        return
 
     remove_all = clean_arg == "all"
     try:
@@ -580,13 +564,14 @@ async def remove_showcase_deals(remove_arg: str):
     deleted_msg_ids = set()
 
     try:
+        # Step 1: Delete all known tracked items for this topic
         to_delete = items[:remove_count] if not remove_all else items[:]
         surviving = items[remove_count:] if not remove_all else []
 
         for it in to_delete:
             msg_id = it.get("message_id")
             title = it.get("title", "")
-            if msg_id and msg_id not in deleted_msg_ids:
+            if msg_id and int(msg_id) not in deleted_msg_ids:
                 deleted = await safe_delete_showcase_message(
                     chat_id=target_chat,
                     topic_id=target_topic,
@@ -595,12 +580,51 @@ async def remove_showcase_deals(remove_arg: str):
                 )
                 if deleted:
                     total_deleted += 1
-                    deleted_msg_ids.add(msg_id)
-                await asyncio.sleep(0.1)
+                    deleted_msg_ids.add(int(msg_id))
+                await asyncio.sleep(0.08)
 
-        showcase_data[showcase_key] = surviving
+        # Step 2: Probe latest message in topic 561344 and scan downwards strictly to topic base (561345)
+        top_id = None
+        try:
+            probe = await bot.send_message(
+                chat_id=target_chat,
+                text="🧹",
+                message_thread_id=target_topic,
+            )
+            top_id = probe.message_id
+            await bot.delete_message(chat_id=target_chat, message_id=top_id)
+        except Exception as probe_err:
+            logger.debug(f"Probe message in topic {target_topic}: {probe_err}")
+
+        if top_id and target_topic:
+            min_id = target_topic + 1  # 561345 - do not delete the topic header itself
+            scan_limit = min(500, top_id - min_id + 1)
+            for msg_id in range(top_id - 1, max(min_id - 1, top_id - scan_limit), -1):
+                if msg_id in deleted_msg_ids:
+                    continue
+                if not remove_all and total_deleted >= remove_count:
+                    break
+                deleted = await safe_delete_showcase_message(
+                    chat_id=target_chat,
+                    topic_id=target_topic,
+                    message_id=msg_id,
+                    title=f"msg_{msg_id}",
+                )
+                if deleted:
+                    total_deleted += 1
+                    deleted_msg_ids.add(msg_id)
+                    await asyncio.sleep(0.06)
+
+        # Update showcase state
+        showcase_data[showcase_key] = surviving if not remove_all else []
         save_active_showcase(showcase_data)
-        logger.info(f"Removal complete. Successfully deleted {total_deleted} message(s) strictly from topic {target_topic}.")
+
+        if total_deleted > 0:
+            logger.info(f"✅ Removal complete. Successfully deleted {total_deleted} message(s) strictly from topic {target_topic}.")
+            print(f"✅ Successfully deleted {total_deleted} message(s) from topic {target_topic}.")
+        else:
+            logger.info(f"ℹ️ Topic {target_topic} is clean (0 messages to delete).")
+            print(f"ℹ️ Topic {target_topic} is clean (0 messages to delete).")
     finally:
         try:
             await close_clients()
