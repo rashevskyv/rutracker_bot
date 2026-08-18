@@ -24,6 +24,7 @@ FILES_TO_SYNC = [
     "custom_releases_state.json",
     "eshop_posted_deals.json",
     "eshop_active_showcase.json",
+    "eshop_region_prices_cache.json",
     "last_eshop_deals_run.json",
     "eshop_descriptions.json",
     "eshop_subscriptions.json",

@@ -2,6 +2,16 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.99] - 2026-08-18
+
+### Fixed
+- **Permanent Regional Prices Reliability & Anti-Throttling Cache**:
+  - `services/eshop/region_price_service.py`:
+    - **12-Hour Persistent Cache (`data/eshop_region_prices_cache.json`)**: Cached multi-regional price lookups across runs to eliminate unnecessary API traffic and prevent Akamai rate-limiting.
+    - **Concurrency Semaphore & Pacing**: Limited concurrent requests (`Semaphore(4)`) with micro-delays to eliminate 403 Forbidden errors when fetching multi-regional prices for batch showcases.
+    - **Algolia US Pricing Fallback**: If regional Price API endpoints are unreachable or missing US NSUID, the bot automatically queries Algolia's US store index directly to guarantee that American USD prices and discounts are always resolved.
+    - `sync_gist_state.py`: Added `eshop_region_prices_cache.json` to state synchronization.
+
 ## [v0.6.98] - 2026-08-18
 
 ### Improved
