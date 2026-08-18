@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.11] - 2026-08-18
+
+### Fixed
+- **Permanent Elimination of Numeric Range Scan in Supergroups**:
+  - `send_eshop_deals.py`:
+    - Completely removed all numeric `range()` loops and blind message probing across supergroups.
+    - In Telegram supergroups, `message_id` is global across all topics. Deleting by numeric range causes Telegram API to delete messages from other topics.
+    - All showcase deletion operations now strictly operate **only on exact, recorded message IDs** stored when the bot posted to topic `561344` (`data/eshop_active_showcase.json`).
+
 ## [v0.7.10] - 2026-08-18
 
 ### Fixed

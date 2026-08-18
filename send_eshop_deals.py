@@ -564,7 +564,7 @@ async def remove_showcase_deals(remove_arg: str):
     deleted_msg_ids = set()
 
     try:
-        # Step 1: Delete all known tracked items for this topic
+        # Delete strictly tracked items recorded for this topic
         to_delete = items[:remove_count] if not remove_all else items[:]
         surviving = items[remove_count:] if not remove_all else []
 
@@ -583,48 +583,16 @@ async def remove_showcase_deals(remove_arg: str):
                     deleted_msg_ids.add(int(msg_id))
                 await asyncio.sleep(0.08)
 
-        # Step 2: Probe latest message in topic 561344 and scan downwards strictly to topic base (561345)
-        top_id = None
-        try:
-            probe = await bot.send_message(
-                chat_id=target_chat,
-                text="🧹",
-                message_thread_id=target_topic,
-            )
-            top_id = probe.message_id
-            await bot.delete_message(chat_id=target_chat, message_id=top_id)
-        except Exception as probe_err:
-            logger.debug(f"Probe message in topic {target_topic}: {probe_err}")
-
-        if top_id and target_topic:
-            min_id = target_topic + 1  # 561345 - do not delete the topic header itself
-            scan_limit = min(500, top_id - min_id + 1)
-            for msg_id in range(top_id - 1, max(min_id - 1, top_id - scan_limit), -1):
-                if msg_id in deleted_msg_ids:
-                    continue
-                if not remove_all and total_deleted >= remove_count:
-                    break
-                deleted = await safe_delete_showcase_message(
-                    chat_id=target_chat,
-                    topic_id=target_topic,
-                    message_id=msg_id,
-                    title=f"msg_{msg_id}",
-                )
-                if deleted:
-                    total_deleted += 1
-                    deleted_msg_ids.add(msg_id)
-                    await asyncio.sleep(0.06)
-
         # Update showcase state
-        showcase_data[showcase_key] = surviving if not remove_all else []
+        showcase_data[showcase_key] = surviving
         save_active_showcase(showcase_data)
 
         if total_deleted > 0:
-            logger.info(f"✅ Removal complete. Successfully deleted {total_deleted} message(s) strictly from topic {target_topic}.")
-            print(f"✅ Successfully deleted {total_deleted} message(s) from topic {target_topic}.")
+            logger.info(f"✅ Removal complete. Successfully deleted {total_deleted} tracked deal message(s) from topic {target_topic}.")
+            print(f"✅ Successfully deleted {total_deleted} tracked deal message(s) from topic {target_topic}.")
         else:
-            logger.info(f"ℹ️ Topic {target_topic} is clean (0 messages to delete).")
-            print(f"ℹ️ Topic {target_topic} is clean (0 messages to delete).")
+            logger.info(f"ℹ️ Topic {target_topic} has 0 tracked deal messages in showcase database.")
+            print(f"ℹ️ Topic {target_topic} has 0 tracked deal messages in showcase database.")
     finally:
         try:
             await close_clients()
