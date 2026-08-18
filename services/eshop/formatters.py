@@ -100,8 +100,12 @@ def format_eshop_deal_message(
     if uah_val > 0 and usd_val > 0 and curr.upper() not in ["UAH"]:
         conv_part = f" (<i>~{uah_val:.0f} грн / ${usd_val:.2f}</i>)"
 
+    region_prefix = "🇪🇺 " if curr.upper() == "EUR" else ("🇺🇸 " if curr.upper() == "USD" else "")
+    region_name = "Європа" if (curr.upper() == "EUR" and is_ua) else ("Europe" if curr.upper() == "EUR" else "")
+    prefix_label = f"💰 {region_prefix}<b>{region_name}:</b> " if region_name else "💰 "
+
     price_text = (
-        f"💰 <s>{deal.regular_price:.2f} {curr}</s> ➡️ <b>{deal.discount_price:.2f} {curr}</b> "
+        f"{prefix_label}<s>{deal.regular_price:.2f} {curr}</s> ➡️ <b>{deal.discount_price:.2f} {curr}</b> "
         f"(<b>-{deal.discount_percent:.0f}%</b>){conv_part}"
     )
 

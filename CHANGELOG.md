@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.86] - 2026-08-18
+
+### Changed
+- **Explicit Base Region Labeling**:
+  - `services/eshop/formatters.py`: Explicitly labeled the top base price line as **🇪🇺 Європа / Europe** (e.g. `💰 🇪🇺 Європа: 19.49 EUR ➡️ 4.87 EUR (-75%) (~252 грн / $5.64)`) to make the base catalog region clear alongside the country comparisons.
+
 ## [v0.6.85] - 2026-08-18
 
 ### Changed
