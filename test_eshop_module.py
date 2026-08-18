@@ -280,3 +280,11 @@ def test_showcase_state_management():
     assert loaded["-100123456_561344"][0]["title"] == "Celeste"
     assert loaded["-100123456_561344"][0]["message_id"] == 999
 
+
+def test_clickable_regional_store_links():
+    from services.eshop.formatters import get_region_eshop_url
+    assert "nintendo.com/us" in get_region_eshop_url("US", "Sonic Origins")
+    assert "store.nintendo.com.ar" in get_region_eshop_url("AR", "Celeste")
+    assert "nintendo.com/en-gb" in get_region_eshop_url("PL", "Persona 5")
+
+

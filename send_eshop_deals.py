@@ -487,6 +487,90 @@ async def send_eshop_deals(force: bool = False):
             pass
 
 
+async def remove_showcase_deals(remove_arg: str):
+    """
+    Remove specified number of active showcase deal messages (or all) from Telegram
+    and update data/eshop_active_showcase.json.
+    """
+    setup_logging()
+    clean_arg = remove_arg.strip().lower()
+    logger.info(f"Starting removal of showcase deal messages with argument: '{clean_arg}'...")
+
+    showcase_data = load_active_showcase()
+    if not showcase_data:
+        logger.info("Showcase data is empty. Nothing to remove.")
+        return
+
+    remove_all = clean_arg == "all"
+    try:
+        remove_count = 999999 if remove_all else max(1, int(clean_arg))
+    except ValueError:
+        logger.error(f"Invalid remove count: '{remove_arg}'. Please specify a number (e.g. 20) or 'all'.")
+        return
+
+    total_deleted = 0
+    try:
+        for showcase_key, items in list(showcase_data.items()):
+            if not items:
+                continue
+
+            parts = showcase_key.split("_")
+            try:
+                chat_id = int(parts[0])
+            except ValueError:
+                continue
+
+            # Determine items to delete
+            to_delete = items[:remove_count] if not remove_all else items[:]
+            surviving = items[remove_count:] if not remove_all else []
+
+            for it in to_delete:
+                msg_id = it.get("message_id")
+                title = it.get("title", "")
+                if msg_id:
+                    try:
+                        await bot.delete_message(chat_id=chat_id, message_id=int(msg_id))
+                        logger.info(f"🗑 Deleted showcase message {msg_id} ('{title}') from chat {chat_id}")
+                        total_deleted += 1
+                        await asyncio.sleep(0.3)
+                    except Exception as e:
+                        logger.warning(f"Could not delete message {msg_id} ('{title}') from {chat_id}: {e}")
+
+            showcase_data[showcase_key] = surviving
+
+        save_active_showcase(showcase_data)
+        logger.info(f"Removal complete. Successfully deleted {total_deleted} message(s).")
+    finally:
+        try:
+            await close_clients()
+        except Exception:
+            pass
+
+
 if __name__ == "__main__":
-    force_run = "--force" in sys.argv or os.environ.get("FORCE_ESHOP_DEALS", "").lower() == "true"
-    asyncio.run(send_eshop_deals(force=force_run))
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Nintendo eShop Deals broadcaster & Showcase Manager.")
+    parser.add_argument("--force", "-f", action="store_true", help="Force deals broadcast regardless of interval.")
+    parser.add_argument(
+        "--remove",
+        "-r",
+        type=str,
+        default=None,
+        help="Remove specified number of deals or 'all' from active showcase (e.g. --remove 20, --remove all).",
+    )
+
+    args, unknown = parser.parse_known_args()
+
+    remove_target = args.remove
+    if not remove_target:
+        for idx, arg in enumerate(unknown):
+            if arg.lower() == "remove" and idx + 1 < len(unknown):
+                remove_target = unknown[idx + 1]
+                break
+
+    if remove_target:
+        asyncio.run(remove_showcase_deals(remove_target))
+    else:
+        force_run = args.force or ("--force" in sys.argv) or (os.environ.get("FORCE_ESHOP_DEALS", "").lower() == "true")
+        asyncio.run(send_eshop_deals(force=force_run))

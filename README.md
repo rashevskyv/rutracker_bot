@@ -89,8 +89,13 @@ Checks various platforms for homebrew updates:
 | `/unsub <category>` | Unsubscribe from automated broadcasts (`deals`, `rutracker`, `digests`, `all`). |
 | `/deals_settings` | View active quality filters for the chat. |
 | `/set_min_discount <%>` | Adjust minimum discount percentage (e.g. `/set_min_discount 40`). |
-| `/set_min_rating <score>` | Adjust minimum Metacritic score (e.g. `/set_min_rating 75`). |
+| `/remove [N\|all]` | Delete N or all active showcase deal messages from the current topic (e.g. `/remove 20`, `/remove all`). |
 | `/help` | Display command help and usage instructions. |
+
+### CLI Commands (`send_eshop_deals.py`)
+- `python send_eshop_deals.py --force` — Force cron broadcast cycle immediately.
+- `python send_eshop_deals.py --remove 20` (or `remove 20`) — Delete 20 messages from active showcase.
+- `python send_eshop_deals.py --remove all` (or `remove all`) — Delete all messages from active showcase and reset state.
 
 ### 6. Daily Digests (`send_*_digest.py`)
 Sends aggregated digests to configured Telegram channels once a day (scheduled at 09:00 Kyiv time, 06:00 UTC):

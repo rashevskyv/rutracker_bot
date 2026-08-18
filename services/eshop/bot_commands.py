@@ -675,3 +675,56 @@ def register_eshop_handlers(
                 message,
                 "❌ Невідома категорія. Доступні: <code>deals</code>, <code>rutracker</code>, <code>digests</code>, <code>all</code>",
             )
+
+    @bot.message_handler(commands=["remove_deals", "remove", "clean_deals", "clear_deals"])
+    async def cmd_remove_deals(message: Message):
+        """Remove specified number of deals or all from current chat/topic showcase."""
+        parts = message.text.split()
+        target_arg = parts[1].strip().lower() if len(parts) > 1 else "all"
+
+        remove_all = target_arg == "all"
+        try:
+            remove_count = 999999 if remove_all else max(1, int(target_arg))
+        except ValueError:
+            await safe_reply(
+                bot,
+                message,
+                "ℹ️ Вкажіть кількість повідомлень для видалення або <code>all</code>:\n"
+                "• <code>/remove 20</code> — видалити 20 повідомлень вітрини\n"
+                "• <code>/remove all</code> — видалити всі повідомлення вітрини",
+            )
+            return
+
+        thread_id = getattr(message, "message_thread_id", None)
+        showcase_key = f"{message.chat.id}_{thread_id}" if thread_id else str(message.chat.id)
+
+        from send_eshop_deals import load_active_showcase, save_active_showcase
+        showcase_data = load_active_showcase()
+        items = showcase_data.get(showcase_key, [])
+
+        if not items:
+            await safe_reply(bot, message, "ℹ️ У цьому чаті/топіку немає збережених активних повідомлень вітрини.")
+            return
+
+        to_delete = items[:remove_count] if not remove_all else items[:]
+        surviving = items[remove_count:] if not remove_all else []
+
+        deleted_count = 0
+        for it in to_delete:
+            msg_id = it.get("message_id")
+            if msg_id:
+                try:
+                    await bot.delete_message(chat_id=message.chat.id, message_id=int(msg_id))
+                    deleted_count += 1
+                    await asyncio.sleep(0.2)
+                except Exception as e:
+                    logger.debug(f"Could not delete message {msg_id}: {e}")
+
+        showcase_data[showcase_key] = surviving
+        save_active_showcase(showcase_data)
+
+        status_msg = f"🗑 <b>Успішно видалено {deleted_count} повідомлень вітрини.</b>"
+        if surviving:
+            status_msg += f"\nЗалишилося активних: {len(surviving)}"
+        await safe_reply(bot, message, status_msg)
+

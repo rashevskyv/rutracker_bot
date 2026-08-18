@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.04] - 2026-08-18
+
+### Added
+- **Manual Showcase Purge CLI Option & Interactive Command (`--remove`, `/remove`)**:
+  - `send_eshop_deals.py`: Added `--remove <COUNT|all>` (and `-r <COUNT|all>` / `remove <COUNT|all>`) CLI parameter to delete the specified number of active showcase deal messages or all 20 messages from Telegram, updating `data/eshop_active_showcase.json` accordingly.
+    - `python send_eshop_deals.py --remove 20`
+    - `python send_eshop_deals.py --remove all`
+  - `services/eshop/bot_commands.py`: Added interactive `/remove [N|all]` and `/remove_deals [N|all]` commands for Telegram topic administrators to purge active showcase messages directly from the chat.
+
 ## [v0.7.03] - 2026-08-18
 
 ### Improved
