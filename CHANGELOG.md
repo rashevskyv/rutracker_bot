@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.96] - 2026-08-18
+
+### Fixed
+- **Clean Async Session Closure in `send_eshop_deals.py`**:
+  - Added `await close_clients()` to `finally:` block in `send_eshop_deals.py` to cleanly shut down `aiohttp` client sessions and Telegram bot connectors upon task completion, eliminating asyncio `Unclosed client session` warnings.
+
 ## [v0.6.95] - 2026-08-18
 
 ### Fixed

@@ -19,6 +19,7 @@ from core.settings_loader import (
     IS_TEST_MODE,
     TEST_GROUPS,
     bot,
+    close_clients,
     load_config,
     default_settings_path,
     local_settings_path,
@@ -395,6 +396,10 @@ async def send_eshop_deals(force: bool = False):
         await rating_service.close()
         await region_price_service.close()
         await currency_service.close()
+        try:
+            await close_clients()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
