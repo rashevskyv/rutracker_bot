@@ -44,26 +44,36 @@ def format_eshop_deal_message(deal: GameDeal, language: str = "UA") -> str:
         medals = ["🥇", "🥈", "🥉"]
         cheapest_codes = set()
 
+        def _format_price_conv(p) -> str:
+            if p.converted_uah > 0 and p.converted_usd > 0:
+                return f"~{p.converted_uah:.0f} грн / ${p.converted_usd:.2f}"
+            if p.converted_uah > 0:
+                return f"~{p.converted_uah:.0f} грн"
+            return f"~${p.converted_usd:.2f}"
+
         for idx, p in enumerate(cheapest_3):
             cheapest_codes.add(p.country_code.upper())
             medal = medals[idx] if idx < len(medals) else "•"
             disc_label = f" (-{p.discount_percent:.0f}%)" if p.is_discount and p.discount_percent > 0 else ""
+            conv_str = _format_price_conv(p)
             region_lines.append(
-                f"{medal} {p.flag_emoji} {p.country_name}: <b>{p.discount_price:.2f} {p.currency}</b>{disc_label} (<i>~${p.converted_usd:.2f}</i>)"
+                f"{medal} {p.flag_emoji} {p.country_name}: <b>{p.discount_price:.2f} {p.currency}</b>{disc_label} (<i>{conv_str}</i>)"
             )
 
         pl_price = deal.get_price_for_country("PL")
         if pl_price and "PL" not in cheapest_codes:
             disc_label = f" (-{pl_price.discount_percent:.0f}%)" if pl_price.is_discount and pl_price.discount_percent > 0 else ""
+            conv_str = _format_price_conv(pl_price)
             region_lines.append(
-                f"🇵🇱 Poland: <b>{pl_price.discount_price:.2f} {pl_price.currency}</b>{disc_label} (<i>~${pl_price.converted_usd:.2f}</i>)"
+                f"🇵🇱 Poland: <b>{pl_price.discount_price:.2f} {pl_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
             )
 
         us_price = deal.get_price_for_country("US")
         if us_price and "US" not in cheapest_codes:
             disc_label = f" (-{us_price.discount_percent:.0f}%)" if us_price.is_discount and us_price.discount_percent > 0 else ""
+            conv_str = _format_price_conv(us_price)
             region_lines.append(
-                f"🇺🇸 USA: <b>{us_price.discount_price:.2f} {us_price.currency}</b>{disc_label} (<i>~${us_price.converted_usd:.2f}</i>)"
+                f"🇺🇸 USA: <b>{us_price.discount_price:.2f} {us_price.currency}</b>{disc_label} (<i>{conv_str}</i>)"
             )
 
     regional_text = ""

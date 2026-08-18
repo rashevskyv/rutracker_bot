@@ -14,9 +14,10 @@ from services.eshop import (
 
 def test_eshop_currency_conversion():
     cs = CurrencyService()
-    cs._rates = {"USD": 1.0, "EUR": 0.9, "PLN": 4.0}
+    cs._rates = {"USD": 1.0, "EUR": 0.9, "PLN": 4.0, "UAH": 41.50}
     assert cs.convert_to_usd(40.0, "PLN") == 10.0
     assert cs.convert_to_usd(90.0, "EUR") == 100.0
+    assert cs.convert_to_uah(40.0, "PLN") == 415.0  # 10 USD * 41.5
 
 
 def test_eshop_regional_formatting():
@@ -28,6 +29,7 @@ def test_eshop_regional_formatting():
         discount_price=20.0,
         discount_percent=50.0,
         converted_usd=5.0,
+        converted_uah=207.5,
         is_discount=True,
     )
     p2 = RegionalPrice(
@@ -38,6 +40,7 @@ def test_eshop_regional_formatting():
         discount_price=60.0,
         discount_percent=40.0,
         converted_usd=3.0,
+        converted_uah=124.5,
         is_discount=True,
     )
 
@@ -55,3 +58,4 @@ def test_eshop_regional_formatting():
     assert "Poland" in msg_ua
     assert "South Africa" in msg_ua
     assert "Ціни в регіонах eShop" in msg_ua
+    assert "грн" in msg_ua

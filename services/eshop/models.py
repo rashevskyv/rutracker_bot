@@ -16,6 +16,7 @@ class RegionalPrice:
     discount_price: float
     discount_percent: float
     converted_usd: float
+    converted_uah: float = 0.0
     is_discount: bool = False
 
     @property

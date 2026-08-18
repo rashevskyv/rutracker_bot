@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.73] - 2026-08-18
+
+### Added
+- **UAH (Hryvnia) Conversion**:
+  - `services/eshop/currency_service.py`: Added automatic conversion to Ukrainian Hryvnia (`convert_to_uah`) based on live exchange rates from `open.er-api.com`.
+  - `services/eshop/models.py`: Added `converted_uah` attribute to `RegionalPrice`.
+  - `services/eshop/formatters.py`: Updated deal card formatting to display local prices with both UAH (e.g. `~80 грн`) and USD (e.g. `$1.94`) approximations (e.g. `🥇 🇳🇿 New Zealand: 3.29 NZD (-85%) (~80 грн / $1.94)`).
+  - `test_eshop_module.py`: Added tests for UAH conversion and message formatting.
+
 ## [v0.6.72] - 2026-08-17
 
 ### Added

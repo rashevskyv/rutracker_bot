@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 FALLBACK_USD_RATES = {
     "USD": 1.0,
     "EUR": 0.92,
+    "UAH": 41.50,
     "PLN": 3.95,
     "GBP": 0.78,
     "ZAR": 18.20,
@@ -81,3 +82,14 @@ class CurrencyService:
             return round(amount, 2)
 
         return round(amount / rate, 2)
+
+    def convert_to_uah(self, amount: float, from_currency: str) -> float:
+        """Convert an amount from a given currency directly to Ukrainian Hryvnia (UAH)."""
+        if not amount:
+            return 0.0
+        if from_currency.upper() == "UAH":
+            return round(amount, 2)
+
+        usd_val = self.convert_to_usd(amount, from_currency)
+        uah_rate = self._rates.get("UAH", 41.50)
+        return round(usd_val * uah_rate, 2)

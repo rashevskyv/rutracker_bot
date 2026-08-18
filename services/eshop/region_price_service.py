@@ -103,6 +103,7 @@ class RegionPriceService:
                     discount_pct = round(((regular_price - effective_price) / regular_price) * 100, 1)
 
                 converted_usd = self.currency_service.convert_to_usd(effective_price, currency)
+                converted_uah = self.currency_service.convert_to_uah(effective_price, currency)
 
                 return RegionalPrice(
                     country_code=country_code,
@@ -112,6 +113,7 @@ class RegionPriceService:
                     discount_price=effective_price,
                     discount_percent=discount_pct,
                     converted_usd=converted_usd,
+                    converted_uah=converted_uah,
                     is_discount=is_discount,
                 )
         except Exception as e:
