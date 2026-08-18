@@ -163,3 +163,21 @@ class DealFilterEngine:
             top_deals = await self.enrich_batch(top_deals, fetch_regions=True)
 
         return top_deals
+
+    async def get_candidate_deals(
+        self, criteria: QualityCriteria, limit: int = 10
+    ) -> List[GameDeal]:
+        """Fetch and preliminarily rank candidate popular discounted games quickly without full enrichment."""
+        deals = await self.eshop.fetch_popular_discounted_games(
+            min_discount_percent=criteria.min_discount_percent
+        )
+        if not deals:
+            deals = await self.eshop.fetch_discounted_games(
+                rows=30, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
+            )
+        if not deals:
+            return []
+
+        qualified = [d for d in deals if d.discount_percent >= criteria.min_discount_percent]
+        qualified.sort(key=lambda d: (d.discount_percent, d.regular_price), reverse=True)
+        return qualified[:limit]

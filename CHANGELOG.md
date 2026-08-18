@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.85] - 2026-08-18
+
+### Changed
+- **Real-Time Sequential Streaming of Deals**:
+  - `services/eshop/deal_filter.py`: Added `get_candidate_deals()` for fast preliminary ranking of top popular discounted games.
+  - `services/eshop/bot_commands.py`: Replaced batch-waiting with real-time sequential delivery. As soon as a single deal is fetched, translated, badged, and ready (~1.5s), it is sent to the chat immediately, followed by the next games one-by-one.
+
 ## [v0.6.84] - 2026-08-18
 
 ### Changed

@@ -116,29 +116,43 @@ def register_eshop_handlers(
         if args and args[0].isdigit():
             limit = max(1, min(10, int(args[0])))
 
-        loading_msg = await bot.reply_to(message, "🔍 <i>Шукаю та аналізую найкращі знижки в Nintendo eShop...</i>", parse_mode="HTML")
+        loading_msg = await bot.reply_to(
+            message,
+            f"🔍 <i>Шукаю топ-{limit} знижок серед найпопулярніших хітів Nintendo Switch...</i>",
+            parse_mode="HTML",
+        )
         try:
             criteria = get_chat_criteria(message.chat.id, global_criteria)
-            deals = await filter_engine.get_best_deals(
-                criteria=criteria, limit=limit, include_regional_prices=True
-            )
+            candidates = await filter_engine.get_candidate_deals(criteria=criteria, limit=limit)
 
-            if not deals:
+            if not candidates:
                 await bot.edit_message_text(
-                    "😔 Не знайдено знижок, які відповідають поточним критеріям якості.\n"
-                    "Спробуйте знизити поріг: <code>/set_min_discount 20</code> або <code>/set_min_rating 60</code>.",
+                    "😔 Не знайдено знижок на популярні ігри за поточними критеріями.\n"
+                    "Спробуйте знизити поріг: <code>/set_min_discount 20</code>",
                     chat_id=message.chat.id,
                     message_id=loading_msg.message_id,
                     parse_mode="HTML",
                 )
                 return
 
-            await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+            if hasattr(currency_service, "refresh_rates"):
+                await currency_service.refresh_rates()
 
-            for deal in deals:
-                card_text = format_eshop_deal_message(deal, language="UA", currency_service=currency_service)
-                badged_img = await download_and_badge_cover(deal)
-                photo_payload = badged_img.getvalue() if badged_img else (deal.banner_url or deal.image_url)
+            is_first = True
+            for deal in candidates:
+                enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
+                card_text = format_eshop_deal_message(enriched, language="UA", currency_service=currency_service)
+                badged_img = await download_and_badge_cover(enriched)
+                photo_payload = badged_img.getvalue() if badged_img else (enriched.banner_url or enriched.image_url)
+
+                if is_first:
+                    try:
+                        await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+                    except Exception:
+                        pass
+                    is_first = False
+
+                sent = False
                 if photo_payload:
                     try:
                         await bot.send_photo(
@@ -147,16 +161,19 @@ def register_eshop_handlers(
                             caption=card_text,
                             parse_mode="HTML",
                         )
-                        continue
+                        sent = True
                     except Exception as err:
-                        logger.debug(f"Could not send photo: {err}")
+                        logger.debug(f"Could not send photo for '{deal.title}': {err}")
 
-                await bot.send_message(
-                    chat_id=message.chat.id,
-                    text=card_text,
-                    parse_mode="HTML",
-                    disable_web_page_preview=False,
-                )
+                if not sent:
+                    await bot.send_message(
+                        chat_id=message.chat.id,
+                        text=card_text,
+                        parse_mode="HTML",
+                        disable_web_page_preview=False,
+                    )
+                await asyncio.sleep(0.3)
+
         except Exception as e:
             logger.error(f"Error handling /deals: {e}")
             await bot.send_message(message.chat.id, "❌ Помилка при отриманні знижок.")
@@ -169,28 +186,42 @@ def register_eshop_handlers(
             return
 
         query = parts[1].strip()
-        loading = await bot.reply_to(message, f"🔍 <i>Шукаю '{query}' в Nintendo eShop...</i>", parse_mode="HTML")
+        loading_msg = await bot.reply_to(message, f"🔍 <i>Шукаю '{query}' в Nintendo eShop...</i>", parse_mode="HTML")
 
         try:
             results = await eshop_service.search_games(query=query, rows=3)
             if not results:
-                await bot.edit_message_text(f"❌ Нічого не знайдено за запитом '{query}'.", chat_id=message.chat.id, message_id=loading.message_id)
+                await bot.edit_message_text(f"❌ Нічого не знайдено за запитом '{query}'.", chat_id=message.chat.id, message_id=loading_msg.message_id)
                 return
 
-            results = await filter_engine.enrich_batch(results, fetch_regions=True)
-            await bot.delete_message(chat_id=message.chat.id, message_id=loading.message_id)
+            if hasattr(currency_service, "refresh_rates"):
+                await currency_service.refresh_rates()
 
+            is_first = True
             for deal in results:
-                card_text = format_eshop_deal_message(deal, language="UA", currency_service=currency_service)
-                badged_img = await download_and_badge_cover(deal)
-                photo_payload = badged_img.getvalue() if badged_img else (deal.banner_url or deal.image_url)
+                enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
+                card_text = format_eshop_deal_message(enriched, language="UA", currency_service=currency_service)
+                badged_img = await download_and_badge_cover(enriched)
+                photo_payload = badged_img.getvalue() if badged_img else (enriched.banner_url or enriched.image_url)
+
+                if is_first:
+                    try:
+                        await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+                    except Exception:
+                        pass
+                    is_first = False
+
+                sent = False
                 if photo_payload:
                     try:
                         await bot.send_photo(chat_id=message.chat.id, photo=photo_payload, caption=card_text, parse_mode="HTML")
-                        continue
-                    except Exception:
-                        pass
-                await bot.send_message(chat_id=message.chat.id, text=card_text, parse_mode="HTML")
+                        sent = True
+                    except Exception as err:
+                        logger.debug(f"Could not send photo for '{deal.title}': {err}")
+
+                if not sent:
+                    await bot.send_message(chat_id=message.chat.id, text=card_text, parse_mode="HTML")
+                await asyncio.sleep(0.3)
         except Exception as e:
             logger.error(f"Search error: {e}")
             await bot.send_message(message.chat.id, "❌ Помилка під час пошуку.")
