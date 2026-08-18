@@ -178,10 +178,24 @@ async def send_eshop_deals(force: bool = False):
             logger.info("TEST MODE: Sending to TEST_GROUPS only")
             target_groups = TEST_GROUPS or []
         else:
-            if DIGEST_CHANNEL and DIGEST_CHANNEL.get("enabled", True):
-                target_groups.append(DIGEST_CHANNEL)
-            if GROUPS:
-                target_groups.extend(GROUPS)
+            if eshop_cfg.get("chat_id"):
+                target_groups.append({
+                    "group_name": "eShop_Deals_Destination",
+                    "chat_id": eshop_cfg.get("chat_id"),
+                    "topic_id": eshop_cfg.get("topic_id", "561344"),
+                    "language": eshop_cfg.get("language", "UA"),
+                })
+            else:
+                if DIGEST_CHANNEL and DIGEST_CHANNEL.get("enabled", True):
+                    target_groups.append(DIGEST_CHANNEL)
+                if GROUPS:
+                    target_groups.extend(GROUPS)
+
+                # If topic_id is configured for deals (e.g. 561344), route Ukrainian groups to that topic
+                deals_topic = str(eshop_cfg.get("topic_id", "561344"))
+                for g in target_groups:
+                    if g.get("language", "UA") == "UA" or not g.get("topic_id"):
+                        g["topic_id"] = deals_topic
 
             # Also load dynamic subscriptions from /subscribe_deals command
             subs_file = os.path.join("data", "eshop_subscriptions.json")

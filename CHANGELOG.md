@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.89] - 2026-08-18
+
+### Changed
+- **Dedicated eShop Deals Topic Routing (Topic 561344)**:
+  - `config/settings.json`: Configured `topic_id: "561344"` in `ESHOP_DEALS` settings.
+  - `send_eshop_deals.py`: Automated cron broadcasts for Nintendo eShop deals now strictly target forum thread/topic ID `561344`.
+
 ## [v0.6.88] - 2026-08-18
 
 ### Changed
