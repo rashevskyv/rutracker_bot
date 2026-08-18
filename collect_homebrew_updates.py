@@ -37,7 +37,7 @@ WIIU_FTU_CATEGORIES = {'WiiU', 'WiiU/Switch'}
 # Shared descriptions cache (translated, never re-translated)
 DESCRIPTIONS_CACHE_PATH = os.path.join('data', 'hb_descriptions.json')
 
-GPT_MODEL = 'gpt-5.4-nano'
+GPT_MODEL = 'openai/gpt-5.6-luna'
 
 # VitaDBtoo / VitaForge (PS Vita & PSP)
 VITADB_STATE_PATH = os.path.join('data', 'vitadb_state.json')
@@ -304,11 +304,11 @@ class HomebrewUpdatesCollector:
         return None
 
     async def summarize_and_translate_notes(self, notes: str) -> Optional[str]:
-        """Summarize update notes to exactly 1 Ukrainian sentence using GPT."""
-        from core.settings_loader import openai_client
-        if not openai_client or not notes or not notes.strip():
+        """Summarize update notes to exactly 1 Ukrainian sentence using OpenRouter/GPT."""
+        if not notes or not notes.strip():
             return None
         try:
+            from services import gpt
             prompt = (
                 f"Summarize the following software update notes into exactly ONE concise sentence in Ukrainian.\n\n"
                 f"Rules:\n"
@@ -320,17 +320,12 @@ class HomebrewUpdatesCollector:
                 f"Update notes:\n{notes.strip()}\n\n"
                 f"One-sentence Ukrainian summary:"
             )
-            use_new_param = GPT_MODEL.startswith(('gpt-5', 'o1', 'o3', 'o4'))
-            extra = {'max_completion_tokens': 100} if use_new_param else {'max_tokens': 100}
-            response = await openai_client.chat.completions.create(
-                model=GPT_MODEL,
-                messages=[{'role': 'user', 'content': prompt}],
-                temperature=0.3,
-                **extra,
-            )
-            result = response.choices[0].message.content.strip()
-            logger.info(f"Summarized update notes: {result[:80]}")
-            return result
+            result = await gpt.complete(prompt, max_tokens=100, model=GPT_MODEL, temperature=0.3, label="Homebrew Notes")
+            if result:
+                result = result.strip()
+                logger.info(f"Summarized update notes: {result[:80]}")
+                return result
+            return None
         except Exception as e:
             logger.error(f"Error summarizing update notes: {e}")
             return None

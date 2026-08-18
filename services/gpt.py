@@ -6,8 +6,9 @@ from core.settings_loader import openai_client
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gpt-5.4-nano"
-FALLBACK_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "openai/gpt-5.6-luna"
+FALLBACK_MODEL = "deepseek/deepseek-v4-flash-0731"
+SECONDARY_FALLBACK = "google/gemini-3.5-flash-lite"
 
 
 async def complete(
@@ -19,14 +20,18 @@ async def complete(
 ) -> Optional[str]:
     """Ask `model`, retry once on FALLBACK_MODEL, return raw content or None if both fail."""
     if not openai_client:
-        logger.error(f"{label}: OpenAI client not available.")
+        logger.error(f"{label}: OpenAI / OpenRouter client not available.")
         return None
 
-    for attempt in (model, FALLBACK_MODEL):
+    attempts = [model]
+    if FALLBACK_MODEL not in attempts:
+        attempts.append(FALLBACK_MODEL)
+    if SECONDARY_FALLBACK not in attempts:
+        attempts.append(SECONDARY_FALLBACK)
+
+    for attempt in attempts:
         try:
-            # New-generation models require max_completion_tokens instead of max_tokens
-            limit = 'max_completion_tokens' if attempt.startswith(('gpt-5', 'o1', 'o3', 'o4')) else 'max_tokens'
-            extra = {limit: max_tokens}
+            extra = {"max_tokens": max_tokens}
             if temperature is not None:
                 extra['temperature'] = temperature
 
@@ -40,6 +45,6 @@ async def complete(
             return response.choices[0].message.content
 
         except Exception as e:
-            logger.error(f"{label}: error with {attempt}: {e}")
+            logger.warning(f"{label}: error with model {attempt}: {e}")
 
     return None

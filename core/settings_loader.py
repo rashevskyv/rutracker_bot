@@ -103,8 +103,9 @@ setup_logging(log_level=log_level, log_file="log/bot.log")
 logging.info(f"Final Mode - IS_TEST_MODE: {IS_TEST_MODE}")
 
 TOKEN = get_env_or_setting(settings, 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN')
-OPENAI_BASE_URL = settings.get('OPENAI_BASE_URL')  # Optional: for localhost/custom OpenAI-compatible APIs
-OPENAI_API_KEY = get_env_or_setting(settings, 'OPENAI_API', 'OPENAI_API_KEY') if not OPENAI_BASE_URL else None
+OPENROUTER_API_KEY = settings.get('OPENROUTER_API_KEY') or os.environ.get('OPENROUTER_API_KEY')
+OPENAI_BASE_URL = settings.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_BASE_URL')
+OPENAI_API_KEY = OPENROUTER_API_KEY or get_env_or_setting(settings, 'OPENAI_API', 'OPENAI_API_KEY') if not OPENAI_BASE_URL else None
 FEED_URL = settings.get('FEED_URL', 'https://feed.rutracker.cc/atom/f/1605.atom')
 YOUTUBE_API_KEY = get_env_or_setting(settings, 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEY')
 FLARESOLVERR_URL = settings.get('FLARESOLVERR_URL', 'http://localhost:8191/v1')
@@ -118,7 +119,7 @@ TEST_LAST_ENTRY_LINK = settings.get('test_last_entry_link') if IS_TEST_MODE else
 
 # --- Validate Critical Settings ---
 if not TOKEN: logging.critical("TELEGRAM_BOT_TOKEN is not configured."); sys.exit("Error: TELEGRAM_BOT_TOKEN is not configured.")
-if not OPENAI_API_KEY and not OPENAI_BASE_URL: logging.warning("OPENAI_API_KEY and OPENAI_BASE_URL not configured. GPT translation disabled.")
+if not OPENAI_API_KEY and not OPENAI_BASE_URL: logging.warning("OPENROUTER_API_KEY / OPENAI_API_KEY and OPENAI_BASE_URL not configured. GPT translation disabled.")
 
 # --- Initialize API Clients ---
 try:
@@ -129,16 +130,35 @@ except Exception as e: logging.error(f"Error initializing Telegram Bot: {e}"); s
 openai_client: Optional[AsyncOpenAI] = None
 if OPENAI_API_KEY or OPENAI_BASE_URL:
     try:
-        # Initialize with base_url if provided (for localhost/custom OpenAI-compatible APIs)
-        if OPENAI_BASE_URL:
-            # For localhost, use empty string as API key (SDK will skip Authorization header)
-            openai_client = AsyncOpenAI(api_key="", base_url=OPENAI_BASE_URL, default_headers={}, timeout=120.0)
+        # Determine if using OpenRouter
+        is_openrouter = (
+            bool(OPENROUTER_API_KEY)
+            or (isinstance(OPENAI_API_KEY, str) and OPENAI_API_KEY.startswith("sk-or-"))
+            or (isinstance(OPENAI_BASE_URL, str) and "openrouter.ai" in OPENAI_BASE_URL)
+        )
+
+        if is_openrouter:
+            base_url = OPENAI_BASE_URL or "https://openrouter.ai/api/v1"
+            key = OPENROUTER_API_KEY or OPENAI_API_KEY or ""
+            openai_client = AsyncOpenAI(
+                api_key=key.strip(),
+                base_url=base_url,
+                default_headers={
+                    "HTTP-Referer": "https://github.com/rashevskyv/rutracker_bot",
+                    "X-Title": "RuTracker Bot",
+                },
+                timeout=120.0,
+            )
+            logging.info(f"OpenRouter client initialized with base_url: {base_url}")
+        elif OPENAI_BASE_URL:
+            # For custom OpenAI-compatible APIs
+            openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY or "", base_url=OPENAI_BASE_URL, default_headers={}, timeout=120.0)
             logging.info(f"OpenAI Async client initialized with custom base_url: {OPENAI_BASE_URL}")
         else:
             openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=120.0)
             logging.info("OpenAI Async client initialized.")
-    except Exception as e: logging.warning(f"Error initializing OpenAI client: {e}. GPT functions disabled.")
-else: logging.info("OpenAI client not initialized (no API key or base_url).")
+    except Exception as e: logging.warning(f"Error initializing OpenAI/OpenRouter client: {e}. GPT functions disabled.")
+else: logging.info("OpenAI/OpenRouter client not initialized (no API key or base_url).")
 
 # --- Shared aiohttp Session ---
 app_session: Optional[aiohttp.ClientSession] = None

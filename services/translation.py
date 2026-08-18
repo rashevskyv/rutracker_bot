@@ -22,13 +22,13 @@ async def translate_ru_to_ua(text: str) -> str:
         logger.warning("OpenAI client not available for translation. Returning original text.")
         return text # Fallback if GPT client failed initialization
 
-async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
+async def translate_ru_to_ua_gpt(text: str, model: str = gpt.DEFAULT_MODEL) -> str:
     """
-    Translates text from Russian to Ukrainian using GPT, requesting logical formatting
+    Translates text from Russian to Ukrainian using OpenRouter/GPT, requesting logical formatting
     and allowing light emphasis for readability.
 
     :param text: Text to translate.
-    :param model: GPT model to use. Defaults to "gpt-5.4-nano".
+    :param model: Model to use. Defaults to gpt.DEFAULT_MODEL (openai/gpt-5.6-luna).
     :return: Translated text or original text on error.
     """
     logger.info(f"Translating text RU -> UA using GPT model: {model}...")
@@ -119,14 +119,14 @@ async def translate_ru_to_ua_gpt(text: str, model: str = "gpt-5.4-nano") -> str:
     logger.debug(f"GPT Response (final bytes {len(final_text)}): {final_text[:300]}...")
     return final_text
 
-async def translate_short_description(text: str, model: str = "gpt-5.4-nano") -> str:
+async def translate_short_description(text: str, model: str = gpt.DEFAULT_MODEL) -> str:
     """
     Summarizes and translates a homebrew app description into 1 concise Ukrainian sentence.
     Focuses on what the app IS and DOES, not implementation details.
-    Falls back to gpt-4o-mini if the primary model fails.
+    Falls back to deepseek/deepseek-v4-flash-0731 if the primary model fails.
 
     :param text: App description text (any language).
-    :param model: GPT model to use (primary).
+    :param model: Model to use (primary).
     :return: 1-sentence Ukrainian description, or original text on error.
     """
     prompt = (

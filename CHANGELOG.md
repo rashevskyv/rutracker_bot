@@ -2,6 +2,17 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.75] - 2026-08-18
+
+### Added
+- **OpenRouter & Multi-LLM Routing**:
+  - `core/settings_loader.py`: Added first-class support for `OPENROUTER_API_KEY` and OpenRouter endpoint (`https://openrouter.ai/api/v1`) with custom headers.
+  - `services/gpt.py`: Configured primary translation and AI engine to use **`openai/gpt-5.6-luna`** ($0.10/M) with automatic fallback to **`deepseek/deepseek-v4-flash-0731`** ($0.14/M) and `google/gemini-3.5-flash-lite`.
+  - `services/translation.py`: Routed tracker post translation and short description summarization through OpenRouter.
+  - `services/ai_validator.py`: Routed YouTube trailer relevance checking and description compression through OpenRouter.
+  - `collect_homebrew_updates.py` & `collect_custom_releases.py`: Integrated with OpenRouter client and Luna/DeepSeek model hierarchy.
+  - `.github/workflows/bot_runner.yml`: Added `OPENROUTER_API_KEY` secret support.
+
 ## [v0.6.74] - 2026-08-18
 
 ### Added

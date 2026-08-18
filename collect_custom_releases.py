@@ -200,14 +200,27 @@ Respond ONLY with a raw JSON object containing these keys:
         except Exception as e:
             print(f"Info: Local Gemini Web2API call failed ({e}). Trying OpenAI API fallback.")
 
-    # 2. Attempt OpenAI API fallback (if OPENAI_API_KEY is available)
+    # 2. Attempt OpenRouter / OpenAI API (if OPENROUTER_API_KEY or OPENAI_API_KEY is available)
     try:
         from core.settings_loader import settings
-        api_key = settings.get("OPENAI_API_KEY") or settings.get("OPENAI_API") or os.environ.get("OPENAI_API_KEY")
+        api_key = (
+            settings.get("OPENROUTER_API_KEY")
+            or os.environ.get("OPENROUTER_API_KEY")
+            or settings.get("OPENAI_API_KEY")
+            or settings.get("OPENAI_API")
+            or os.environ.get("OPENAI_API_KEY")
+        )
         if api_key:
-            client = OpenAI(api_key=api_key, max_retries=0, timeout=10.0)
+            is_openrouter = api_key.startswith("sk-or-") or bool(settings.get("OPENROUTER_API_KEY")) or bool(os.environ.get("OPENROUTER_API_KEY"))
+            base_url = "https://openrouter.ai/api/v1" if is_openrouter else None
+            headers = {"HTTP-Referer": "https://github.com/rashevskyv/rutracker_bot", "X-Title": "RuTracker Bot"} if is_openrouter else None
+            
+            client = OpenAI(api_key=api_key.strip(), base_url=base_url, default_headers=headers, max_retries=0, timeout=15.0)
+            default_model = "openai/gpt-5.6-luna" if is_openrouter else "gpt-4o-mini"
+            model_name = settings.get("OPENROUTER_MODEL") or settings.get("OPENAI_MODEL") or default_model
+            
             response = client.chat.completions.create(
-                model=settings.get("OPENAI_MODEL", "gpt-4o-mini"),
+                model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1
             )
@@ -220,7 +233,7 @@ Respond ONLY with a raw JSON object containing these keys:
                     content = match.group(1)
                 return json.loads(content)
     except Exception as e:
-        print(f"Warning: OpenAI API fallback failed for {repo_name}: {e}. Using code fallback format.")
+        print(f"Warning: OpenRouter/OpenAI API call failed for {repo_name}: {e}. Using code fallback format.")
 
     # 3. Code-based heuristic fallback
     combined_text = f"{repo_name} {repo_desc or ''} {' '.join(topics)}".lower()

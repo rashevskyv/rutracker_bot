@@ -22,7 +22,7 @@ def _word_overlap_ratio(searched: str, found: str) -> float:
     return matched / len(words)
 
 
-async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = "gpt-5.4-nano") -> bool:
+async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, model: str = gpt.DEFAULT_MODEL) -> bool:
     """
     3-layer validation for YouTube trailer relevance:
       Layer 1 — Exact contains: searched title is a substring of found title.
@@ -86,7 +86,7 @@ async def validate_yt_title_with_gpt(searched_title: str, found_yt_title: str, m
     logger.info(f"YT Layer 3: {'RELEVANT' if is_relevant else 'NOT RELEVANT'} — {reason}")
     return is_relevant
 
-async def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = "gpt-5.4-nano") -> str:
+async def summarize_description_with_ai(description: str, target_length: int = 6000, model: str = gpt.DEFAULT_MODEL) -> str:
     """
     Summarizes a long description using an AI model to fit within a target length.
 
