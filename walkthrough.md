@@ -1,19 +1,29 @@
-# Звіт про виконану роботу: Форматування жанрів англійськими хештегами (v0.6.82)
+# Звіт про виконану роботу: Накладання бейджів платформ на обкладинки (v0.6.83)
 
 ## Огляд задачі
-Користувач поставив задачу:
-- Не перекладати назви жанрів.
-- Виводити жанри у вигляді клікабельних хештегів (наприклад: `🏷 #Lifestyle #Other #Puzzle`).
+Користувач попросив накладати на обкладинку гри значок відповідної платформи:
+- Nintendo Switch (1)
+- Nintendo Switch 2 (Ексклюзив)
+- Обидві платформи (Nintendo Switch 1 & 2)
 
 ---
 
 ## Виконані кроки
 
-1. **Генератор хештегів жанрів (`_format_genre_hashtag`)**:
-   - У `services/eshop/formatters.py` додано функцію `_format_genre_hashtag()`, яка трансформує англійські назви категорій у хештеги PascalCase (наприклад, `Action-Adventure` $\rightarrow$ `#ActionAdventure`, `Role-Playing` $\rightarrow$ `#RPG`, `Puzzle` $\rightarrow$ `#Puzzle`).
-   - Рядок жанрів у картці тепер виглядає так:
-     `🏷 #Lifestyle #Other #Puzzle`
+1. **Сервіс генерації бейджів (`services/eshop/banner_service.py`)**:
+   - Реалізовано функцію `overlay_platform_badge(image_bytes, deal)` на базі Pillow.
+   - Бейдж малюється у верхньому кутку обкладинки:
+     - Округлена плашка зі стильною тінню та рамкою.
+     - Векторні міні-іконки Joy-Con.
+     - Для **Switch 1**: червоний фірмовий бейдж Nintendo (`Nintendo Switch`).
+     - Для **Switch 2 (Exclusive)**: темно-малиновий бейдж із золотою рамкою (`Nintendo Switch 2 • EXCLUSIVE`).
+     - Для **Switch 1 & 2**: бейдж `Nintendo Switch 1 & 2`.
 
-2. **Тестування**:
-   - Оновлено тести у `test_eshop_module.py` та `tests/test_formatters.py`.
-   - Усі 10 тестів проходять паралельно (`pytest -v -n auto`).
+2. **Інтеграція в розсилку та команди**:
+   - `send_eshop_deals.py`: автоматично відправляє обкладинку з накладеним бейджем.
+   - `bot_commands.py`: команди `/deals` та `/search` генерують та відправляють фото з бейджем платформи.
+
+3. **Залежності та тести**:
+   - Додано `Pillow>=10.0` до `requirements.txt`.
+   - Додано юніт-тест `test_overlay_platform_badge` у `test_eshop_module.py`.
+   - Усі 11 тестів проходять успішно (`pytest -v -n auto`).

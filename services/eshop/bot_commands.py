@@ -11,6 +11,7 @@ from services.eshop.currency_service import CurrencyService
 from services.eshop.deal_filter import DealFilterEngine
 from services.eshop.eshop_service import EShopService
 from services.eshop.formatters import format_eshop_deal_message
+from services.eshop.banner_service import download_and_badge_cover
 from services.eshop.models import QualityCriteria
 from services.eshop.rating_service import RatingService
 from services.eshop.region_price_service import RegionPriceService
@@ -136,12 +137,13 @@ def register_eshop_handlers(
 
             for deal in deals:
                 card_text = format_eshop_deal_message(deal, language="UA", currency_service=currency_service)
-                img = deal.banner_url or deal.image_url
-                if img:
+                badged_img = await download_and_badge_cover(deal)
+                photo_payload = badged_img.getvalue() if badged_img else (deal.banner_url or deal.image_url)
+                if photo_payload:
                     try:
                         await bot.send_photo(
                             chat_id=message.chat.id,
-                            photo=img,
+                            photo=photo_payload,
                             caption=card_text,
                             parse_mode="HTML",
                         )
@@ -180,10 +182,11 @@ def register_eshop_handlers(
 
             for deal in results:
                 card_text = format_eshop_deal_message(deal, language="UA", currency_service=currency_service)
-                img = deal.banner_url or deal.image_url
-                if img:
+                badged_img = await download_and_badge_cover(deal)
+                photo_payload = badged_img.getvalue() if badged_img else (deal.banner_url or deal.image_url)
+                if photo_payload:
                     try:
-                        await bot.send_photo(chat_id=message.chat.id, photo=img, caption=card_text, parse_mode="HTML")
+                        await bot.send_photo(chat_id=message.chat.id, photo=photo_payload, caption=card_text, parse_mode="HTML")
                         continue
                     except Exception:
                         pass

@@ -5,3 +5,4 @@ openai>=2.26,<3
 google-api-python-client>=2.100,<3
 aiohttp>=3.13,<4
 curl_cffi>=0.7,<1
+Pillow>=10.0

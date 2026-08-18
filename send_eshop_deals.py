@@ -31,6 +31,7 @@ from services.eshop import (
     RatingService,
     RegionPriceService,
     format_eshop_deal_message,
+    download_and_badge_cover,
 )
 from services.telegram_sender import send_message_to_admin
 
@@ -222,14 +223,15 @@ async def send_eshop_deals(force: bool = False):
 
             for deal in new_deals:
                 msg_text = format_eshop_deal_message(deal, language=lang, currency_service=currency_service)
-                img = deal.banner_url or deal.image_url
+                badged_img = await download_and_badge_cover(deal)
+                photo_payload = badged_img.getvalue() if badged_img else (deal.banner_url or deal.image_url)
 
                 try:
-                    if img:
+                    if photo_payload:
                         await bot.send_photo(
                             chat_id=chat_id_int,
                             message_thread_id=topic_id_int,
-                            photo=img,
+                            photo=photo_payload,
                             caption=msg_text,
                             parse_mode="HTML",
                         )

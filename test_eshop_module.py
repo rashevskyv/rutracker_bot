@@ -86,3 +86,38 @@ def test_eshop_regional_formatting():
     assert "Туреччина" in msg_ua
     assert "Ціни в регіонах eShop" in msg_ua
     assert "грн" in msg_ua
+
+
+def test_overlay_platform_badge():
+    from PIL import Image
+    import io
+    from services.eshop.banner_service import overlay_platform_badge
+
+    img = Image.new("RGB", (600, 400), color=(50, 50, 50))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    raw_bytes = buf.getvalue()
+
+    deal1 = GameDeal(
+        fs_id="1",
+        title="Switch 1 Game",
+        regular_price=50.0,
+        discount_price=25.0,
+        discount_percent=50.0,
+        system_names=["Nintendo Switch"],
+    )
+    out1 = overlay_platform_badge(raw_bytes, deal1)
+    assert out1 is not None
+    assert len(out1.getvalue()) > 0
+
+    deal2 = GameDeal(
+        fs_id="2",
+        title="Switch 2 Game",
+        regular_price=60.0,
+        discount_price=30.0,
+        discount_percent=50.0,
+        system_names=["Nintendo Switch 2"],
+    )
+    out2 = overlay_platform_badge(raw_bytes, deal2)
+    assert out2 is not None
+    assert len(out2.getvalue()) > 0

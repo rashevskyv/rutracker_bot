@@ -2,6 +2,17 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.83] - 2026-08-18
+
+### Added
+- **Automated Platform Badges on Game Covers**:
+  - `services/eshop/banner_service.py`: Automated dynamic overlay of platform badges on game cover images using Pillow. Renders sleek pill badges with dual Joy-Con icons and responsive typography:
+    - **Nintendo Switch (1)**: Classic Nintendo Red badge (`Nintendo Switch`).
+    - **Nintendo Switch 2 Exclusive**: Crimson & Gold border badge (`Nintendo Switch 2 • EXCLUSIVE`).
+    - **Nintendo Switch 1 & 2**: Red & White dual badge (`Nintendo Switch 1 & 2`).
+  - `send_eshop_deals.py` & `services/eshop/bot_commands.py`: Integrated badged image generation into automatic broadcasts and interactive `/deals` & `/search` commands.
+  - `requirements.txt`: Added `Pillow>=10.0`.
+
 ## [v0.6.82] - 2026-08-18
 
 ### Changed
