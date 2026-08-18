@@ -716,6 +716,14 @@ def register_eshop_handlers(
         showcase_data = load_active_showcase()
         items = showcase_data.get(showcase_key, [])
 
+        if not items:
+            await safe_reply(
+                bot,
+                message,
+                "ℹ️ <b>У топіку наразі 0 активних повідомлень вітрини.</b>\nУсе вже чисто, немає жодного повідомлення для видалення.",
+            )
+            return
+
         deleted_msg_ids = set()
         deleted_count = 0
 

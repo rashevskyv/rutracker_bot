@@ -564,6 +564,11 @@ async def remove_showcase_deals(remove_arg: str):
     showcase_data = load_active_showcase()
     items = showcase_data.get(showcase_key, [])
 
+    if not items:
+        logger.info(f"ℹ️ У топіку {target_topic} (чат {target_chat}) наразі 0 повідомлень вітрини. Немає повідомлень для видалення.")
+        print(f"ℹ️ Showcase topic {target_topic} is empty (0 active messages). Everything is clean, nothing to delete.")
+        return
+
     remove_all = clean_arg == "all"
     try:
         remove_count = 999999 if remove_all else max(1, int(clean_arg))

@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.09] - 2026-08-18
+
+### Improved
+- **Zero-Message Feedback in Showcase Clean-up (`remove`, `/remove`)**:
+  - `send_eshop_deals.py` & `services/eshop/bot_commands.py`:
+    - When the eShop showcase topic is empty (0 active messages), calling `remove` or `/remove` instantly confirms that the topic is already completely clean and exits gracefully without making redundant requests or modifying files.
+
 ## [v0.7.08] - 2026-08-18
 
 ### Security
