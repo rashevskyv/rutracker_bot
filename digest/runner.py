@@ -86,6 +86,22 @@ def collect_target_groups(config: Dict) -> List[Dict]:
             'language': digest_config.get('language', 'RU'),
         })
 
+    # Include granular user subscriptions for daily digests
+    try:
+        from services.subscription_service import SubscriptionService
+        sub_service = SubscriptionService()
+        existing_ids = {str(g.get("chat_id")) for g in target_groups if g.get("chat_id")}
+        for sub in sub_service.get_subscribers_for("digests"):
+            if str(sub.get("chat_id")) not in existing_ids:
+                target_groups.append({
+                    "name": sub.get("title", f"User_{sub['chat_id']}"),
+                    "chat_id": sub.get("chat_id"),
+                    "topic_id": sub.get("topic_id"),
+                    "language": sub.get("language", "UA"),
+                })
+    except Exception as sub_err:
+        logger.debug(f"Could not load digest subscribers: {sub_err}")
+
     return target_groups
 
 

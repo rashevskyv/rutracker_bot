@@ -2,6 +2,20 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.91] - 2026-08-18
+
+### Added
+- **Granular User & DM Notification Subscriptions**:
+  - `services/subscription_service.py`: Implemented `SubscriptionService` for user-level toggleable subscriptions (`deals`, `rutracker`, `digests`) stored in `data/user_subscriptions.json` (synced with Gist).
+  - All automated broadcasts are **disabled by default in DMs/private chats** — bot only replies when explicitly requested with commands unless subscriptions are enabled.
+  - `services/eshop/bot_commands.py`: Added interactive commands:
+    - `/subscriptions`, `/settings`, `/notify` — View current notification status.
+    - `/sub <deals | rutracker | digests | all>` — Opt-in to specific automated broadcast categories.
+    - `/unsub <deals | rutracker | digests | all>` — Opt-out of automated broadcast categories.
+  - `services/telegram_sender.py`: `send_to_telegram()` now automatically broadcasts new RuTracker releases to users subscribed to `rutracker`.
+  - `digest/runner.py`: `collect_target_groups()` now automatically delivers daily digests to users subscribed to `digests`.
+  - `send_eshop_deals.py`: Automated deals broadcasts now deliver to users subscribed to `deals`.
+
 ## [v0.6.90] - 2026-08-18
 
 ### Added

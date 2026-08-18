@@ -197,13 +197,28 @@ async def send_eshop_deals(force: bool = False):
                     if g.get("language", "UA") == "UA" or not g.get("topic_id"):
                         g["topic_id"] = deals_topic
 
-            # Also load dynamic subscriptions from /subscribe_deals command
+            # Also load dynamic subscriptions from SubscriptionService and legacy eshop_subscriptions
+            existing_chat_ids = {str(g.get("chat_id")) for g in target_groups if g.get("chat_id")}
+            try:
+                from services.subscription_service import SubscriptionService
+                sub_service = SubscriptionService()
+                for sub in sub_service.get_subscribers_for("deals"):
+                    if str(sub.get("chat_id")) not in existing_chat_ids:
+                        target_groups.append({
+                            "group_name": sub.get("title", f"Chat_{sub['chat_id']}"),
+                            "chat_id": sub.get("chat_id"),
+                            "topic_id": sub.get("topic_id"),
+                            "language": sub.get("language", "UA"),
+                        })
+                        existing_chat_ids.add(str(sub.get("chat_id")))
+            except Exception as sub_err:
+                logger.warning(f"Could not load user subscriptions: {sub_err}")
+
             subs_file = os.path.join("data", "eshop_subscriptions.json")
             if os.path.exists(subs_file):
                 try:
                     with open(subs_file, "r", encoding="utf-8") as f:
                         dyn_subs = json.load(f)
-                        existing_chat_ids = {str(g.get("chat_id")) for g in target_groups if g.get("chat_id")}
                         for s_id, s_info in dyn_subs.items():
                             if str(s_info.get("chat_id")) not in existing_chat_ids and s_info.get("enabled", True):
                                 target_groups.append({

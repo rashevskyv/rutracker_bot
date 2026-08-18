@@ -27,6 +27,7 @@ FILES_TO_SYNC = [
     "eshop_descriptions.json",
     "eshop_subscriptions.json",
     "eshop_wishlist.json",
+    "user_subscriptions.json",
     "hb_descriptions.json",
     "translations_cache.json"
 ]

@@ -68,6 +68,10 @@ Checks various platforms for homebrew updates:
 - **Personal & Chat Wishlists (`/wishlist`)**:
   - Track individual games and check real-time discounts.
   - Automated cron discount alerts sent directly to users/topics when wishlisted games go on sale.
+- **Granular User & DM Subscriptions (`/subscriptions`)**:
+  - All automated messages in DMs are **disabled by default**.
+  - Users can selectively subscribe in DMs or chats to eShop deals (`/sub deals`), RuTracker new releases reposts (`/sub rutracker`), and daily digests (`/sub digests`).
+  - Interactive commands (`/deals`, `/search`, `/wishlist`) always remain available on demand.
 
 ### Interactive Bot Commands
 
@@ -79,8 +83,9 @@ Checks various platforms for homebrew updates:
 | `/wishlist add <title>` | Add a game to your wishlist to receive automated sale alerts. |
 | `/wishlist remove <title>` | Remove a game from your wishlist. |
 | `/wishlist clear` | Clear your entire wishlist. |
-| `/subscribe_deals` | Subscribe the current chat or forum topic to automated deals broadcasts. |
-| `/unsubscribe_deals` | Unsubscribe from automated deals broadcasts. |
+| `/subscriptions` | View active notification subscriptions (deals, rutracker, digests). |
+| `/sub <category>` | Subscribe to automated broadcasts (`deals`, `rutracker`, `digests`, `all`). |
+| `/unsub <category>` | Unsubscribe from automated broadcasts (`deals`, `rutracker`, `digests`, `all`). |
 | `/deals_settings` | View active quality filters for the chat. |
 | `/set_min_discount <%>` | Adjust minimum discount percentage (e.g. `/set_min_discount 40`). |
 | `/set_min_rating <score>` | Adjust minimum Metacritic score (e.g. `/set_min_rating 75`). |

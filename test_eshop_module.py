@@ -151,3 +151,36 @@ def test_wishlist_service(tmp_path):
     removed = wl.remove_game(chat_id=12345, title="Hollow", topic_id=561344)
     assert removed is True
     assert len(wl.get_wishlist(chat_id=12345, topic_id=561344)) == 0
+
+
+def test_subscription_service(tmp_path):
+    from services.subscription_service import SubscriptionService
+    test_file = str(tmp_path / "test_user_subscriptions.json")
+    srv = SubscriptionService(filepath=test_file)
+
+    # 1. Default should be all False
+    subs = srv.get_subscriptions(chat_id=99999)
+    assert subs == {"deals": False, "rutracker": False, "digests": False}
+
+    # 2. Enable rutracker
+    updated = srv.set_subscription(chat_id=99999, sub_type="rutracker", enabled=True)
+    assert updated["rutracker"] is True
+    assert updated["deals"] is False
+    assert updated["digests"] is False
+
+    # 3. Check subscribers list
+    rutracker_subs = srv.get_subscribers_for("rutracker")
+    assert len(rutracker_subs) == 1
+    assert rutracker_subs[0]["chat_id"] == 99999
+
+    digest_subs = srv.get_subscribers_for("digests")
+    assert len(digest_subs) == 0
+
+    # 4. Enable all
+    srv.set_subscription(chat_id=99999, sub_type="all", enabled=True)
+    all_subs = srv.get_subscriptions(chat_id=99999)
+    assert all_subs == {"deals": True, "rutracker": True, "digests": True}
+
+    # 5. Disable deals
+    srv.set_subscription(chat_id=99999, sub_type="deals", enabled=False)
+    assert srv.get_subscriptions(chat_id=99999)["deals"] is False

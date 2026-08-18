@@ -268,7 +268,23 @@ async def send_to_telegram(title_for_caption: str,
         logger.error("ERROR in send_to_telegram: Bot is not initialized.")
         return
 
-    target_groups = TEST_GROUPS if IS_TEST_MODE else GROUPS
+    target_groups = list(TEST_GROUPS) if IS_TEST_MODE else list(GROUPS)
+    if not IS_TEST_MODE:
+        try:
+            from services.subscription_service import SubscriptionService
+            sub_service = SubscriptionService()
+            existing_ids = {str(g.get("chat_id")) for g in target_groups if g.get("chat_id")}
+            for sub in sub_service.get_subscribers_for("rutracker"):
+                if str(sub.get("chat_id")) not in existing_ids:
+                    target_groups.append({
+                        "group_name": sub.get("title", f"User_{sub['chat_id']}"),
+                        "chat_id": sub.get("chat_id"),
+                        "topic_id": sub.get("topic_id"),
+                        "language": sub.get("language", "UA"),
+                    })
+        except Exception as sub_err:
+            logger.debug(f"Could not load rutracker subscribers: {sub_err}")
+
     if not target_groups:
         logger.warning(f"No target groups configured (IS_TEST_MODE: {IS_TEST_MODE}).")
         return

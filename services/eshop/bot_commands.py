@@ -15,6 +15,8 @@ from services.eshop.banner_service import download_and_badge_cover
 from services.eshop.models import QualityCriteria
 from services.eshop.rating_service import RatingService
 from services.eshop.region_price_service import RegionPriceService
+from services.eshop.wishlist_service import WishlistService
+from services.subscription_service import SubscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -102,14 +104,17 @@ def register_eshop_handlers(
     global_criteria: QualityCriteria,
     currency_service: Optional[CurrencyService] = None,
     wishlist_service: Optional[WishlistService] = None,
+    subscription_service: Optional[SubscriptionService] = None,
 ) -> None:
     """Register eShop command handlers on TeleBot instance."""
     wl_service = wishlist_service or WishlistService()
+    sub_service = subscription_service or SubscriptionService()
 
     @bot.message_handler(commands=["help", "start", "eshop_help", "deals_help"])
     async def cmd_eshop_help(message: Message):
         text = (
-            "🎮 <b>Nintendo eShop Deals & Wishlist Commands</b>\n\n"
+            "🎮 <b>RuTracker Bot — Меню команд</b>\n\n"
+            "🔥 <b>Знижки Nintendo eShop:</b>\n"
             "• <code>/deals [N]</code> — Показати топ N знижок з порівнянням цін у регіонах (наприклад: <code>/deals 5</code>)\n"
             "• <code>/search &lt;назва&gt;</code> — Пошук гри та порівняння цін (наприклад: <code>/search Zelda</code>)\n\n"
             "🎁 <b>Список бажань (Wishlist):</b>\n"
@@ -117,9 +122,11 @@ def register_eshop_handlers(
             "• <code>/wishlist add &lt;назва&gt;</code> — Додати гру до списку бажань (наприклад: <code>/wishlist add Hollow Knight</code>)\n"
             "• <code>/wishlist remove &lt;назва&gt;</code> — Видалити гру зі списку\n"
             "• <code>/wishlist clear</code> — Очистити список бажань\n\n"
-            "⚙️ <b>Налаштування та підписка:</b>\n"
-            "• <code>/subscribe_deals</code> — Підписати цей чат/канал/гілку на автоматичну розсилку знижок\n"
-            "• <code>/unsubscribe_deals</code> — Відписати чат від розсилки\n"
+            "🔔 <b>Автоматичні підписки (в приватних або групах):</b>\n"
+            "• <code>/subscriptions</code> або <code>/settings</code> — Переглянути статус своїх підписок\n"
+            "• <code>/sub &lt;deals | rutracker | digests | all&gt;</code> — Увімкнути авто-розсилку\n"
+            "• <code>/unsub &lt;deals | rutracker | digests | all&gt;</code> — Вимкнути авто-розсилку\n\n"
+            "⚙️ <b>Фільтри якості eShop:</b>\n"
             "• <code>/deals_settings</code> — Переглянути активні фільтри якості\n"
             "• <code>/set_min_discount &lt;%&gt;</code> — Встановити мін. % знижки (наприклад: <code>/set_min_discount 40</code>)\n"
             "• <code>/set_min_rating &lt;бал&gt;</code> — Встановити мін. бал Metacritic (наприклад: <code>/set_min_rating 75</code>)\n"
@@ -483,3 +490,129 @@ def register_eshop_handlers(
             message_id=loading.message_id,
             parse_mode="HTML",
         )
+
+    @bot.message_handler(commands=["subscriptions", "settings", "notify"])
+    async def cmd_subscriptions(message: Message):
+        thread_id = getattr(message, "message_thread_id", None)
+        subs = sub_service.get_subscriptions(message.chat.id, topic_id=thread_id)
+
+        deals_status = "✅ <b>Увімкнено</b>" if subs.get("deals") else "❌ <b>Вимкнено</b>"
+        rutracker_status = "✅ <b>Увімкнено</b>" if subs.get("rutracker") else "❌ <b>Вимкнено</b>"
+        digests_status = "✅ <b>Увімкнено</b>" if subs.get("digests") else "❌ <b>Вимкнено</b>"
+
+        text = (
+            "⚙️ <b>Налаштування автоматичних сповіщень:</b>\n\n"
+            "<i>За замовченням усі автоматичні повідомлення у приватних вимкнено.\n"
+            "Бот пише лише тоді, коли ви самі звертаєтесь до нього командами.</i>\n\n"
+            "<b>Ваші поточні підписки:</b>\n"
+            f"• 🎮 <b>Знижки Nintendo eShop:</b> {deals_status}\n"
+            f"• 📥 <b>Нові роздачі RuTracker:</b> {rutracker_status}\n"
+            f"• 📰 <b>Щоденні дайджести (релізи, homebrew, swuk):</b> {digests_status}\n\n"
+            "<b>Як увімкнути/вимкнути:</b>\n"
+            "• <code>/sub deals</code> / <code>/unsub deals</code> — знижки eShop\n"
+            "• <code>/sub rutracker</code> / <code>/unsub rutracker</code> — репост роздач з трекера\n"
+            "• <code>/sub digests</code> / <code>/unsub digests</code> — щоденні дайджести\n"
+            "• <code>/sub all</code> / <code>/unsub all</code> — увімкнути/вимкнути все\n\n"
+            "ℹ️ <i>Команди (/deals, /search, /wishlist) завжди доступні вручну незалежно від підписок.</i>"
+        )
+        await bot.reply_to(message, text, parse_mode="HTML", message_thread_id=thread_id)
+
+    @bot.message_handler(commands=["sub", "subscribe"])
+    async def cmd_sub(message: Message):
+        thread_id = getattr(message, "message_thread_id", None)
+        parts = message.text.split()
+        if len(parts) < 2:
+            await bot.reply_to(
+                message,
+                "ℹ️ Вкажіть категорію для підписки:\n"
+                "• <code>/sub deals</code> — знижки Nintendo eShop\n"
+                "• <code>/sub rutracker</code> — репост роздач RuTracker\n"
+                "• <code>/sub digests</code> — щоденні дайджести\n"
+                "• <code>/sub all</code> — увімкнути все",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
+            return
+
+        category = parts[1].lower().strip()
+        chat_title = message.chat.title or message.chat.username or f"User_{message.chat.id}"
+        try:
+            sub_service.set_subscription(
+                chat_id=message.chat.id,
+                sub_type=category,
+                enabled=True,
+                chat_type=message.chat.type,
+                title=chat_title,
+                topic_id=thread_id,
+            )
+            cat_names = {
+                "deals": "🎮 Знижки Nintendo eShop",
+                "rutracker": "📥 Нові роздачі RuTracker",
+                "digests": "📰 Щоденні дайджести",
+                "all": "Всі категорії",
+            }
+            cat_label = cat_names.get(category, category)
+            await bot.reply_to(
+                message,
+                f"✅ <b>Підписку на '{cat_label}' успішно увімкнено!</b>\n\n"
+                "Перевірити статус усіх підписок: <code>/subscriptions</code>",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
+        except ValueError:
+            await bot.reply_to(
+                message,
+                "❌ Невідома категорія. Доступні: <code>deals</code>, <code>rutracker</code>, <code>digests</code>, <code>all</code>",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
+
+    @bot.message_handler(commands=["unsub", "unsubscribe"])
+    async def cmd_unsub(message: Message):
+        thread_id = getattr(message, "message_thread_id", None)
+        parts = message.text.split()
+        if len(parts) < 2:
+            await bot.reply_to(
+                message,
+                "ℹ️ Вкажіть категорію для відписки:\n"
+                "• <code>/unsub deals</code> — знижки Nintendo eShop\n"
+                "• <code>/unsub rutracker</code> — репост роздач RuTracker\n"
+                "• <code>/unsub digests</code> — щоденні дайджести\n"
+                "• <code>/unsub all</code> — вимкнути все",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
+            return
+
+        category = parts[1].lower().strip()
+        chat_title = message.chat.title or message.chat.username or f"User_{message.chat.id}"
+        try:
+            sub_service.set_subscription(
+                chat_id=message.chat.id,
+                sub_type=category,
+                enabled=False,
+                chat_type=message.chat.type,
+                title=chat_title,
+                topic_id=thread_id,
+            )
+            cat_names = {
+                "deals": "🎮 Знижки Nintendo eShop",
+                "rutracker": "📥 Нові роздачі RuTracker",
+                "digests": "📰 Щоденні дайджести",
+                "all": "Всі категорії",
+            }
+            cat_label = cat_names.get(category, category)
+            await bot.reply_to(
+                message,
+                f"🛑 <b>Підписку на '{cat_label}' вимкнено.</b>\n\n"
+                "Перевірити статус усіх підписок: <code>/subscriptions</code>",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
+        except ValueError:
+            await bot.reply_to(
+                message,
+                "❌ Невідома категорія. Доступні: <code>deals</code>, <code>rutracker</code>, <code>digests</code>, <code>all</code>",
+                parse_mode="HTML",
+                message_thread_id=thread_id,
+            )
