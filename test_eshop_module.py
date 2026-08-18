@@ -204,3 +204,54 @@ def test_subscription_service(tmp_path):
     # 5. Disable deals
     srv.set_subscription(chat_id=99999, sub_type="deals", enabled=False)
     assert srv.get_subscriptions(chat_id=99999)["deals"] is False
+
+
+def test_cron_deals_deduplication():
+    from send_eshop_deals import _is_deal_already_posted, _record_deal_in_history
+    from services.eshop.models import GameDeal
+
+    history = {}
+    now_ts = 1787050000.0
+    cooldown = 14 * 86400.0
+
+    deal1 = GameDeal(
+        fs_id="fs_persona5",
+        nsuid="70010000012345",
+        title="Persona 5 Royal",
+        regular_price=59.99,
+        discount_price=23.99,
+        discount_percent=60.0,
+    )
+
+    # 1. Initially not posted
+    assert not _is_deal_already_posted(deal1, history, cooldown, now_ts)
+
+    # 2. Record deal in history
+    _record_deal_in_history(history, deal1, now_ts)
+
+    # 3. Now should be detected as already posted by fs_id
+    assert _is_deal_already_posted(deal1, history, cooldown, now_ts + 3600)
+
+    # 4. Should also be detected even if fs_id is missing but title matches
+    deal1_no_fsid = GameDeal(
+        fs_id=None,
+        nsuid=None,
+        title="Persona 5 Royal",
+        regular_price=59.99,
+        discount_price=23.99,
+        discount_percent=60.0,
+    )
+    assert _is_deal_already_posted(deal1_no_fsid, history, cooldown, now_ts + 3600)
+
+    # 5. Different game is NOT detected as posted
+    deal2 = GameDeal(
+        fs_id="fs_zelda",
+        title="The Legend of Zelda: Tears of the Kingdom",
+        regular_price=69.99,
+        discount_price=49.99,
+        discount_percent=28.0,
+    )
+    assert not _is_deal_already_posted(deal2, history, cooldown, now_ts + 3600)
+
+    # 6. After cooldown period expires (15 days later), it can be posted again
+    assert not _is_deal_already_posted(deal1, history, cooldown, now_ts + (15 * 86400))

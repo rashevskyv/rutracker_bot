@@ -8,14 +8,14 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import List, Set
+from typing import Any, List, Optional, Set
 
 from core.logger_setup import setup_logging
 from core.settings_loader import (
     GROUPS,
-    DIGEST_CHANNEL,
     IS_TEST_MODE,
     TEST_GROUPS,
     bot,
@@ -39,6 +39,55 @@ logger = logging.getLogger("send_eshop_deals")
 
 STATE_FILE = os.path.join("data", "eshop_posted_deals.json")
 LAST_RUN_FILE = os.path.join("data", "last_eshop_deals_run.json")
+
+
+def _normalize_title_key(title: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", title.lower())
+
+
+def _get_entry_timestamp(val: Any) -> float:
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, dict):
+        return float(val.get("posted_at", 0))
+    return 0.0
+
+
+def _is_deal_already_posted(deal: GameDeal, history: dict, cooldown_seconds: float, now_ts: float) -> bool:
+    """Check if the game was posted recently by fs_id, nsuid, or normalized title."""
+    keys_to_check = []
+    if deal.fs_id:
+        keys_to_check.append(str(deal.fs_id))
+    if deal.nsuid:
+        keys_to_check.append(f"nsuid_{deal.nsuid}")
+    norm_title = _normalize_title_key(deal.title)
+    if norm_title:
+        keys_to_check.append(f"title_{norm_title}")
+
+    for k in keys_to_check:
+        if k in history:
+            ts = _get_entry_timestamp(history[k])
+            if (now_ts - ts) < cooldown_seconds:
+                return True
+    return False
+
+
+def _record_deal_in_history(history: dict, deal: GameDeal, now_ts: float) -> None:
+    """Record deal into history under fs_id, nsuid, and title keys."""
+    entry = {
+        "title": deal.title,
+        "posted_at": now_ts,
+        "discount_percent": deal.discount_percent,
+        "discount_price": deal.discount_price,
+        "currency": deal.currency,
+    }
+    if deal.fs_id:
+        history[str(deal.fs_id)] = entry
+    if deal.nsuid:
+        history[f"nsuid_{deal.nsuid}"] = entry
+    norm_title = _normalize_title_key(deal.title)
+    if norm_title:
+        history[f"title_{norm_title}"] = entry
 
 
 def load_posted_deals() -> dict:
@@ -101,7 +150,7 @@ async def send_eshop_deals(force: bool = False):
     min_metacritic = int(eshop_cfg.get("min_metacritic_score", 70))
     min_rawg = float(eshop_cfg.get("min_rawg_rating", 3.5))
     max_deals = int(eshop_cfg.get("max_deals_per_run", 5))
-    cooldown_days = float(eshop_cfg.get("cooldown_days", 7.0))
+    cooldown_days = float(eshop_cfg.get("cooldown_days", 14.0))
     rawg_key = os.environ.get("RAWG_API_KEY") or eshop_cfg.get("rawg_api_key")
 
     now_dt = datetime.now(timezone.utc)
@@ -140,27 +189,26 @@ async def send_eshop_deals(force: bool = False):
         # 3. Fetch candidate deals
         logger.info(f"Fetching top deals (min discount: {min_discount}%, min rating: {min_metacritic})...")
         deals = await filter_engine.get_best_deals(
-            criteria=criteria, limit=max_deals * 2, fetch_rows=40, include_regional_prices=True
+            criteria=criteria, limit=max_deals * 3, fetch_rows=50, include_regional_prices=True
         )
 
         if not deals:
             logger.info("No deals found matching the current quality criteria.")
             return
 
-        # 4. Filter out recently posted deals (7-day cooldown)
+        # 4. Filter out recently posted deals (configurable cooldown, default 14 days)
         posted_history = load_posted_deals()
-        now_ts = datetime.now(timezone.utc).timestamp()
-        cooldown_seconds = 7 * 86400
+        cooldown_seconds = cooldown_days * 86400
 
-        # Clean old entries
+        # Clean old entries older than 60 days
         fresh_history = {
-            fs_id: ts for fs_id, ts in posted_history.items() if (now_ts - ts) < (30 * 86400)
+            k: v for k, v in posted_history.items() if (now_ts - _get_entry_timestamp(v)) < (60 * 86400)
         }
 
         new_deals = []
         for d in deals:
-            last_posted = fresh_history.get(d.fs_id)
-            if last_posted and (now_ts - last_posted) < cooldown_seconds:
+            if _is_deal_already_posted(d, fresh_history, cooldown_seconds, now_ts):
+                logger.info(f"Skipping already posted deal '{d.title}' (posted within {cooldown_days:.0f} days).")
                 continue
             new_deals.append(d)
             if len(new_deals) >= max_deals:
@@ -186,10 +234,12 @@ async def send_eshop_deals(force: bool = False):
                     "language": eshop_cfg.get("language", "UA"),
                 })
             else:
-                if DIGEST_CHANNEL and DIGEST_CHANNEL.get("enabled", True):
-                    target_groups.append(DIGEST_CHANNEL)
-                if GROUPS:
-                    target_groups.extend(GROUPS)
+                digest_channel = cfg.get("DIGEST_CHANNEL")
+                if digest_channel and digest_channel.get("enabled", True):
+                    target_groups.append(digest_channel)
+                groups = cfg.get("GROUPS") or GROUPS
+                if groups:
+                    target_groups.extend(groups)
 
                 # If topic_id is configured for deals (e.g. 561344), route Ukrainian groups to that topic
                 deals_topic = str(eshop_cfg.get("topic_id", "561344"))
@@ -276,9 +326,9 @@ async def send_eshop_deals(force: bool = False):
                 except Exception as send_err:
                     logger.error(f"Error sending deal '{deal.title}' to chat {chat_id}: {send_err}")
 
-        # 7. Record posted history
+        # 7. Record posted history (multi-key by fs_id, nsuid, and normalized title)
         for deal in new_deals:
-            fresh_history[deal.fs_id] = now_ts
+            _record_deal_in_history(fresh_history, deal, now_ts)
         save_posted_deals(fresh_history)
         save_last_run({"last_run_timestamp": now_ts, "last_run_iso": now_dt.isoformat(), "posted_count": len(new_deals)})
 

@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.94] - 2026-08-18
+
+### Added
+- **Intelligent Multi-Key Deals Deduplication for Scheduled Cron**:
+  - `send_eshop_deals.py`: Implemented robust multi-key deduplication (`fs_id`, `nsuid`, `normalized_title`) to remember previously broadcasted games in `data/eshop_posted_deals.json`.
+  - Subsequent scheduled cron runs automatically skip already posted games across their discount duration (configurable `cooldown_days`, default 14 days) and only post fresh, newly discounted titles to prevent duplicate messages in the forum topic.
+
 ## [v0.6.93] - 2026-08-18
 
 ### Fixed
