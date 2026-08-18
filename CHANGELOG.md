@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.88] - 2026-08-18
+
+### Changed
+- **Direct Reply & Topic/Thread Context Routing**:
+  - `services/eshop/bot_commands.py`: All interactive deals responses (`/deals`, `/search`, `/deals_settings`, etc.) now automatically attach as direct replies (`reply_to_message_id`) and route to the specific forum thread/topic (`message_thread_id`) where the command was invoked.
+  - Subscriptions now also store and respect topic IDs for automated thread delivery.
+
 ## [v0.6.87] - 2026-08-18
 
 ### Changed

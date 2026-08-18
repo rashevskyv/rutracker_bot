@@ -65,19 +65,28 @@ def update_chat_criteria(chat_id: int, **kwargs) -> QualityCriteria:
     return QualityCriteria(**chat_cfg) if chat_cfg else QualityCriteria()
 
 
-def add_subscription(chat_id: int, chat_type: str, title: str) -> None:
+def add_subscription(
+    chat_id: int, chat_type: str, title: str, topic_id: Optional[int] = None
+) -> None:
     subs = load_json_file(SUBSCRIPTIONS_FILE, {})
-    subs[str(chat_id)] = {
+    sub_key = f"{chat_id}_{topic_id}" if topic_id else str(chat_id)
+    subs[sub_key] = {
         "chat_id": chat_id,
         "chat_type": chat_type,
         "title": title,
+        "topic_id": topic_id,
         "enabled": True,
     }
     save_json_file(SUBSCRIPTIONS_FILE, subs)
 
 
-def remove_subscription(chat_id: int) -> bool:
+def remove_subscription(chat_id: int, topic_id: Optional[int] = None) -> bool:
     subs = load_json_file(SUBSCRIPTIONS_FILE, {})
+    sub_key = f"{chat_id}_{topic_id}" if topic_id else str(chat_id)
+    if sub_key in subs:
+        del subs[sub_key]
+        save_json_file(SUBSCRIPTIONS_FILE, subs)
+        return True
     chat_key = str(chat_id)
     if chat_key in subs:
         del subs[chat_key]
@@ -101,7 +110,7 @@ def register_eshop_handlers(
             "🎮 <b>Nintendo eShop Deals Commands</b>\n\n"
             "• <code>/deals [N]</code> — Показати топ N знижок з порівнянням цін у регіонах (наприклад: <code>/deals 5</code>)\n"
             "• <code>/search &lt;назва&gt;</code> — Пошук гри та порівняння цін (наприклад: <code>/search Zelda</code>)\n"
-            "• <code>/subscribe_deals</code> — Підписати цей чат/канал на автоматичну розсилку знижок\n"
+            "• <code>/subscribe_deals</code> — Підписати цей чат/канал/гілку на автоматичну розсилку знижок\n"
             "• <code>/unsubscribe_deals</code> — Відписати чат від розсилки\n"
             "• <code>/deals_settings</code> — Переглянути активні фільтри якості\n"
             "• <code>/set_min_discount &lt;%&gt;</code> — Встановити мін. % знижки (наприклад: <code>/set_min_discount 40</code>)\n"
@@ -115,6 +124,9 @@ def register_eshop_handlers(
         limit = 5
         if args and args[0].isdigit():
             limit = max(1, min(10, int(args[0])))
+
+        thread_id = getattr(message, "message_thread_id", None)
+        reply_id = message.message_id
 
         loading_msg = await bot.reply_to(
             message,
@@ -160,6 +172,8 @@ def register_eshop_handlers(
                             photo=photo_payload,
                             caption=card_text,
                             parse_mode="HTML",
+                            message_thread_id=thread_id,
+                            reply_to_message_id=reply_id,
                         )
                         sent = True
                     except Exception as err:
@@ -171,12 +185,19 @@ def register_eshop_handlers(
                         text=card_text,
                         parse_mode="HTML",
                         disable_web_page_preview=False,
+                        message_thread_id=thread_id,
+                        reply_to_message_id=reply_id,
                     )
                 await asyncio.sleep(0.3)
 
         except Exception as e:
             logger.error(f"Error handling /deals: {e}")
-            await bot.send_message(message.chat.id, "❌ Помилка при отриманні знижок.")
+            await bot.send_message(
+                message.chat.id,
+                "❌ Помилка при отриманні знижок.",
+                message_thread_id=thread_id,
+                reply_to_message_id=reply_id,
+            )
 
     @bot.message_handler(commands=["search", "eshop_search"])
     async def cmd_search(message: Message):
@@ -186,6 +207,8 @@ def register_eshop_handlers(
             return
 
         query = parts[1].strip()
+        thread_id = getattr(message, "message_thread_id", None)
+        reply_id = message.message_id
         loading_msg = await bot.reply_to(message, f"🔍 <i>Шукаю '{query}' в Nintendo eShop...</i>", parse_mode="HTML")
 
         try:
@@ -214,32 +237,52 @@ def register_eshop_handlers(
                 sent = False
                 if photo_payload:
                     try:
-                        await bot.send_photo(chat_id=message.chat.id, photo=photo_payload, caption=card_text, parse_mode="HTML")
+                        await bot.send_photo(
+                            chat_id=message.chat.id,
+                            photo=photo_payload,
+                            caption=card_text,
+                            parse_mode="HTML",
+                            message_thread_id=thread_id,
+                            reply_to_message_id=reply_id,
+                        )
                         sent = True
                     except Exception as err:
                         logger.debug(f"Could not send photo for '{deal.title}': {err}")
 
                 if not sent:
-                    await bot.send_message(chat_id=message.chat.id, text=card_text, parse_mode="HTML")
+                    await bot.send_message(
+                        chat_id=message.chat.id,
+                        text=card_text,
+                        parse_mode="HTML",
+                        message_thread_id=thread_id,
+                        reply_to_message_id=reply_id,
+                    )
                 await asyncio.sleep(0.3)
         except Exception as e:
             logger.error(f"Search error: {e}")
-            await bot.send_message(message.chat.id, "❌ Помилка під час пошуку.")
+            await bot.send_message(
+                message.chat.id,
+                "❌ Помилка під час пошуку.",
+                message_thread_id=thread_id,
+                reply_to_message_id=reply_id,
+            )
 
     @bot.message_handler(commands=["subscribe_deals"])
     async def cmd_subscribe(message: Message):
         chat_title = message.chat.title or message.chat.username or f"Chat_{message.chat.id}"
-        add_subscription(message.chat.id, message.chat.type, chat_title)
+        topic_id = getattr(message, "message_thread_id", None)
+        add_subscription(message.chat.id, message.chat.type, chat_title, topic_id=topic_id)
         await bot.reply_to(
             message,
-            "✅ <b>Цей чат підписано на автоматичну розсилку знижок Nintendo eShop!</b>\n"
-            "Коли з'являтимуться нові хіти зі знижками, бот надішле їх сюди.",
+            "✅ <b>Цей чат/гілку підписано на автоматичну розсилку знижок Nintendo eShop!</b>\n"
+            "Коли з'являтимуться нові хіти зі знижками, бот надішле їх у цю тему/чат.",
             parse_mode="HTML",
         )
 
     @bot.message_handler(commands=["unsubscribe_deals"])
     async def cmd_unsubscribe(message: Message):
-        if remove_subscription(message.chat.id):
+        topic_id = getattr(message, "message_thread_id", None)
+        if remove_subscription(message.chat.id, topic_id=topic_id):
             await bot.reply_to(message, "🛑 <b>Відписано від розсилки знижок eShop.</b>", parse_mode="HTML")
         else:
             await bot.reply_to(message, "ℹ️ Цей чат не був підписаний на розсилку.", parse_mode="HTML")
