@@ -383,9 +383,9 @@ async def test_get_flexible_deals():
 
     # Prepare dummy candidate deals
     deals = [
-        GameDeal(fs_id="1", title="Game 1", regular_price=20.0, discount_price=5.0, discount_percent=75.0, currency="EUR"),
-        GameDeal(fs_id="2", title="Game 2", regular_price=40.0, discount_price=10.0, discount_percent=75.0, currency="EUR"),
-        GameDeal(fs_id="3", title="Game 3", regular_price=60.0, discount_price=30.0, discount_percent=50.0, currency="EUR"),
+        GameDeal(fs_id="1", title="Game 1", regular_price=20.0, discount_price=5.0, discount_percent=75.0, currency="EUR", downloads_rank=10),
+        GameDeal(fs_id="2", title="Game 2", regular_price=40.0, discount_price=10.0, discount_percent=75.0, currency="EUR", downloads_rank=20),
+        GameDeal(fs_id="3", title="Game 3", regular_price=60.0, discount_price=30.0, discount_percent=50.0, currency="EUR", downloads_rank=30),
     ]
     mock_eshop.fetch_discounted_games.return_value = deals
     mock_eshop.fetch_popular_discounted_games.return_value = []

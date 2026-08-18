@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.21] - 2026-08-18
+
+### Fixed
+- **Global Popularity Rank Filter Integration (`downloads_rank_i`)**:
+  - `services/eshop/eshop_service.py`: Added `min_rank` and `max_rank` parameters filtering Nintendo Store's global `downloads_rank_i:[min TO max]` directly in Solr queries.
+  - `services/eshop/deal_filter.py`: Ensured all commands with rank bounds (e.g. `/random 3 1-5000 50-300 грн` or `/deals 4 1-100 100-500 cheap`) strictly match the exact global popularity rank numbers displayed on the cards (`🔥 Популярність: #XXXX`) instead of pagination offsets.
+
 ## [v0.7.20] - 2026-08-18
 
 ### Fixed

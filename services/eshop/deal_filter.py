@@ -192,22 +192,16 @@ class DealFilterEngine:
             min_p_eur = max(0.0, (min_uah / 55.0) - 0.5)
             max_p_eur = (max_uah / 35.0) + 1.0
 
-        # 1. Determine Solr start & rows
+        # Rank bounds
+        min_rank = None
+        max_rank = None
         if rank_range:
-            start_rank, end_rank = rank_range
-            end_rank_clamped = min(3500, max(start_rank, end_rank))
-            start_rank_clamped = max(1, min(start_rank, end_rank_clamped))
+            min_rank, max_rank = min(rank_range), max(rank_range)
 
-            if is_random and (end_rank_clamped - start_rank_clamped > 50):
-                max_rnd_start = max(start_rank_clamped - 1, end_rank_clamped - 50)
-                start = random.randint(start_rank_clamped - 1, max_rnd_start)
-                rows = max(30, min(100, end_rank_clamped - start))
-            else:
-                start = max(0, start_rank_clamped - 1)
-                rows = max(10, min(150, end_rank_clamped - start_rank_clamped + 1))
-        elif is_random:
-            start = random.randint(0, 1000)
-            rows = max(40, limit * 10)
+        # 1. Determine Solr start & rows
+        if is_random:
+            start = random.randint(0, 50) if (rank_range or price_range_uah) else random.randint(0, 500)
+            rows = max(50, limit * 15)
         else:
             start = 0
             rows = max(50, limit * 10)
@@ -218,14 +212,11 @@ class DealFilterEngine:
             "price_desc": "price_discounted_f desc",
             "discount": "price_discount_percentage_f desc",
             "new": "pretty_date_s desc",
-            "popularity": "popularity desc",
-            "rating": "popularity desc",
-            "random": "popularity desc",
+            "popularity": "downloads_rank_i asc" if rank_range else "popularity desc",
+            "rating": "downloads_rank_i asc" if rank_range else "popularity desc",
+            "random": "downloads_rank_i asc" if rank_range else "popularity desc",
         }
-        if rank_range or is_random:
-            solr_sort = "popularity desc"
-        else:
-            solr_sort = solr_sort_map.get(sort_by, "popularity desc")
+        solr_sort = solr_sort_map.get(sort_by, "downloads_rank_i asc" if rank_range else "popularity desc")
 
         # 3. Fetch candidate batch
         deals: List[GameDeal] = []
@@ -240,6 +231,8 @@ class DealFilterEngine:
                 min_discount_percent=min_disc,
                 min_price_eur=min_p_eur,
                 max_price_eur=max_p_eur,
+                min_rank=min_rank,
+                max_rank=max_rank,
             )
 
         if not deals and min_disc > 0:
@@ -250,26 +243,36 @@ class DealFilterEngine:
                 min_discount_percent=0.0,
                 min_price_eur=min_p_eur,
                 max_price_eur=max_p_eur,
+                min_rank=min_rank,
+                max_rank=max_rank,
             )
 
         if not deals:
             return []
 
-        # 4. Filter by price range (in UAH) if specified
-        if price_range_uah:
-            min_p, max_p = price_range_uah
-            filtered_by_price = []
-            for d in deals:
+        # 4. Filter by rank range and price range (in UAH)
+        filtered = []
+        for d in deals:
+            # Check rank
+            if min_rank is not None and max_rank is not None:
+                if d.downloads_rank is None or not (min_rank <= d.downloads_rank <= max_rank):
+                    continue
+
+            # Check price in UAH
+            if price_range_uah:
+                min_p, max_p = price_range_uah
                 price_val = d.discount_price * 45.0
                 if currency_service:
                     if hasattr(currency_service, "convert_to_uah"):
                         price_val = currency_service.convert_to_uah(d.discount_price, d.currency or "EUR")
                     elif hasattr(currency_service, "convert"):
                         price_val = currency_service.convert(d.discount_price, d.currency or "EUR", "UAH")
-                if min_p <= price_val <= max_p:
-                    filtered_by_price.append(d)
-            deals = filtered_by_price
+                if not (min_p <= price_val <= max_p):
+                    continue
 
+            filtered.append(d)
+
+        deals = filtered
         if not deals:
             return []
 
@@ -289,6 +292,9 @@ class DealFilterEngine:
             selected = deals[:limit]
         elif sort_by == "price_desc":
             deals.sort(key=lambda d: d.discount_price, reverse=True)
+            selected = deals[:limit]
+        elif sort_by == "popularity" and rank_range:
+            deals.sort(key=lambda d: d.downloads_rank or 999999)
             selected = deals[:limit]
         else:
             selected = deals[:limit]

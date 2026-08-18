@@ -129,6 +129,8 @@ class EShopService:
         min_discount_percent: float = 0.0,
         min_price_eur: Optional[float] = None,
         max_price_eur: Optional[float] = None,
+        min_rank: Optional[int] = None,
+        max_rank: Optional[int] = None,
     ) -> List[GameDeal]:
         """Fetch Switch games currently on sale from the Nintendo Store."""
         session = await self._get_session()
@@ -143,6 +145,13 @@ class EShopService:
             fq += f" AND price_discounted_f:[{max(0.0, min_price_eur):.2f} TO *]"
         elif max_price_eur is not None:
             fq += f" AND price_discounted_f:[* TO {max_price_eur:.2f}]"
+
+        if min_rank is not None and max_rank is not None:
+            fq += f" AND downloads_rank_i:[{min_rank} TO {max_rank}]"
+        elif min_rank is not None:
+            fq += f" AND downloads_rank_i:[{min_rank} TO *]"
+        elif max_rank is not None:
+            fq += f" AND downloads_rank_i:[* TO {max_rank}]"
 
         params = {
             "q": "*",
