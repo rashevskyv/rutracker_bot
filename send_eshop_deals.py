@@ -593,9 +593,20 @@ async def remove_showcase_deals(remove_arg: str):
                     deleted_msg_ids.add(int(msg_id))
                 await asyncio.sleep(0.08)
 
-        # Update showcase state
+        # Update showcase state and release cooldown history for deleted games
         showcase_data[showcase_key] = surviving
         save_active_showcase(showcase_data)
+
+        posted_history = load_posted_deals()
+        for it in to_delete:
+            fs_id = it.get("fs_id")
+            title = it.get("title")
+            if fs_id and str(fs_id) in posted_history:
+                posted_history.pop(str(fs_id), None)
+            norm = _normalize_title_key(title)
+            if norm and f"title_{norm}" in posted_history:
+                posted_history.pop(f"title_{norm}", None)
+        save_posted_deals(posted_history)
 
         if total_deleted > 0:
             logger.info(f"✅ Removal complete. Successfully deleted {total_deleted} tracked deal message(s) from topic {target_topic}.")

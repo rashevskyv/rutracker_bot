@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.14] - 2026-08-18
+
+### Improved
+- **Automatic Cooldown Release on Showcase Removal (`remove`, `/remove`)**:
+  - `send_eshop_deals.py` & `services/eshop/bot_commands.py`:
+    - When showcase deal cards are removed (e.g. `remove all`, `remove 20`, or `/remove`), their respective cooldown records are automatically purged from `data/eshop_posted_deals.json`.
+    - This allows subsequent runs (`--force` or regular cron) to immediately select and re-broadcast the highest-tier top discounts from the top of the catalog without being held back by a 14-day anti-repeat cooldown.
+
 ## [v0.7.13] - 2026-08-18
 
 ### Added
