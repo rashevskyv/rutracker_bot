@@ -61,8 +61,8 @@ class DealFilterEngine:
                         if g not in deal.categories:
                             deal.categories.append(g)
 
-        if fetch_regions and self.region_prices and deal.nsuid:
-            prices = await self.region_prices.get_regional_prices_for_game(deal.nsuid)
+        if fetch_regions and self.region_prices and (deal.nsuid or deal.title):
+            prices = await self.region_prices.get_regional_prices_for_game(deal.nsuid or "", game_title=deal.title)
             if prices:
                 deal.regional_prices = prices
 

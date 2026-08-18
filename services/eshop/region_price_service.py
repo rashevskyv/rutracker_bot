@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import ssl
 from typing import Dict, List, Optional
 import aiohttp
@@ -11,35 +12,42 @@ from services.eshop.currency_service import CurrencyService
 
 logger = logging.getLogger(__name__)
 
-TRACKED_REGIONS: Dict[str, str] = {
+EUROPE_PAL_REGIONS: Dict[str, str] = {
     "PL": "Poland",
-    "US": "United States",
-    "TH": "Thailand",
-    "TR": "Turkey",
     "ZA": "South Africa",
-    "JP": "Japan",
     "NO": "Norway",
     "GB": "United Kingdom",
     "AU": "Australia",
     "CZ": "Czech Republic",
-    "BR": "Brazil",
-    "MX": "Mexico",
-    "CA": "Canada",
     "NZ": "New Zealand",
     "SE": "Sweden",
     "CH": "Switzerland",
+}
+
+AMERICA_REGIONS: Dict[str, str] = {
+    "US": "United States",
+    "CA": "Canada",
+    "MX": "Mexico",
+    "BR": "Brazil",
     "AR": "Argentina",
     "CO": "Colombia",
     "CL": "Chile",
-    "HK": "Hong Kong",
     "PE": "Peru",
 }
+
+TRACKED_REGIONS: Dict[str, str] = {**EUROPE_PAL_REGIONS, **AMERICA_REGIONS}
 
 
 class RegionPriceService:
     """Queries Nintendo eShop Price API across multiple regions."""
 
     PRICE_API_URL = "https://api.ec.nintendo.com/v1/price"
+    ALGOLIA_US_URL = "https://u3b6gr4ua3-dsn.algolia.net/1/indexes/ncom_game_en_us/query"
+    ALGOLIA_HEADERS = {
+        "x-algolia-api-key": "a29c6927638bfd8cee23993e51e721c9",
+        "x-algolia-application-id": "U3B6GR4UA3",
+        "Content-Type": "application/json",
+    }
 
     def __init__(
         self,
@@ -70,10 +78,34 @@ class RegionPriceService:
         if self._owns_session and self._session and not self._session.closed:
             await self._session.close()
 
+    async def get_us_nsuid_by_title(self, title: str, session: aiohttp.ClientSession) -> Optional[str]:
+        """Query Nintendo of America Algolia index to resolve US NSUID for the title."""
+        if not title:
+            return None
+        clean_title = re.sub(r"\[.*?\]|\(.*?\)", "", title).strip()
+        try:
+            payload = {"query": clean_title, "hitsPerPage": 3}
+            async with session.post(
+                self.ALGOLIA_US_URL,
+                json=payload,
+                headers=self.ALGOLIA_HEADERS,
+                timeout=aiohttp.ClientTimeout(total=4),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    hits = data.get("hits", [])
+                    for h in hits:
+                        nsuid = h.get("nsuid")
+                        if nsuid:
+                            return str(nsuid)
+        except Exception as e:
+            logger.debug(f"Could not resolve US NSUID for '{title}': {e}")
+        return None
+
     async def fetch_region_price(
         self, session: aiohttp.ClientSession, country_code: str, country_name: str, nsuid: str
     ) -> Optional[RegionalPrice]:
-        """Fetch price for a single country code."""
+        """Fetch price for a single country code and NSUID."""
         params = {
             "country": country_code,
             "lang": "en",
@@ -129,16 +161,33 @@ class RegionPriceService:
             logger.debug(f"Failed to fetch price for {country_code}: {e}")
             return None
 
-    async def get_regional_prices_for_game(self, nsuid: str) -> List[RegionalPrice]:
-        """Fetch prices for an NSUID across all tracked regions concurrently."""
-        if not nsuid:
+    async def get_regional_prices_for_game(
+        self, nsuid: str, game_title: Optional[str] = None
+    ) -> List[RegionalPrice]:
+        """Fetch prices across all tracked regions, resolving both EU and US NSUIDs."""
+        if not nsuid and not game_title:
             return []
 
         session = await self._get_session()
-        tasks = [
-            self.fetch_region_price(session, code, name, nsuid)
-            for code, name in self.tracked_regions.items()
-        ]
+        tasks = []
+
+        # 1. European / PAL regions using primary European NSUID
+        if nsuid:
+            for code, name in EUROPE_PAL_REGIONS.items():
+                tasks.append(self.fetch_region_price(session, code, name, nsuid))
+
+        # 2. Americas regions using resolved US NSUID (if title is provided)
+        us_nsuid = None
+        if game_title:
+            us_nsuid = await self.get_us_nsuid_by_title(game_title, session)
+
+        if us_nsuid:
+            for code, name in AMERICA_REGIONS.items():
+                tasks.append(self.fetch_region_price(session, code, name, us_nsuid))
+        elif nsuid:
+            # Fallback: try Americas with original NSUID
+            for code, name in AMERICA_REGIONS.items():
+                tasks.append(self.fetch_region_price(session, code, name, nsuid))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         valid_prices = [r for r in results if isinstance(r, RegionalPrice)]

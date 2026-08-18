@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.6.80] - 2026-08-18
+
+### Fixed
+- **Cross-Region Price Retrieval (USA & Americas)**:
+  - `services/eshop/region_price_service.py`: Integrated automated Nintendo of America Algolia search resolution by game title. This resolves American NSUIDs so that **USA 🇺🇸**, **Canada 🇨🇦**, **Mexico 🇲🇽**, and **Brazil 🇧🇷** prices are reliably fetched alongside European/PAL regional prices.
+  - `services/eshop/deal_filter.py`: Passed game titles to regional price resolver to enable dual-region indexing.
+
 ## [v0.6.79] - 2026-08-18
 
 ### Added
