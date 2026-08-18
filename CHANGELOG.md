@@ -2,6 +2,21 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.16] - 2026-08-18
+
+### Added
+- **Full Support for Cyrillic Command Aliases in Interactive Polling**:
+  - `services/eshop/bot_commands.py`:
+    - Added universal message filter handling and Cyrillic aliases for interactive bot commands:
+      - `/help`, `/start`, `/допомога`, `/старт`, `/хелп`, `/меню`
+      - `/deals`, `/знижки`, `/знижка`
+      - `/search`, `/пошук`, `/знайти`, `/гра`
+      - `/wishlist`, `/вішліст`, `/бажане`
+      - `/subscriptions`, `/підписки`, `/налаштування`
+      - `/sub`, `/підписатися`, `/підписка`
+      - `/unsub`, `/відписатися`, `/відписка`
+      - `/remove`, `/видалити`, `/очистити`
+
 ## [v0.7.15] - 2026-08-18
 
 ### Changed

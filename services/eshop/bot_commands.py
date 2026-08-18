@@ -205,7 +205,10 @@ def register_eshop_handlers(
     wl_service = wishlist_service or WishlistService()
     sub_service = subscription_service or SubscriptionService()
 
-    @bot.message_handler(commands=["help", "start", "eshop_help", "deals_help"])
+    @bot.message_handler(
+        commands=["help", "start", "eshop_help", "deals_help", "menu"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/help", "/start", "/допомога", "/старт", "/хелп", "/меню", "допомога", "хелп", "меню"))),
+    )
     async def cmd_eshop_help(message: Message):
         text = (
             "🎮 <b>RuTracker Bot — Меню команд</b>\n\n"
@@ -221,14 +224,18 @@ def register_eshop_handlers(
             "• <code>/subscriptions</code> або <code>/settings</code> — Переглянути статус своїх підписок\n"
             "• <code>/sub &lt;deals | rutracker | digests | all&gt;</code> — Увімкнути авто-розсилку\n"
             "• <code>/unsub &lt;deals | rutracker | digests | all&gt;</code> — Вимкнути авто-розсилку\n\n"
-            "⚙️ <b>Фільтри якості eShop:</b>\n"
+            "⚙️ <b>Керування вітриною та фільтрами:</b>\n"
+            "• <code>/remove [N | all]</code> — Видалити повідомлення вітрини в топіку знижок\n"
             "• <code>/deals_settings</code> — Переглянути активні фільтри якості\n"
             "• <code>/set_min_discount &lt;%&gt;</code> — Встановити мін. % знижки (наприклад: <code>/set_min_discount 40</code>)\n"
             "• <code>/set_min_rating &lt;бал&gt;</code> — Встановити мін. бал Metacritic (наприклад: <code>/set_min_rating 75</code>)\n"
         )
         await safe_reply(bot, message, text)
 
-    @bot.message_handler(commands=["deals", "eshop_deals"])
+    @bot.message_handler(
+        commands=["deals", "eshop_deals", "top_deals", "знижки", "знижка"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/deals", "/eshop_deals", "/top_deals", "/знижки", "/знижка"))),
+    )
     async def cmd_deals(message: Message):
         args = message.text.split()[1:] if message.text else []
         limit = 5
@@ -299,7 +306,10 @@ def register_eshop_handlers(
             logger.error(f"Error handling /deals: {e}")
             await safe_reply(bot, message, "❌ Помилка при отриманні знижок.")
 
-    @bot.message_handler(commands=["search", "eshop_search"])
+    @bot.message_handler(
+        commands=["search", "eshop_search", "find", "game", "пошук", "знайти", "гра"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/search", "/eshop_search", "/find", "/game", "/пошук", "/знайти", "/гра"))),
+    )
     async def cmd_search(message: Message):
         parts = message.text.split(maxsplit=1) if message.text else []
         if len(parts) < 2 or not parts[1].strip():
@@ -411,7 +421,10 @@ def register_eshop_handlers(
         update_chat_criteria(message.chat.id, min_metacritic_score=val)
         await safe_reply(bot, message, f"✅ Мінімальний рейтинг Metacritic встановлено на <b>{val}/100</b>")
 
-    @bot.message_handler(commands=["wishlist"])
+    @bot.message_handler(
+        commands=["wishlist", "wl", "вішліст", "бажане"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/wishlist", "/wl", "/вішліст", "/бажане"))),
+    )
     async def cmd_wishlist(message: Message):
         thread_id = getattr(message, "message_thread_id", None)
         parts = message.text.split(maxsplit=2) if message.text else []
@@ -556,7 +569,10 @@ def register_eshop_handlers(
                 pass
         await safe_reply(bot, message, summary_text)
 
-    @bot.message_handler(commands=["subscriptions", "settings", "notify"])
+    @bot.message_handler(
+        commands=["subscriptions", "settings", "notify", "sub_status", "підписки", "налаштування"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/subscriptions", "/settings", "/notify", "/sub_status", "/підписки", "/налаштування"))),
+    )
     async def cmd_subscriptions(message: Message):
         thread_id = getattr(message, "message_thread_id", None)
         subs = sub_service.get_subscriptions(message.chat.id, topic_id=thread_id)
@@ -582,7 +598,10 @@ def register_eshop_handlers(
         )
         await safe_reply(bot, message, text)
 
-    @bot.message_handler(commands=["sub", "subscribe"])
+    @bot.message_handler(
+        commands=["sub", "subscribe", "підписатися", "підписка"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/sub", "/subscribe", "/підписатися", "/підписка"))),
+    )
     async def cmd_sub(message: Message):
         parts = message.text.split()
         if len(parts) < 2:
@@ -629,7 +648,10 @@ def register_eshop_handlers(
                 "❌ Невідома категорія. Доступні: <code>deals</code>, <code>rutracker</code>, <code>digests</code>, <code>all</code>",
             )
 
-    @bot.message_handler(commands=["unsub", "unsubscribe"])
+    @bot.message_handler(
+        commands=["unsub", "unsubscribe", "відписатися", "відписка"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/unsub", "/unsubscribe", "/відписатися", "/відписка"))),
+    )
     async def cmd_unsub(message: Message):
         parts = message.text.split()
         if len(parts) < 2:
@@ -676,7 +698,10 @@ def register_eshop_handlers(
                 "❌ Невідома категорія. Доступні: <code>deals</code>, <code>rutracker</code>, <code>digests</code>, <code>all</code>",
             )
 
-    @bot.message_handler(commands=["remove_deals", "remove", "clean_deals", "clear_deals"])
+    @bot.message_handler(
+        commands=["remove_deals", "remove", "clean_deals", "clear_deals", "видалити", "очистити"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/remove", "/clean_deals", "/clear_deals", "/видалити", "/очистити"))),
+    )
     async def cmd_remove_deals(message: Message):
         """Remove specified number of deals or all from current chat/topic showcase."""
         parts = message.text.split()
