@@ -415,5 +415,21 @@ async def test_get_flexible_deals():
     assert len(res_rnd) == 1
 
 
+def test_title_similarity_guardrail():
+    from services.eshop.region_price_service import _is_title_match
+
+    # 1. Must reject completely different titles sharing a common word like 'Legacy'
+    assert _is_title_match("Hogwarts Legacy", "Unstrong Legacy") is False
+    assert _is_title_match("Hogwarts Legacy", "Dice Legacy") is False
+    assert _is_title_match("Hogwarts Legacy", "Alwa's Legacy") is False
+
+    # 2. Must accept exact and legitimate edition variants
+    assert _is_title_match("Hogwarts Legacy", "Hogwarts Legacy: Digital Deluxe Edition") is True
+    assert _is_title_match("Sonic Origins", "Sonic Origins Plus") is True
+    assert _is_title_match("Celeste", "Celeste") is True
+    assert _is_title_match("Super Mario Odyssey", "Mario Odyssey") is True
+
+
+
 
 

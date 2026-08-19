@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.22] - 2026-08-19
+
+### Fixed
+- **Strict Title Similarity Validation in Americas Region Price Lookup**:
+  - `services/eshop/region_price_service.py`:
+    - Added `_is_title_match()` token-based similarity verification to Algolia US search results to prevent mismatched games (e.g. matching `Hogwarts Legacy` with unrelated titles like `Unstrong Legacy`).
+    - Purged stale cache entries to guarantee 100% accurate regional prices across US, Americas, and European Nintendo stores.
+
 ## [v0.7.21] - 2026-08-18
 
 ### Fixed

@@ -69,24 +69,56 @@ def _save_cache(data: Dict[str, Any]) -> None:
         pass
 
 
-class RegionPriceService:
-    """Queries Nintendo eShop Price API across multiple regions with caching and Algolia fallback."""
+def _is_title_match(title1: str, title2: str) -> bool:
+    """Check if two game titles match by checking meaningful token sets and containment."""
+    if not title1 or not title2:
+        return False
 
+    def _get_tokens(s: str) -> set:
+        s = re.sub(r"\[.*?\]|\(.*?\)", "", s.lower())
+        s = re.sub(r"[^\w\s]", " ", s)
+        tokens = set(s.split())
+        stop_words = {
+            "the", "a", "an", "and", "of", "for", "in", "to", "nintendo", "switch",
+            "edition", "deluxe", "bundle", "game", "digital", "hd", "remastered", "remake"
+        }
+        meaningful = tokens - stop_words
+        return meaningful or tokens
+
+    w1 = _get_tokens(title1)
+    w2 = _get_tokens(title2)
+    if not w1 or not w2:
+        return False
+
+    # True if one is exact subset of another (e.g. 'Hogwarts Legacy' in 'Hogwarts Legacy: Digital Deluxe')
+    if w1.issubset(w2) or w2.issubset(w1):
+        return True
+
+    # Word-level Jaccard index
+    return (len(w1 & w2) / len(w1 | w2)) >= 0.65
+
+
+class RegionPriceService:
+    """Fetches real-time localized eShop pricing across global Nintendo regions."""
+
+    # Nintendo eShop Price API (v1)
     PRICE_API_URL = "https://api.ec.nintendo.com/v1/price"
-    ALGOLIA_US_URL = "https://u3b6gr4ua3-dsn.algolia.net/1/indexes/ncom_game_en_us/query"
+
+    # Nintendo of America Algolia Search API
+    ALGOLIA_US_URL = "https://u3b6gr4ua3-dsn.algolia.net/1/indexes/store_game_en_us/query"
     ALGOLIA_HEADERS = {
-        "x-algolia-api-key": "a29c6927638bfd8cee23993e51e721c9",
-        "x-algolia-application-id": "U3B6GR4UA3",
+        "X-Algolia-API-Key": "9a96da137365c71d6092520cb2a48721",
+        "X-Algolia-Application-Id": "U3B6GR4UA3",
         "Content-Type": "application/json",
     }
 
     def __init__(
         self,
-        currency_service: CurrencyService,
-        session: Optional[aiohttp.ClientSession] = None,
+        currency_service: Optional[CurrencyService] = None,
         tracked_regions: Optional[Dict[str, str]] = None,
+        session: Optional[aiohttp.ClientSession] = None,
     ):
-        self.currency_service = currency_service
+        self.currency_service = currency_service or CurrencyService()
         self.tracked_regions = tracked_regions or TRACKED_REGIONS
         self._session = session
         self._owns_session = False
@@ -120,7 +152,7 @@ class RegionPriceService:
             return None
         clean_title = re.sub(r"\[.*?\]|\(.*?\)", "", title).strip()
         try:
-            payload = {"query": clean_title, "hitsPerPage": 3}
+            payload = {"query": clean_title, "hitsPerPage": 5}
             async with session.post(
                 self.ALGOLIA_US_URL,
                 json=payload,
@@ -130,8 +162,10 @@ class RegionPriceService:
                 if resp.status == 200:
                     data = await resp.json()
                     hits = data.get("hits", [])
-                    if hits:
-                        return hits[0]
+                    for hit in hits:
+                        hit_title = hit.get("title", "")
+                        if _is_title_match(clean_title, hit_title):
+                            return hit
         except Exception as e:
             logger.debug(f"Could not query Algolia for '{title}': {e}")
         return None
