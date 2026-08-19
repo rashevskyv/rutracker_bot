@@ -431,6 +431,45 @@ def test_title_similarity_guardrail():
     assert _is_title_match("Super Mario Odyssey", "Mario Odyssey") is True
 
 
+@pytest.mark.asyncio
+async def test_cmd_remove_deals():
+    from telebot.async_telebot import AsyncTeleBot
+    from telebot.types import Message, Chat
+    from services.eshop.bot_commands import register_eshop_handlers
+    from unittest.mock import AsyncMock, patch
+
+    bot = AsyncTeleBot("123456:dummy_token")
+    mock_eshop = AsyncMock()
+    mock_engine = AsyncMock()
+    mock_criteria = AsyncMock()
+    register_eshop_handlers(bot, mock_engine, mock_eshop, mock_criteria)
+
+    msg = Message(
+        message_id=555,
+        from_user=None,
+        date=1234567,
+        chat=Chat(id=-1001790782971, type="supergroup"),
+        content_type="text",
+        options={},
+        json_string="",
+    )
+    msg.text = "/remove Hogwarts Legacy"
+    msg.message_thread_id = 561344
+
+    with patch("telebot.async_telebot.AsyncTeleBot.reply_to", new_callable=AsyncMock) as mock_reply:
+        with patch("send_eshop_deals.load_active_showcase", return_value={"-1001790782971_561344": [{"title": "Hogwarts Legacy", "message_id": 999}]}):
+            with patch("send_eshop_deals.safe_delete_showcase_message", new_callable=AsyncMock) as mock_del:
+                mock_del.return_value = True
+                # Call registered remove handler
+                for handler in bot.message_handlers:
+                    cmds = handler.get("filters", {}).get("commands", [])
+                    if "remove" in cmds:
+                        await handler["function"](msg)
+                        break
+                assert mock_del.called
+
+
+
 
 
 

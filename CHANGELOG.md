@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.25] - 2026-08-19
+
+### Fixed
+- **Fixed `IS_TEST_MODE` Import in Interactive `/remove` Command**:
+  - `services/eshop/bot_commands.py`: Fixed unbound `IS_TEST_MODE` reference inside `cmd_remove_deals` by importing required dependencies before authorization checks, resolving runtime `NameError: name 'IS_TEST_MODE' is not defined`.
+
 ## [v0.7.24] - 2026-08-19
 
 ### Fixed

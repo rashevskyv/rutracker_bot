@@ -898,9 +898,11 @@ def register_eshop_handlers(
         is_title_search = not remove_all and not target_arg.isdigit()
 
         thread_id = getattr(message, "message_thread_id", None)
+        from send_eshop_deals import load_active_showcase, save_active_showcase, safe_delete_showcase_message, IS_TEST_MODE
+
         # Strictly only allow in dedicated topic 561344 of chat -1001790782971
         is_authorized = (
-            IS_TEST_MODE
+            bool(IS_TEST_MODE)
             or (str(message.chat.id) == "-1001790782971" and str(thread_id) == "561344")
         )
         if not is_authorized:
@@ -913,8 +915,6 @@ def register_eshop_handlers(
             return
 
         showcase_key = f"{message.chat.id}_{thread_id}" if thread_id else str(message.chat.id)
-
-        from send_eshop_deals import load_active_showcase, save_active_showcase, safe_delete_showcase_message
         showcase_data = load_active_showcase()
         items = showcase_data.get(showcase_key, [])
 
