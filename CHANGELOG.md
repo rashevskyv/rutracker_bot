@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.26] - 2026-08-19
+
+### Added
+- **Reply-to-Delete Message Removal (`/remove` in Reply)**:
+  - `services/eshop/bot_commands.py`: Users can now delete any specific bot card instantly by simply replying to it with `/remove` (or `/видалити`, `/del`). The bot deletes the target message, purges it from the showcase database, and deletes the command message.
+  - Enhanced title search in `/remove <title>` with fuzzy token matching across all chat showcase partitions.
+
 ## [v0.7.25] - 2026-08-19
 
 ### Fixed

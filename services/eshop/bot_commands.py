@@ -15,7 +15,7 @@ from services.eshop.formatters import format_eshop_deal_message
 from services.eshop.banner_service import download_and_badge_cover
 from services.eshop.models import QualityCriteria
 from services.eshop.rating_service import RatingService
-from services.eshop.region_price_service import RegionPriceService
+from services.eshop.region_price_service import RegionPriceService, _is_title_match
 from services.eshop.wishlist_service import WishlistService
 from services.subscription_service import SubscriptionService
 
@@ -914,24 +914,64 @@ def register_eshop_handlers(
             )
             return
 
+        # 1. Direct deletion if user replies to any bot message with /remove
+        if message.reply_to_message:
+            target_msg = message.reply_to_message
+            deleted = await safe_delete_showcase_message(
+                chat_id=message.chat.id,
+                topic_id=thread_id,
+                message_id=target_msg.message_id,
+                title="replied_message",
+            )
+            # Delete user command message itself
+            await safe_delete_showcase_message(
+                chat_id=message.chat.id,
+                topic_id=thread_id,
+                message_id=message.message_id,
+                title="user_command",
+            )
+            # Purge from showcase database if present
+            showcase_data = load_active_showcase()
+            for k, it_list in showcase_data.items():
+                if str(message.chat.id) in k:
+                    showcase_data[k] = [it for it in it_list if it.get("message_id") != target_msg.message_id]
+            save_active_showcase(showcase_data)
+            return
+
+        # 2. Retrieve items across all matching chat showcase keys
         showcase_key = f"{message.chat.id}_{thread_id}" if thread_id else str(message.chat.id)
         showcase_data = load_active_showcase()
         items = showcase_data.get(showcase_key, [])
+        if not items:
+            for k, it_list in showcase_data.items():
+                if str(message.chat.id) in k and it_list:
+                    showcase_key = k
+                    items = it_list
+                    break
 
         if not items:
             await safe_reply(
                 bot,
                 message,
-                "ℹ️ <b>У топіку наразі 0 активних повідомлень вітрини.</b>\nУсе вже чисто, немає жодного повідомлення для видалення.",
+                "ℹ️ <b>У топіку наразі 0 активних повідомлень вітрини в базі даних.</b>\n"
+                "<i>Підказка: щоб видалити будь-яке конкретне повідомлення, просто відповідайте на нього командою <code>/remove</code> (або видаліть вручну в Telegram).</i>",
             )
             return
 
         if is_title_search:
             target_title_norm = target_arg.lower()
-            to_delete = [it for it in items if target_title_norm in it.get("title", "").lower()]
-            surviving = [it for it in items if target_title_norm not in it.get("title", "").lower()]
+            to_delete = [
+                it for it in items
+                if target_title_norm in it.get("title", "").lower() or _is_title_match(target_title_norm, it.get("title", ""))
+            ]
+            surviving = [it for it in items if it not in to_delete]
             if not to_delete:
-                await safe_reply(bot, message, f"ℹ️ Гру '<b>{parts[1]}</b>' не знайдено серед активних повідомлень вітрини.")
+                await safe_reply(
+                    bot,
+                    message,
+                    f"ℹ️ Гру '<b>{parts[1]}</b>' не знайдено серед активних повідомлень вітрини.\n"
+                    f"<i>Підказка: дайте відповідь (reply) на повідомлення з цією грою командою <code>/remove</code>.</i>",
+                )
                 return
         elif remove_all:
             to_delete = items[:]
@@ -948,7 +988,8 @@ def register_eshop_handlers(
                     "ℹ️ Вкажіть назву гри, кількість повідомлень або <code>all</code>:\n"
                     "• <code>/remove Hogwarts Legacy</code> — видалити конкретну гру\n"
                     "• <code>/remove 20</code> — видалити 20 повідомлень\n"
-                    "• <code>/remove all</code> — видалити всі повідомлення",
+                    "• <code>/remove all</code> — видалити всі повідомлення\n"
+                    "• або просто надішліть <code>/remove</code> у відповідь (reply) на картку гри",
                 )
                 return
 

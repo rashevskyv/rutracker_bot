@@ -460,13 +460,43 @@ async def test_cmd_remove_deals():
         with patch("send_eshop_deals.load_active_showcase", return_value={"-1001790782971_561344": [{"title": "Hogwarts Legacy", "message_id": 999}]}):
             with patch("send_eshop_deals.safe_delete_showcase_message", new_callable=AsyncMock) as mock_del:
                 mock_del.return_value = True
-                # Call registered remove handler
                 for handler in bot.message_handlers:
                     cmds = handler.get("filters", {}).get("commands", [])
                     if "remove" in cmds:
                         await handler["function"](msg)
                         break
                 assert mock_del.called
+
+    # Test 2: Remove by reply to message
+    msg_reply = Message(
+        message_id=556,
+        from_user=None,
+        date=1234567,
+        chat=Chat(id=-1001790782971, type="supergroup"),
+        content_type="text",
+        options={},
+        json_string="",
+    )
+    msg_reply.text = "/remove"
+    msg_reply.message_thread_id = 561344
+    msg_reply.reply_to_message = Message(
+        message_id=999,
+        from_user=None,
+        date=1234560,
+        chat=Chat(id=-1001790782971, type="supergroup"),
+        content_type="text",
+        options={},
+        json_string="",
+    )
+
+    with patch("send_eshop_deals.safe_delete_showcase_message", new_callable=AsyncMock) as mock_del2:
+        mock_del2.return_value = True
+        for handler in bot.message_handlers:
+            cmds = handler.get("filters", {}).get("commands", [])
+            if "remove" in cmds:
+                await handler["function"](msg_reply)
+                break
+        assert mock_del2.called
 
 
 
