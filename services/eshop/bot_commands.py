@@ -890,22 +890,12 @@ def register_eshop_handlers(
         func=lambda m: bool(m.text and m.text.lower().startswith(("/remove", "/clean_deals", "/clear_deals", "/видалити", "/очистити"))),
     )
     async def cmd_remove_deals(message: Message):
-        """Remove specified number of deals or all from current chat/topic showcase."""
-        parts = message.text.split()
+        """Remove specified number of deals, specific game by title, or all from current chat/topic showcase."""
+        parts = message.text.split(maxsplit=1)
         target_arg = parts[1].strip().lower() if len(parts) > 1 else "all"
 
         remove_all = target_arg == "all"
-        try:
-            remove_count = 999999 if remove_all else max(1, int(target_arg))
-        except ValueError:
-            await safe_reply(
-                bot,
-                message,
-                "ℹ️ Вкажіть кількість повідомлень для видалення або <code>all</code>:\n"
-                "• <code>/remove 20</code> — видалити 20 повідомлень вітрини\n"
-                "• <code>/remove all</code> — видалити всі повідомлення вітрини",
-            )
-            return
+        is_title_search = not remove_all and not target_arg.isdigit()
 
         thread_id = getattr(message, "message_thread_id", None)
         # Strictly only allow in dedicated topic 561344 of chat -1001790782971
@@ -936,6 +926,32 @@ def register_eshop_handlers(
             )
             return
 
+        if is_title_search:
+            target_title_norm = target_arg.lower()
+            to_delete = [it for it in items if target_title_norm in it.get("title", "").lower()]
+            surviving = [it for it in items if target_title_norm not in it.get("title", "").lower()]
+            if not to_delete:
+                await safe_reply(bot, message, f"ℹ️ Гру '<b>{parts[1]}</b>' не знайдено серед активних повідомлень вітрини.")
+                return
+        elif remove_all:
+            to_delete = items[:]
+            surviving = []
+        else:
+            try:
+                remove_count = max(1, int(target_arg))
+                to_delete = items[:remove_count]
+                surviving = items[remove_count:]
+            except ValueError:
+                await safe_reply(
+                    bot,
+                    message,
+                    "ℹ️ Вкажіть назву гри, кількість повідомлень або <code>all</code>:\n"
+                    "• <code>/remove Hogwarts Legacy</code> — видалити конкретну гру\n"
+                    "• <code>/remove 20</code> — видалити 20 повідомлень\n"
+                    "• <code>/remove all</code> — видалити всі повідомлення",
+                )
+                return
+
         deleted_msg_ids = set()
         deleted_count = 0
 
@@ -950,10 +966,6 @@ def register_eshop_handlers(
             deleted_msg_ids.add(message.message_id)
         except Exception:
             pass
-
-        # 1. Delete tracked items in this showcase topic
-        to_delete = items[:remove_count] if not remove_all else items[:]
-        surviving = items[remove_count:] if not remove_all else []
 
         for it in to_delete:
             msg_id = it.get("message_id")

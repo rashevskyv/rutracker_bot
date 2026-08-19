@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.23] - 2026-08-19
+
+### Added
+- **Targeted Title-Based Deal Removal (`/remove <title>` & `--remove "<title>"`)**:
+  - `send_eshop_deals.py`: Added support for deleting specific games from active showcase by name substring (e.g. `python send_eshop_deals.py --remove "Hogwarts Legacy"`).
+  - `services/eshop/bot_commands.py`: Added title parameter support to `/remove <title>` (e.g. `/remove Hogwarts Legacy` or `/видалити Hogwarts Legacy`), purging its showcase message, release cooldown, and caching.
+
 ## [v0.7.22] - 2026-08-19
 
 ### Fixed

@@ -564,20 +564,33 @@ async def remove_showcase_deals(remove_arg: str):
     items = showcase_data.get(showcase_key, [])
 
     remove_all = clean_arg == "all"
-    try:
-        remove_count = 999999 if remove_all else max(1, int(clean_arg))
-    except ValueError:
-        logger.error(f"Invalid remove count: '{remove_arg}'. Please specify a number (e.g. 20) or 'all'.")
-        return
+    is_title_search = not remove_all and not clean_arg.isdigit()
+
+    if is_title_search:
+        target_title_norm = clean_arg.lower()
+        to_delete = [it for it in items if target_title_norm in it.get("title", "").lower()]
+        surviving = [it for it in items if target_title_norm not in it.get("title", "").lower()]
+        if not to_delete:
+            logger.info(f"ℹ️ No tracked deals matching '{remove_arg}' found in showcase database.")
+            print(f"ℹ️ No tracked deals matching '{remove_arg}' found in showcase database.")
+            return
+    elif remove_all:
+        to_delete = items[:]
+        surviving = []
+    else:
+        try:
+            remove_count = max(1, int(clean_arg))
+            to_delete = items[:remove_count]
+            surviving = items[remove_count:]
+        except ValueError:
+            logger.error(f"Invalid remove argument: '{remove_arg}'. Please specify a number, game title, or 'all'.")
+            return
 
     total_deleted = 0
     deleted_msg_ids = set()
 
     try:
         # Delete strictly tracked items recorded for this topic
-        to_delete = items[:remove_count] if not remove_all else items[:]
-        surviving = items[remove_count:] if not remove_all else []
-
         for it in to_delete:
             msg_id = it.get("message_id")
             title = it.get("title", "")
