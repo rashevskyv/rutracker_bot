@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.24] - 2026-08-19
+
+### Fixed
+- **Modernized Latin American Regional eShop Store Links**:
+  - `services/eshop/formatters.py` & `eshop-prices/src/bot/formatters.py`: Updated regional store link generation for Argentina (`/es-ar/`), Chile (`/es-cl/`), Brazil (`/pt-br/`), Peru (`/es-pe/`), Colombia (`/es-co/`), and Mexico (`/es-mx/`) to direct live endpoints on `nintendo.com`, replacing legacy 404 subdomains.
+- **Enhanced Multi-Word Solr Query Parsing**:
+  - `services/eshop/eshop_service.py`: Added explicit `q.op=AND` operator for search queries to prevent Solr matching unrelated games on generic words.
+
 ## [v0.7.23] - 2026-08-19
 
 ### Added

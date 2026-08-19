@@ -260,10 +260,14 @@ class EShopService:
         url = self.BASE_URL.format(locale=self.locale)
 
         clean_q = query.strip()
-        formatted_q = f"*{clean_q}*" if not clean_q.startswith("*") else clean_q
+        if " " in clean_q:
+            formatted_q = clean_q
+        else:
+            formatted_q = f"*{clean_q}*" if not clean_q.startswith("*") else clean_q
 
         params = {
             "q": formatted_q,
+            "q.op": "AND",
             "fq": "type:GAME AND system_type:nintendoswitch*",
             "sort": "popularity desc",
             "rows": rows,

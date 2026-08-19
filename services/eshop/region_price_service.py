@@ -105,10 +105,10 @@ class RegionPriceService:
     PRICE_API_URL = "https://api.ec.nintendo.com/v1/price"
 
     # Nintendo of America Algolia Search API
-    ALGOLIA_US_URL = "https://u3b6gr4ua3-dsn.algolia.net/1/indexes/store_game_en_us/query"
+    ALGOLIA_US_URL = "https://u3b6gr4ua3-dsn.algolia.net/1/indexes/ncom_game_en_us/query"
     ALGOLIA_HEADERS = {
-        "X-Algolia-API-Key": "9a96da137365c71d6092520cb2a48721",
-        "X-Algolia-Application-Id": "U3B6GR4UA3",
+        "x-algolia-api-key": "a29c6927638bfd8cee23993e51e721c9",
+        "x-algolia-application-id": "U3B6GR4UA3",
         "Content-Type": "application/json",
     }
 

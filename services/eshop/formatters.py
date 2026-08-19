@@ -76,13 +76,15 @@ def get_region_eshop_url(country_code: str, title: str, game_url: str = "") -> s
     elif code == "TH":
         return f"https://store.nintendo.com/th/search/?q={q}"
     elif code == "AR":
-        return f"https://store.nintendo.com.ar/catalogsearch/result/?q={q}"
+        return f"https://www.nintendo.com/es-ar/search/#q={q}"
     elif code == "CL":
-        return f"https://store.nintendo.cl/catalogsearch/result/?q={q}"
+        return f"https://www.nintendo.com/es-cl/search/#q={q}"
     elif code == "PE":
-        return f"https://store.nintendo.com.pe/catalogsearch/result/?q={q}"
+        return f"https://www.nintendo.com/es-pe/search/#q={q}"
+    elif code == "CO":
+        return f"https://www.nintendo.com/es-co/search/#q={q}"
     elif code == "BR":
-        return f"https://store.nintendo.com.br/catalogsearch/result/?q={q}"
+        return f"https://www.nintendo.com/pt-br/search/#q={q}"
     elif code == "MX":
         return f"https://www.nintendo.com/es-mx/search/#q={q}"
     elif code in ["AU", "NZ"]:

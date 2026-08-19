@@ -295,7 +295,8 @@ def test_showcase_state_management():
 def test_clickable_regional_store_links():
     from services.eshop.formatters import get_region_eshop_url
     assert "nintendo.com/us" in get_region_eshop_url("US", "Sonic Origins")
-    assert "store.nintendo.com.ar" in get_region_eshop_url("AR", "Celeste")
+    assert "nintendo.com/es-ar" in get_region_eshop_url("AR", "Celeste")
+    assert "nintendo.com/pt-br" in get_region_eshop_url("BR", "Celeste")
     assert "nintendo.com/en-gb" in get_region_eshop_url("PL", "Persona 5")
 
 
