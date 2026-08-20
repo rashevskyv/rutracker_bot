@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.27] - 2026-08-20
+
+### Improved
+- **Strict Price Change & Expiration Detection for Showcase Rotation**:
+  - `send_eshop_deals.py`:
+    - Added automated price change detection: if a posted game's price or discount percentage changes on Nintendo Store, or if the discount expires, the old message is automatically deleted from the group.
+    - Added immediate cooldown release upon deal deletion, allowing updated prices to be cleanly republished.
+    - Guaranteed constant 30-deal showcase maintenance by automatically querying and broadcasting the exact number of replacement deals.
+
 ## [v0.7.26] - 2026-08-19
 
 ### Added

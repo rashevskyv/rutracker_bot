@@ -347,9 +347,20 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                             game_check = results[0]
 
                     if game_check:
-                        if game_check.discount_percent > 0 and (
-                            game_check.regular_price is None or game_check.regular_price > game_check.discount_price
-                        ):
+                        has_discount = (
+                            game_check.discount_percent > 0
+                            and (game_check.regular_price is None or game_check.regular_price > game_check.discount_price)
+                        )
+                        old_disc_price = float(item.get("discount_price") or 0.0)
+                        old_disc_pct = float(item.get("discount_percent") or 0.0)
+
+                        price_changed = False
+                        if old_disc_price > 0 and abs(game_check.discount_price - old_disc_price) > 0.05:
+                            price_changed = True
+                        if old_disc_pct > 0 and abs(game_check.discount_percent - old_disc_pct) > 1.0:
+                            price_changed = True
+
+                        if has_discount and not price_changed:
                             is_still_discounted = True
                 except Exception as check_err:
                     logger.debug(f"Could not verify discount for '{item_title}': {check_err}")
@@ -365,7 +376,15 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                             message_id=int(msg_id),
                             title=item_title,
                         )
-                        if not deleted:
+                        if deleted:
+                            if fs_id and str(fs_id) in posted_history:
+                                posted_history.pop(str(fs_id), None)
+                                fresh_history.pop(str(fs_id), None)
+                            norm = _normalize_title_key(item_title)
+                            if norm and f"title_{norm}" in posted_history:
+                                posted_history.pop(f"title_{norm}", None)
+                                fresh_history.pop(f"title_{norm}", None)
+                        else:
                             # If not deleted (e.g. unauthorized destination), keep item to prevent churn
                             surviving_items.append(item)
 
