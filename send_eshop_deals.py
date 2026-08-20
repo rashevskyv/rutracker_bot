@@ -407,18 +407,36 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                     rows=80, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
                 )
 
-            # Step D: Filter out games already in showcase or in cooldown
+            # Step D: Filter out games already in showcase, in cooldown, or duplicates in candidate batch
             existing_titles = {_normalize_title_key(it.get("title", "")) for it in surviving_items}
             existing_fsids = {str(it.get("fs_id")) for it in surviving_items if it.get("fs_id")}
+            existing_nsuids = {str(it.get("nsuid")) for it in surviving_items if it.get("nsuid")}
 
             deals_to_post: List[GameDeal] = []
+            seen_batch_titles = set()
+            seen_batch_ids = set()
+
             for d in raw_deals:
                 d_norm = _normalize_title_key(d.title)
                 d_fsid = str(d.fs_id) if d.fs_id else ""
-                if d_norm in existing_titles or (d_fsid and d_fsid in existing_fsids):
+                d_nsuid = str(d.nsuid) if d.nsuid else ""
+
+                if not d_norm or d_norm in existing_titles or d_norm in seen_batch_titles:
                     continue
+                if (d_fsid and d_fsid in existing_fsids) or (d_fsid and d_fsid in seen_batch_ids):
+                    continue
+                if (d_nsuid and d_nsuid in existing_nsuids) or (d_nsuid and d_nsuid in seen_batch_ids):
+                    continue
+
                 if _is_deal_already_posted(d, fresh_history, cooldown_seconds, now_ts):
                     continue
+
+                seen_batch_titles.add(d_norm)
+                if d_fsid:
+                    seen_batch_ids.add(d_fsid)
+                if d_nsuid:
+                    seen_batch_ids.add(d_nsuid)
+
                 deals_to_post.append(d)
                 if len(deals_to_post) >= available_slots:
                     break

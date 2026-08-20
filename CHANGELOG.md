@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.28] - 2026-08-20
+
+### Improved
+- **Multi-Tier Anti-Duplication & Anti-Repeat Protection**:
+  - `send_eshop_deals.py`:
+    - Layer 1 (Active Showcase Filter): Prevents posting any game currently active among the 30 showcase cards by normalized title, `fs_id`, and `nsuid`.
+    - Layer 2 (14-Day Cooldown Memory): Blocks games posted within the last 14 days (`data/eshop_posted_deals.json`).
+    - Layer 3 (Intra-Batch Deduplication): Guarantees candidate batches never select duplicate title variations within the same broadcast run.
+
 ## [v0.7.27] - 2026-08-20
 
 ### Improved
