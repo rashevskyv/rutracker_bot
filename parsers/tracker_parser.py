@@ -15,6 +15,44 @@ from core.settings_loader import get_session, RUTRACKER_COOKIES, FLARESOLVERR_UR
 
 logger = logging.getLogger(__name__)
 
+HOMEBREW_GENRE_RE = re.compile(r'(?:#)?(?:home[-_\s]?brew|хо[у]?м[-_\s]?бр[юу])', re.IGNORECASE)
+
+
+def is_homebrew_genre(
+    genres: Optional[List[str]] = None,
+    description: Optional[str] = None,
+    title: Optional[str] = None
+) -> bool:
+    """
+    Determines if a game/release is Homebrew based on genres, description, hashtags, or title.
+    Checks for English 'homebrew', hashtags like '#Homebrew', and Cyrillic variants ('хоумбрю', 'хомбрю').
+    """
+    # 1. Check extracted genre list
+    if genres:
+        for g in genres:
+            if g and HOMEBREW_GENRE_RE.search(str(g).strip()):
+                return True
+
+    # 2. Check description (specifically genre headers and hashtags)
+    if description:
+        plain = re.sub(r'<[^>]+>', ' ', description)
+        # Search inside Genre / Жанр lines
+        genre_lines = re.findall(r'(?:Жанр|Genre|Жанри)\s*:\s*([^\n\r]+)', plain, re.IGNORECASE)
+        for line in genre_lines:
+            if HOMEBREW_GENRE_RE.search(line):
+                return True
+
+        # Search for #homebrew or Cyrillic hashtag directly in description
+        if re.search(r'#(?:home[-_\s]?brew|хо[у]?м[-_\s]?бр[юу])\b', plain, re.IGNORECASE):
+            return True
+
+    # 3. Check bracketed markers in title (e.g. [Homebrew] or (Homebrew))
+    if title:
+        if re.search(r'(?:\[|\()(?:home[-_\s]?brew|хо[у]?м[-_\s]?бр[юу])(?:\]|\))', title, re.IGNORECASE):
+            return True
+
+    return False
+
 async def fetch_via_flaresolverr(url: str, timeout: int = 120) -> Optional[BeautifulSoup]:
     """Fetch page content via FlareSolverr proxy to bypass Cloudflare challenge."""
     if not FLARESOLVERR_URL:

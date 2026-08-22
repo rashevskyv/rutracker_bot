@@ -32,7 +32,7 @@ The bot runs on a hybrid scheduling model using GitHub Actions and self-managing
 - Parses topic contents using search strategies (phrase search, author changelog patterns) to extract update text.
 - Translates descriptions and update details from Russian to Ukrainian using GPT-4o-mini (`gpt-5.4-nano` fallback).
 - Validates and searches for game trailers on YouTube using word-overlap and GPT title validation.
-- Downloads screenshots using TitleDB by matching game titles.
+- Downloads screenshots using TitleDB by matching game titles; automatically detects **Homebrew** releases (`Homebrew`, `#Homebrew`, `Хоумбрю`, `Хомбрю`) by genre, description hashtags, and title tags to suppress screenshot lookups and avoid mismatched commercial screenshots.
 - Posts detailed announcements to Telegram immediately.
 
 ### 2. Multi-Source Homebrew Collector (`collect_homebrew_updates.py`)

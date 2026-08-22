@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.33] - 2026-08-22
+
+### Added
+- **RuTracker Homebrew Genre Detection & Screenshot Suppression**:
+  - `parsers/tracker_parser.py`: Added `is_homebrew_genre(genres, description, title)` helper function to detect Homebrew releases across English (`Homebrew`, `#Homebrew`, `home-brew`, `home brew`), Cyrillic variants (`Хоумбрю`, `Хомбрю`, `хоум-брю`, `хоумбру`, `#хоумбрю`, `#хомбрю`), HTML/plaintext genre lines, and bracketed title tags (`[Homebrew]`, `(Хоумбрю)`).
+  - `main.py`: Integrated `is_homebrew_genre` in the post processing loop. For Homebrew releases, TitleDB game lookup and screenshot downloads are now automatically bypassed (`local_screenshot_paths = []`), preventing mismatched commercial game screenshots from being downloaded or attached to Telegram posts.
+  - `test_tracker_homebrew.py`: Added comprehensive unit test suite validating Homebrew detection across genre lists, description headers, hashtags, and title tags.
+
 ## [v0.7.32] - 2026-08-22
 
 ### Fixed

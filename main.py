@@ -18,7 +18,7 @@ from core.settings_loader import (
 from parsers.feed_handler import (
     read_last_entry_link, write_last_entry_link, get_new_feed_entries
 )
-from parsers.tracker_parser import parse_tracker_entry
+from parsers.tracker_parser import parse_tracker_entry, is_homebrew_genre
 from services.youtube_search import search_trailer_on_youtube
 from services.ai_validator import validate_yt_title_with_gpt
 from services.titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
@@ -195,9 +195,12 @@ async def main_loop():
                 except Exception as yt_err:
                     logger.warning(f"YouTube search/validation failed: {yt_err}")
 
-                # Get and Download Screenshots from TitleDB
+                # Get and Download Screenshots from TitleDB (Skip for Homebrew releases)
                 local_screenshot_paths: List[str] = []
-                if db_manager:
+                is_homebrew = is_homebrew_genre(genres=genres, description=cleaned_description, title=page_display_title)
+                if is_homebrew:
+                    logger.info(f"Homebrew release detected ('{page_display_title}'). Skipping screenshot lookup/download.")
+                elif db_manager:
                     game_db_data = await asyncio.to_thread(db_manager.find_game_data, title_text_for_youtube)
                     if game_db_data:
                         nsuid_from_db = game_db_data.get('nsuId')
