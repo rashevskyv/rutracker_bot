@@ -300,7 +300,30 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
         showcase_data = load_active_showcase()
 
         if reset:
-            logger.info("🔄 [RESET] Resetting showcase database and posted history to force full 20 deals broadcast...")
+            logger.info("🔄 [RESET] Purging all existing tracked showcase messages from Telegram and resetting history...")
+            for group in target_groups:
+                g_chat = group.get("chat_id")
+                g_topic = group.get("topic_id")
+                if not g_chat:
+                    continue
+                try:
+                    c_int = int(g_chat)
+                    t_int = int(g_topic) if g_topic else None
+                except ValueError:
+                    continue
+                k = f"{g_chat}_{g_topic}" if g_topic else str(g_chat)
+                existing = showcase_data.get(k, [])
+                for item in existing:
+                    m_id = item.get("message_id")
+                    m_title = item.get("title", "")
+                    if m_id:
+                        await safe_delete_showcase_message(
+                            chat_id=c_int,
+                            topic_id=t_int,
+                            message_id=int(m_id),
+                            title=m_title,
+                        )
+                        await asyncio.sleep(0.08)
             showcase_data = {}
             save_active_showcase(showcase_data)
             posted_history = {}

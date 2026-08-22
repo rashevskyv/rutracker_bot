@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.32] - 2026-08-22
+
+### Fixed
+- **Clean Telegram Message Deletion on `--reset`**:
+  - `send_eshop_deals.py`: `--reset` (and `--refresh`) now actively iterates over all tracked showcase cards and deletes their messages directly from Telegram via `safe_delete_showcase_message` before clearing the database and broadcasting 30 fresh deals.
+
 ## [v0.7.31] - 2026-08-22
 
 ### Fixed
