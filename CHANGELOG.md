@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.31] - 2026-08-22
+
+### Fixed
+- **Real-Time Nintendo Price API Ground Truth Validation**:
+  - `services/eshop/eshop_service.py`: Integrated batch real-time discount validation (`validate_live_prices`) against official Nintendo Price API (`https://api.ec.nintendo.com/v1/price`).
+  - Completely eliminated ghost/expired discounts caused by stale cached fields in Nintendo's Solr search catalog index (such as expired discounts on *Hogwarts Legacy*).
+
 ## [v0.7.30] - 2026-08-22
 
 ### Added

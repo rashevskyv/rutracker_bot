@@ -174,7 +174,7 @@ class EShopService:
                     deal = self._parse_game_doc(doc)
                     if deal and (min_discount_percent == 0 or deal.discount_percent >= min_discount_percent):
                         deals.append(deal)
-                return deals
+                return await self.validate_live_prices(deals, require_discount=True)
         except Exception as e:
             logger.error(f"Error fetching discounted games from Nintendo API: {e}")
             return []
@@ -184,7 +184,7 @@ class EShopService:
     ) -> List[GameDeal]:
         """
         Check discounts specifically across the curated catalog of famous/popular Switch games
-        and major publisher releases, eliminating shovelware.
+        and major publisher releases, eliminating shovelware and verifying with live Price API.
         """
         from services.eshop.popular_catalog import POPULAR_SWITCH_GAMES, MAJOR_PUBLISHERS
 
@@ -252,7 +252,83 @@ class EShopService:
                 seen.add(key)
                 unique_deals.append(d)
 
-        return unique_deals
+        # Strictly validate all deals against live Nintendo Price API to eliminate ghost/expired discounts
+        return await self.validate_live_prices(unique_deals, require_discount=True)
+
+    async def validate_live_prices(
+        self, deals: List[GameDeal], country: str = "DE", require_discount: bool = True
+    ) -> List[GameDeal]:
+        """
+        Validate candidate deals against Nintendo's official real-time Price API (https://api.ec.nintendo.com/v1/price).
+        Solr catalog index can retain stale discount flags for expired sales. Real-time Price API is the ground truth.
+        """
+        if not deals:
+            return []
+
+        session = await self._get_session()
+        validated: List[GameDeal] = []
+
+        chunk_size = 50
+        for i in range(0, len(deals), chunk_size):
+            chunk = deals[i : i + chunk_size]
+            nsuid_map = {str(d.nsuid): d for d in chunk if d.nsuid}
+            if not nsuid_map:
+                if not require_discount:
+                    validated.extend(chunk)
+                continue
+
+            ids_param = ",".join(nsuid_map.keys())
+            url = f"https://api.ec.nintendo.com/v1/price?country={country}&lang=en&ids={ids_param}"
+            try:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json(content_type=None)
+                        for price_obj in data.get("prices", []):
+                            t_id = str(price_obj.get("title_id"))
+                            deal = nsuid_map.get(t_id)
+                            if not deal:
+                                continue
+
+                            reg_info = price_obj.get("regular_price") or {}
+                            disc_info = price_obj.get("discount_price")
+
+                            reg_raw = reg_info.get("raw_value")
+                            disc_raw = disc_info.get("raw_value") if disc_info else None
+
+                            if reg_raw is not None:
+                                try:
+                                    deal.regular_price = float(reg_raw)
+                                except ValueError:
+                                    pass
+
+                            if disc_raw is not None:
+                                try:
+                                    deal.discount_price = float(disc_raw)
+                                    if deal.regular_price and deal.regular_price > 0:
+                                        deal.discount_percent = round(
+                                            ((deal.regular_price - deal.discount_price) / deal.regular_price) * 100,
+                                            1,
+                                        )
+                                    validated.append(deal)
+                                except ValueError:
+                                    pass
+                            elif not require_discount:
+                                deal.discount_price = deal.regular_price
+                                deal.discount_percent = 0.0
+                                validated.append(deal)
+                            else:
+                                logger.debug(
+                                    f"Rejecting ghost discount for '{deal.title}': Solr had discount, but live Price API shows regular price ({deal.regular_price} EUR)."
+                                )
+                    else:
+                        if not require_discount:
+                            validated.extend(chunk)
+            except Exception as e:
+                logger.debug(f"Live Price API validation error: {e}")
+                if not require_discount:
+                    validated.extend(chunk)
+
+        return validated
 
     async def search_games(self, query: str, rows: int = 10) -> List[GameDeal]:
         """Search specifically for Nintendo Switch games by name/keyword."""
@@ -286,7 +362,7 @@ class EShopService:
                     deal = self._parse_game_doc(doc)
                     if deal:
                         results.append(deal)
-                return results
+                return await self.validate_live_prices(results, require_discount=False)
         except Exception as e:
             logger.error(f"Error searching games with query '{query}': {e}")
             return []
@@ -309,7 +385,10 @@ class EShopService:
                     data = await resp.json(content_type=None)
                     docs = data.get("response", {}).get("docs", [])
                     if docs:
-                        return self._parse_game_doc(docs[0])
+                        deal = self._parse_game_doc(docs[0])
+                        if deal:
+                            validated = await self.validate_live_prices([deal], require_discount=False)
+                            return validated[0] if validated else deal
         except Exception as e:
             logger.debug(f"Error fetching game by fs_id '{fs_id}': {e}")
         return None
