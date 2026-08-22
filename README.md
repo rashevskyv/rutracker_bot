@@ -90,12 +90,15 @@ Checks various platforms for homebrew updates:
 | `/unsub <category>` | Unsubscribe from automated broadcasts (`deals`, `rutracker`, `digests`, `all`). |
 | `/deals_settings` | View active quality filters for the chat. |
 | `/set_min_discount <%>` | Adjust minimum discount percentage (e.g. `/set_min_discount 40`). |
-| `/remove [N\|all]` | Delete N or all active showcase deal messages from the current topic (e.g. `/remove 30`, `/remove all`). |
+| `/showcase` (or `/вітрина`) | Display the complete numbered list of active games currently tracked in the showcase. |
+| `/remove [N\|all\|title\|reply]` | Delete N deals, all deals, a specific game by title, or the replied card from the showcase. |
 | `/help` | Display command help and usage instructions. |
 
 ### CLI Commands (`send_eshop_deals.py`)
+- `python send_eshop_deals.py --list` (or `list`) — List all currently active games tracked in the showcase database.
 - `python send_eshop_deals.py --force` — Force cron broadcast cycle immediately (up to 30 deals).
 - `python send_eshop_deals.py --reset` (or `reset`) — Reset showcase database and history, broadcasting 30 fresh deals from scratch.
+- `python send_eshop_deals.py --remove "<title>"` — Delete a specific game from active showcase by name.
 - `python send_eshop_deals.py --remove 30` (or `remove 30`) — Delete 30 messages from active showcase.
 - `python send_eshop_deals.py --remove all` (or `remove all`) — Delete all messages from active showcase and release cooldowns.
 
@@ -131,9 +134,13 @@ State lives in a GitHub Gist so that runs on different machines stay consistent.
 These files are synced: `posted_links.json`, `hb_state.json`, `daily_digest_data.json`,
 `homebrew_digest_data.json`, `last_entry.txt`, `last_digest_run.json`,
 `last_homebrew_digest_run.json`, `manual_releases.json`, `list_hb.json`,
-`custom_releases_state.json`.
+`custom_releases_state.json`, `eshop_posted_deals.json`, `eshop_active_showcase.json`,
+`eshop_region_prices_cache.json`, `last_eshop_deals_run.json`, `eshop_descriptions.json`,
+`hb_descriptions.json`, `translations_cache.json`.
 
-Public Gist downloading and merge state fetching automatically retry without authentication if `GIST_TOKEN` or `GITHUB_TOKEN` returns HTTP 401 Bad credentials.
+- **Selective sync**: You can download or upload specific files instead of the entire state (e.g. `python sync_gist_state.py download manual_releases.json`).
+- **Truncated content handling**: Automatically fetches complete file contents via `raw_url` if files exceed 1MB in Gist.
+- **Resilient auth**: Public Gist downloading and merge state fetching automatically retry without authentication if `GIST_TOKEN` or `GITHUB_TOKEN` returns HTTP 401 Bad credentials.
 If the token lacks Gist write permission or is invalid/expired, `upload` fails with 401/403 and state cannot be pushed to Gist.
 
 ### Manual Releases Queue (`data/manual_releases.json`)

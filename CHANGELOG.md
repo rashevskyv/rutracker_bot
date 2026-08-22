@@ -2,6 +2,26 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.30] - 2026-08-22
+
+### Added
+- **Interactive Showcase Deals Listing (`/showcase` & `/вітрина`)**:
+  - `services/eshop/bot_commands.py`: Added interactive command `/showcase` (aliases: `/вітрина`, `/deals_list`, `/list_deals`, `/список`) to display the complete numbered list of active games currently tracked in the showcase database with discounts and prices.
+- **CLI Showcase Listing (`python send_eshop_deals.py --list`)**:
+  - `send_eshop_deals.py`: Added `--list` (or `list`, `--showcase`) flag to inspect and print all active games tracked in `data/eshop_active_showcase.json` directly from the server terminal.
+
+## [v0.7.29] - 2026-08-20
+
+### Improved
+- **Enhanced Manual Releases Queue Quality & Gist Synchronization**:
+  - `data/manual_releases.json`:
+    - Updated *Plants vs. Zombies Ultimate* (`ChanseyIsTheBest/pvz_ultimate_nx` v1.0.0) with proper title formatting and general technical description covering NativeAOT Android ARM64 wrapper, GLES2 rendering, audio, and controller/touch input.
+    - Updated *Killer Bean Unleashed* (`ChanseyIsTheBest/killerbean_nx` v1.0.1) with proper title formatting and timeless description highlighting Unity IL2CPP port features, physics, and Joy-Con/Pro Controller controls.
+    - Updated *Sonic Runners Adventure* (`boraeskicioglu/sonic_runners_adventure_nx` v0.1.46) with proper title and general description detailing Gameloft port on switch-mesa/SDL2, save progression, audio, and handheld/docked resolution support.
+  - `sync_gist_state.py`:
+    - Synchronized updated state to GitHub Gist.
+    - Added support for selective file syncing via CLI and automatic fetching of truncated Gist files via `raw_url`.
+
 ## [v0.7.28] - 2026-08-20
 
 ### Improved

@@ -46,8 +46,25 @@ def get_gist_headers(token: str = None) -> Dict[str, str]:
         headers["Authorization"] = f"token {token}"
     return headers
 
-def download_state(gist_id: str, token: str):
-    logger.info(f"Downloading state from Gist {gist_id}...")
+def normalize_target_files(files_arg) -> list:
+    if not files_arg:
+        return FILES_TO_SYNC
+    normalized = []
+    for f in files_arg:
+        basename = os.path.basename(f)
+        if basename in FILES_TO_SYNC:
+            normalized.append(basename)
+        elif f"{basename}.json" in FILES_TO_SYNC:
+            normalized.append(f"{basename}.json")
+        elif f"{basename}.txt" in FILES_TO_SYNC:
+            normalized.append(f"{basename}.txt")
+        else:
+            normalized.append(basename)
+    return normalized
+
+def download_state(gist_id: str, token: str, target_files: list = None):
+    sync_list = normalize_target_files(target_files)
+    logger.info(f"Downloading state from Gist {gist_id} (files: {', '.join(sync_list)})...")
     url = f"https://api.github.com/gists/{gist_id}"
     req = urllib.request.Request(url, headers=get_gist_headers(token))
     
@@ -68,10 +85,15 @@ def download_state(gist_id: str, token: str):
             gist_data = json.loads(response.read().decode())
             
             files = gist_data.get("files", {})
-            for filename in FILES_TO_SYNC:
+            for filename in sync_list:
                 if filename in files:
-                    content = files[filename].get("content", "")
-                    # Empty content in gist comes as string
+                    file_info = files[filename]
+                    if file_info.get("truncated") and file_info.get("raw_url"):
+                        raw_req = urllib.request.Request(file_info["raw_url"], headers=get_gist_headers(token))
+                        with urllib.request.urlopen(raw_req) as raw_resp:
+                            content = raw_resp.read().decode("utf-8")
+                    else:
+                        content = file_info.get("content", "")
                     filepath = os.path.join(DATA_DIR, filename)
                     with open(filepath, "w", encoding="utf-8") as f:
                         f.write(content)
@@ -212,8 +234,9 @@ def merge_json_files(filename: str, local_content: str, gist_content: str) -> st
     return gist_content if gist_content.strip() else local_content
 
 
-def upload_state(gist_id: str, token: str, force: bool = False):
-    logger.info(f"Uploading state to Gist {gist_id} (force={force})...")
+def upload_state(gist_id: str, token: str, force: bool = False, target_files: list = None):
+    sync_list = normalize_target_files(target_files)
+    logger.info(f"Uploading state to Gist {gist_id} (force={force}, files: {', '.join(sync_list)})...")
     
     # 1. Download current Gist content first to perform a safe merge unless force is True
     gist_files = {}
@@ -240,14 +263,23 @@ def upload_state(gist_id: str, token: str, force: bool = False):
         logger.info("Force flag enabled: bypassing merge, uploading local files directly.")
     
     files_payload = {}
-    for filename in FILES_TO_SYNC:
+    for filename in sync_list:
         filepath = os.path.join(DATA_DIR, filename)
         if os.path.exists(filepath):
             with open(filepath, "r", encoding="utf-8") as f:
                 local_content = f.read()
                 
             gist_file = gist_files.get(filename, {})
-            gist_content = gist_file.get("content", "")
+            if gist_file.get("truncated") and gist_file.get("raw_url"):
+                try:
+                    raw_req = urllib.request.Request(gist_file["raw_url"], headers=get_gist_headers(token))
+                    with urllib.request.urlopen(raw_req) as raw_resp:
+                        gist_content = raw_resp.read().decode("utf-8")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch raw truncated content for {filename}: {e}")
+                    gist_content = gist_file.get("content", "")
+            else:
+                gist_content = gist_file.get("content", "")
             
             # Merge logic if both Gist and local have content and force is False
             if not force and gist_content.strip() and gist_content.strip() not in ("empty", "{}") and local_content.strip():
@@ -295,6 +327,7 @@ def upload_state(gist_id: str, token: str, force: bool = False):
 def main():
     parser = argparse.ArgumentParser(description="Synchronize bot state with GitHub Gist")
     parser.add_argument("action", choices=["download", "upload"], help="Action to perform")
+    parser.add_argument("files", nargs="*", default=None, help="Optional specific file(s) to sync (e.g. manual_releases.json)")
     parser.add_argument("-f", "--force", action="store_true", help="Force upload local files directly without merging")
     
     args = parser.parse_args()
@@ -334,9 +367,9 @@ def main():
                        "otherwise uploads fail with 403 and state is silently lost.")
         
     if args.action == "download":
-        download_state(gist_id, token)
+        download_state(gist_id, token, target_files=args.files)
     elif args.action == "upload":
-        upload_state(gist_id, token, force=args.force)
+        upload_state(gist_id, token, force=args.force, target_files=args.files)
 
 if __name__ == "__main__":
     main()

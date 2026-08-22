@@ -351,7 +351,8 @@ def register_eshop_handlers(
             "• <code>/sub &lt;deals | rutracker | digests | all&gt;</code> — Увімкнути авто-розсилку\n"
             "• <code>/unsub &lt;deals | rutracker | digests | all&gt;</code> — Вимкнути авто-розсилку\n\n"
             "⚙️ <b>Керування вітриною та фільтрами:</b>\n"
-            "• <code>/remove [N | all]</code> — Видалити повідомлення вітрини в топіку знижок\n"
+            "• <code>/showcase</code> або <code>/вітрина</code> — Список усіх активних ігор у вітрині\n"
+            "• <code>/remove [N | all | назва]</code> — Видалити повідомлення вітрини в топіку знижок\n"
             "• <code>/deals_settings</code> — Переглянути активні фільтри якості\n"
             "• <code>/set_min_discount &lt;%&gt;</code> — Встановити мін. % знижки (наприклад: <code>/set_min_discount 40</code>)\n"
         )
@@ -884,6 +885,46 @@ def register_eshop_handlers(
                 message,
                 "❌ Невідома категорія. Доступні: <code>deals</code>, <code>rutracker</code>, <code>digests</code>, <code>all</code>",
             )
+
+    @bot.message_handler(
+        commands=["showcase", "deals_list", "list_deals", "showcase_list", "вітрина", "список"],
+        func=lambda m: bool(m.text and m.text.lower().startswith(("/showcase", "/deals_list", "/list_deals", "/вітрина", "/список", "вітрина", "список"))),
+    )
+    async def cmd_list_showcase(message: Message):
+        """Display the complete list of active games currently in the showcase database."""
+        thread_id = getattr(message, "message_thread_id", None)
+        from send_eshop_deals import load_active_showcase
+
+        showcase_key = f"{message.chat.id}_{thread_id}" if thread_id else str(message.chat.id)
+        showcase_data = load_active_showcase()
+        items = showcase_data.get(showcase_key, [])
+        if not items:
+            for k, it_list in showcase_data.items():
+                if str(message.chat.id) in k and it_list:
+                    showcase_key = k
+                    items = it_list
+                    break
+
+        if not items:
+            await safe_reply(
+                bot,
+                message,
+                "ℹ️ <b>У базі даних вітрини зараз 0 активних ігор.</b>\n\n"
+                "Щоб заповнити вітрину 30 актуальними хітами прямо зараз, запустіть на сервері:\n"
+                "<code>python send_eshop_deals.py --force</code>",
+            )
+            return
+
+        lines = [f"🎮 <b>Активна вітрина знижок у топіку ({len(items)}/30):</b>\n"]
+        for idx, it in enumerate(items, 1):
+            title = it.get("title", "Unknown")
+            disc = it.get("discount_percent", 0)
+            price = it.get("discount_price", 0)
+            curr = it.get("currency", "EUR")
+            lines.append(f"{idx}. <b>{title}</b> — {price} {curr} (<b>-{disc:.0f}%</b>)")
+
+        text = "\n".join(lines)
+        await safe_reply(bot, message, text)
 
     @bot.message_handler(
         commands=["remove_deals", "remove", "clean_deals", "clear_deals", "видалити", "очистити"],

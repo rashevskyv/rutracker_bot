@@ -498,6 +498,40 @@ async def test_cmd_remove_deals():
                 break
         assert mock_del2.called
 
+    # Test 3: List showcase command
+    msg_list = Message(
+        message_id=557,
+        from_user=None,
+        date=1234567,
+        chat=Chat(id=-1001790782971, type="supergroup"),
+        content_type="text",
+        options={},
+        json_string="",
+    )
+    msg_list.text = "/showcase"
+    msg_list.message_thread_id = 561344
+
+    with patch("send_eshop_deals.load_active_showcase", return_value={"-1001790782971_561344": [{"title": "Zelda", "message_id": 100, "discount_percent": 30, "discount_price": 40.0, "currency": "EUR"}]}):
+        with patch("services.eshop.bot_commands.safe_reply", new_callable=AsyncMock) as mock_safe_reply:
+            for handler in bot.message_handlers:
+                cmds = handler.get("filters", {}).get("commands", [])
+                if "showcase" in cmds:
+                    await handler["function"](msg_list)
+                    break
+            assert mock_safe_reply.called
+
+
+def test_cli_list_showcase(capsys):
+    from send_eshop_deals import list_showcase_deals
+    from unittest.mock import patch
+
+    with patch("send_eshop_deals.load_active_showcase", return_value={"-1001790782971_561344": [{"title": "Mario Odyssey", "message_id": 101, "discount_percent": 33, "discount_price": 39.99, "currency": "EUR"}]}):
+        list_showcase_deals()
+        captured = capsys.readouterr()
+        assert "Mario Odyssey" in captured.out
+        assert "1/30" in captured.out
+
+
 
 
 

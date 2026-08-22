@@ -671,6 +671,44 @@ async def remove_showcase_deals(remove_arg: str):
             pass
 
 
+def list_showcase_deals():
+    """
+    List all games currently tracked in active showcase database for topic 561344.
+    """
+    cfg = load_config(local_settings_path) or load_config(default_settings_path) or {}
+    eshop_cfg = cfg.get("ESHOP_DEALS", {})
+
+    target_chat = int(eshop_cfg.get("chat_id") or -1001790782971)
+    target_topic = int(eshop_cfg.get("topic_id") or 561344)
+    showcase_key = f"{target_chat}_{target_topic}" if target_topic else str(target_chat)
+
+    showcase_data = load_active_showcase()
+    items = showcase_data.get(showcase_key, [])
+    if not items:
+        for k, v in showcase_data.items():
+            if str(target_chat) in k and v:
+                showcase_key = k
+                items = v
+                break
+
+    print(f"\n📊 [Активна вітрина eShop] Топік: {target_topic} (Чат: {target_chat})")
+    print(f"Всього ігор у базі вітрини: {len(items)}/30\n" + "=" * 60)
+    if not items:
+        print("ℹ️ База даних вітрини наразі порожня (0 ігор).")
+        print("Щоб заповнити вітрину 30 актуальними хітами, виконайте: python send_eshop_deals.py --force")
+        return
+
+    for i, it in enumerate(items, 1):
+        title = it.get("title", "Unknown")
+        disc = it.get("discount_percent", 0)
+        price = it.get("discount_price", 0)
+        curr = it.get("currency", "EUR")
+        msg_id = it.get("message_id")
+        fs_id = it.get("fs_id")
+        print(f"{i:2d}. {title} | -{disc:.0f}% ({price} {curr}) | msg_id: {msg_id} | fs_id: {fs_id}")
+    print("=" * 60 + "\n")
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -678,6 +716,7 @@ if __name__ == "__main__":
     parser.add_argument("--force", "-f", action="store_true", help="Force deals broadcast regardless of interval.")
     parser.add_argument("--reset", action="store_true", help="Reset active showcase and history, broadcasting 20 fresh deals.")
     parser.add_argument("--refresh", action="store_true", help="Alias for --reset.")
+    parser.add_argument("--list", "-l", action="store_true", help="List all currently tracked active deals in showcase database.")
     parser.add_argument(
         "--remove",
         "-r",
@@ -687,6 +726,10 @@ if __name__ == "__main__":
     )
 
     args, unknown = parser.parse_known_args()
+
+    if args.list or ("--list" in sys.argv) or any(a.lower() in ["list", "--list", "showcase", "--showcase"] for a in sys.argv[1:]):
+        list_showcase_deals()
+        sys.exit(0)
 
     # Detect reset / refresh from flags or positional arguments
     reset_run = (

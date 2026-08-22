@@ -48,9 +48,20 @@ def test_missing_gist_id_is_fatal():
             local_cfg.write_text(original_content, encoding="utf-8")
 
 
+def test_normalize_target_files():
+    import sync_gist_state
+    assert sync_gist_state.normalize_target_files(None) == sync_gist_state.FILES_TO_SYNC
+    assert sync_gist_state.normalize_target_files([]) == sync_gist_state.FILES_TO_SYNC
+    assert sync_gist_state.normalize_target_files(["manual_releases.json"]) == ["manual_releases.json"]
+    assert sync_gist_state.normalize_target_files(["data/manual_releases.json"]) == ["manual_releases.json"]
+    assert sync_gist_state.normalize_target_files(["manual_releases"]) == ["manual_releases.json"]
+    assert sync_gist_state.normalize_target_files(["last_entry"]) == ["last_entry.txt"]
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
             fn()
             print(f"  {name} ok")
     print("gist config ok")
+
