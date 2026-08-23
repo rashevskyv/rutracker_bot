@@ -420,15 +420,23 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                 showcase_data[showcase_key] = surviving_items
                 continue
 
-            # Step C: Fast fetch candidate deals without heavy enrichment
+            # Step C: Fast fetch candidate deals with full pool (curated popular + top Solr discounts)
             logger.info(f"Fetching candidate games to fill {available_slots} slot(s)...")
-            raw_deals = await eshop_service.fetch_popular_discounted_games(
+            raw_popular = await eshop_service.fetch_popular_discounted_games(
                 min_discount_percent=criteria.min_discount_percent
             )
-            if not raw_deals:
-                raw_deals = await eshop_service.fetch_discounted_games(
-                    rows=80, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
-                )
+            raw_general = await eshop_service.fetch_discounted_games(
+                rows=120, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
+            )
+
+            # Combine and deduplicate candidates by normalized title and fs_id
+            seen_cand = set()
+            raw_deals = []
+            for d in (raw_popular + raw_general):
+                k = _normalize_title_key(d.title)
+                if k and k not in seen_cand:
+                    seen_cand.add(k)
+                    raw_deals.append(d)
 
             # Step D: Filter out games already in showcase, in cooldown, or duplicates in candidate batch
             existing_titles = {_normalize_title_key(it.get("title", "")) for it in surviving_items}

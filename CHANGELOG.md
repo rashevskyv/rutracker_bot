@@ -2,6 +2,24 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.35] - 2026-08-23
+
+### Fixed
+- **Combined Candidate Pool to Guarantee 30 Active Showcase Deals**:
+  - `send_eshop_deals.py`: Combined the curated popular catalog with the broad Solr discount feed (`fetch_discounted_games`), expanding the candidate pool to 150+ verified live deals.
+  - Resolved the limitation where the showcase capped at 20 deals due to fallback logic only executing when the curated list was completely empty.
+
+## [v0.7.34] - 2026-08-23
+
+### Added
+- **Manual Releases: EstebanPdN Nintendo 3DS Native Ports Queue**:
+  - `data/manual_releases.json`: Added latest Nintendo 3DS native homebrew port releases from developer [EstebanPdN](https://github.com/EstebanPdN):
+    - *The Legend of Zelda: The Minish Cap (EstebanPdN)* (`v1.2-E4`, 3DS) — native dual-screen decompilation port with GBA save support and Old/New 3DS optimization profiles.
+    - *Mario Kart 64 (EstebanPdN)* (`v1.2-E7`, 3DS) — native N64 decompilation port based on SpaghettiKart with dual-screen features, fast loading, and stable framerate.
+    - *The Legend of Zelda: A Link to the Past (EstebanPdN)* (`v3.0-E3`, 3DS) — native dual-screen Zelda3 port with bottom-screen interactive map, WIDE mode, and custom 3D banner.
+    - *Papa's Pizzeria (EstebanPdN)* (`v0.13`, 3DS) — native port of Flipline Studios' cooking management game optimized for dual-screen and stylus touch controls.
+  - Successfully synchronized updated state with GitHub Gist (`upload` / `download`).
+
 ## [v0.7.33] - 2026-08-22
 
 ### Added
