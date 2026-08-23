@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.36] - 2026-08-23
+
+### Fixed
+- **Direct & Visible Showcase Message Purge on `--reset`**:
+  - `send_eshop_deals.py`: Rewrote the reset purging loop to directly iterate through all entries across every key in `showcase_data` without relying on group key matching.
+  - Added real-time terminal output displaying every deleted old message and every newly published deal `[N/30]`.
+
 ## [v0.7.35] - 2026-08-23
 
 ### Fixed

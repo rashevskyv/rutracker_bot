@@ -301,33 +301,37 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
 
         if reset:
             logger.info("🔄 [RESET] Purging all existing tracked showcase messages from Telegram and resetting history...")
-            for group in target_groups:
-                g_chat = group.get("chat_id")
-                g_topic = group.get("topic_id")
-                if not g_chat:
-                    continue
+            total_to_purge = sum(len(it_list) for it_list in showcase_data.values())
+            print(f"\n🔄 [RESET] Повне скидання вітрини: видаляю {total_to_purge} існуючих повідомлень з Telegram...")
+
+            for k, items in list(showcase_data.items()):
+                parts = k.split("_")
                 try:
-                    c_int = int(g_chat)
-                    t_int = int(g_topic) if g_topic else None
+                    c_int = int(parts[0])
+                    t_int = int(parts[1]) if len(parts) > 1 else None
                 except ValueError:
                     continue
-                k = f"{g_chat}_{g_topic}" if g_topic else str(g_chat)
-                existing = showcase_data.get(k, [])
-                for item in existing:
+                for item in items:
                     m_id = item.get("message_id")
                     m_title = item.get("title", "")
                     if m_id:
-                        await safe_delete_showcase_message(
+                        del_ok = await safe_delete_showcase_message(
                             chat_id=c_int,
                             topic_id=t_int,
                             message_id=int(m_id),
                             title=m_title,
                         )
+                        if del_ok:
+                            print(f"  🗑 Видалено з Telegram: {m_title} (ID: {m_id})")
+                        else:
+                            print(f"  ⚠️ Не вдалося видалити з Telegram: {m_title} (ID: {m_id})")
                         await asyncio.sleep(0.08)
+
             showcase_data = {}
             save_active_showcase(showcase_data)
             posted_history = {}
             save_posted_deals(posted_history)
+            print(f"✅ Базу та історію скинуто. Починаю публікацію 30 свіжих ігор...\n")
 
         cooldown_seconds = cooldown_days * 86400
         fresh_history = {
@@ -520,6 +524,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                     })
                     _record_deal_in_history(fresh_history, deal, now_ts)
                     total_posted_this_run += 1
+                    print(f"  📤 [{len(surviving_items)}/30] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
                 await asyncio.sleep(1)
 
             showcase_data[showcase_key] = surviving_items
