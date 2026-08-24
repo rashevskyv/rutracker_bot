@@ -61,7 +61,7 @@ async def safe_delete_showcase_message(
     """
     is_authorized = (
         IS_TEST_MODE
-        or (int(chat_id) == AUTHORIZED_SHOWCASE_CHAT_ID and int(topic_id or 0) == AUTHORIZED_SHOWCASE_TOPIC_ID)
+        or (int(chat_id) == AUTHORIZED_SHOWCASE_CHAT_ID and (topic_id is None or int(topic_id) in [AUTHORIZED_SHOWCASE_TOPIC_ID, 0]))
     )
     if not is_authorized:
         logger.error(
@@ -75,7 +75,11 @@ async def safe_delete_showcase_message(
         logger.info(f"🗑 [SAFE DELETE] Deleted showcase message {message_id} ('{title}') from topic {topic_id} in chat {chat_id}")
         return True
     except Exception as e:
-        logger.debug(f"Could not delete message {message_id} ('{title}'): {e}")
+        err_str = str(e).lower()
+        if any(w in err_str for w in ["not found", "can't be deleted", "cant be deleted", "message to delete not found", "message_id_invalid"]):
+            logger.info(f"🗑 [SAFE DELETE] Message {message_id} ('{title}') already absent from Telegram: {e}")
+            return True
+        logger.warning(f"⚠️ Could not delete message {message_id} ('{title}') in chat {chat_id}: {e}")
         return False
 
 
@@ -396,24 +400,23 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                 if is_still_discounted:
                     surviving_items.append(item)
                 else:
+                    # Discount expired or price changed: remove from Telegram and database
                     if msg_id:
-                        deleted = await safe_delete_showcase_message(
+                        await safe_delete_showcase_message(
                             chat_id=chat_id_int,
                             topic_id=topic_id_int,
                             message_id=int(msg_id),
                             title=item_title,
                         )
-                        if deleted:
-                            if fs_id and str(fs_id) in posted_history:
-                                posted_history.pop(str(fs_id), None)
-                                fresh_history.pop(str(fs_id), None)
-                            norm = _normalize_title_key(item_title)
-                            if norm and f"title_{norm}" in posted_history:
-                                posted_history.pop(f"title_{norm}", None)
-                                fresh_history.pop(f"title_{norm}", None)
-                        else:
-                            # If not deleted (e.g. unauthorized destination), keep item to prevent churn
-                            surviving_items.append(item)
+                    # ALWAYS purge expired/changed deal from history to free slot
+                    if fs_id and str(fs_id) in posted_history:
+                        posted_history.pop(str(fs_id), None)
+                        fresh_history.pop(str(fs_id), None)
+                    norm = _normalize_title_key(item_title)
+                    if norm and f"title_{norm}" in posted_history:
+                        posted_history.pop(f"title_{norm}", None)
+                        fresh_history.pop(f"title_{norm}", None)
+                    print(f"  🗑 Видалено застарілу знижку з вітрини: {item_title} (ID: {msg_id})")
 
             # Step B: Calculate free slots
             available_slots = max(0, max_active_showcase - len(surviving_items))

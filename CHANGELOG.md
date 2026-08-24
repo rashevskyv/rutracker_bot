@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.37] - 2026-08-24
+
+### Fixed
+- **Guaranteed Expired Deal Purge & Deletion Authorization Fix**:
+  - `send_eshop_deals.py`: In Step A, expired or changed deals are now unconditionally removed from active showcase tracking and cooldown history, guaranteeing that failed or non-existing Telegram message deletions cannot prevent slot freeing or cause stale deals to stick in the showcase.
+  - Relaxed strict `topic_id` check in `safe_delete_showcase_message` so that `chat_id` matching `-1001790782971` is properly authorized even when `topic_id` is passed as `None` or `0`.
+  - Treated Telegram "message to delete not found" and "can't be deleted" as successful deletions to prevent orphaned message tracking.
+
 ## [v0.7.36] - 2026-08-23
 
 ### Fixed
