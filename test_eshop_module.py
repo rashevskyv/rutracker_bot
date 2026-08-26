@@ -532,6 +532,73 @@ def test_cli_list_showcase(capsys):
         assert "1/30" in captured.out
 
 
+@pytest.mark.asyncio
+async def test_snapshot_diff_engine():
+    from send_eshop_deals import send_eshop_deals, _normalize_title_key
+    from services.eshop.models import GameDeal
+    from unittest.mock import AsyncMock, patch, MagicMock
+
+    # Yesterday: Game A (101), Game B (102), Game C (103)
+    yesterday_showcase = {
+        "-1001790782971_561344": [
+            {"fs_id": "1", "title": "Game A", "message_id": 101, "discount_price": 10.0, "currency": "EUR"},
+            {"fs_id": "2", "title": "Game B", "message_id": 102, "discount_price": 20.0, "currency": "EUR"},
+            {"fs_id": "3", "title": "Game C", "message_id": 103, "discount_price": 30.0, "currency": "EUR"},
+        ]
+    }
+
+    # Today: Game B (unchanged), Game C (price changed from 30 to 25), Game D (new)
+    today_deals = [
+        GameDeal(fs_id="2", title="Game B", regular_price=40.0, discount_price=20.0, discount_percent=50.0, currency="EUR"),
+        GameDeal(fs_id="3", title="Game C", regular_price=40.0, discount_price=25.0, discount_percent=37.5, currency="EUR"),
+        GameDeal(fs_id="4", title="Game D", regular_price=50.0, discount_price=15.0, discount_percent=70.0, currency="EUR"),
+    ]
+
+    saved_showcase = {}
+
+    def fake_save_active(data):
+        nonlocal saved_showcase
+        saved_showcase = dict(data)
+
+    deleted_msgs = []
+
+    async def fake_delete(chat_id, topic_id, message_id, title=""):
+        deleted_msgs.append(message_id)
+        return True
+
+    mock_eshop = AsyncMock()
+    mock_eshop.fetch_popular_discounted_games.return_value = today_deals
+    mock_eshop.fetch_discounted_games.return_value = []
+
+    mock_bot = AsyncMock()
+    mock_sent_msg = MagicMock()
+    mock_sent_msg.message_id = 999
+    mock_bot.send_photo.return_value = mock_sent_msg
+
+    with patch("send_eshop_deals.load_active_showcase", return_value=yesterday_showcase), \
+         patch("send_eshop_deals.save_active_showcase", side_effect=fake_save_active), \
+         patch("send_eshop_deals.safe_delete_showcase_message", side_effect=fake_delete), \
+         patch("send_eshop_deals.EShopService", return_value=mock_eshop), \
+         patch("send_eshop_deals.bot", mock_bot), \
+         patch("send_eshop_deals.download_and_badge_cover", new_callable=AsyncMock, return_value=None), \
+         patch("send_eshop_deals.save_last_run"):
+
+        await send_eshop_deals(force=True, reset=False)
+
+    # 1. Game A (101) was dropped and Game C (103) had price changed -> both deleted
+    assert 101 in deleted_msgs
+    assert 103 in deleted_msgs
+
+    # 2. Saved showcase should keep Game B (102), and have new entries for Game C and Game D
+    res_items = saved_showcase.get("-1001790782971_561344", [])
+    res_titles = [it["title"] for it in res_items]
+    assert "Game B" in res_titles
+    assert "Game C" in res_titles
+    assert "Game D" in res_titles
+    assert "Game A" not in res_titles
+
+
+
 
 
 

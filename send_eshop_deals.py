@@ -299,51 +299,33 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             logger.warning("No target channels or groups configured in settings.json.")
             return
 
-        # 4. Load history and showcase data
-        posted_history = load_posted_deals()
+        # 4. Fetch Today's True Top 30 Valid Deals (Verified with Nintendo Live Price API)
+        logger.info("🔍 Fetching today's top 30 discounted Nintendo Switch games from eShop...")
+        raw_popular = await eshop_service.fetch_popular_discounted_games(
+            min_discount_percent=criteria.min_discount_percent
+        )
+        raw_general = await eshop_service.fetch_discounted_games(
+            rows=150, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
+        )
+
+        # Deduplicate and build Today's Top 30 Snapshot
+        seen_cand_keys = set()
+        today_top30: List[GameDeal] = []
+        for d in (raw_popular + raw_general):
+            k = _normalize_title_key(d.title)
+            if k and k not in seen_cand_keys:
+                seen_cand_keys.add(k)
+                today_top30.append(d)
+                if len(today_top30) >= max_active_showcase:
+                    break
+
+        today_map = {_normalize_title_key(d.title): d for d in today_top30}
+        logger.info(f"Today's Top 30 snapshot contains {len(today_top30)} games.")
+
         showcase_data = load_active_showcase()
-
-        if reset:
-            logger.info("🔄 [RESET] Purging all existing tracked showcase messages from Telegram and resetting history...")
-            total_to_purge = sum(len(it_list) for it_list in showcase_data.values())
-            print(f"\n🔄 [RESET] Повне скидання вітрини: видаляю {total_to_purge} існуючих повідомлень з Telegram...")
-
-            for k, items in list(showcase_data.items()):
-                parts = k.split("_")
-                try:
-                    c_int = int(parts[0])
-                    t_int = int(parts[1]) if len(parts) > 1 else None
-                except ValueError:
-                    continue
-                for item in items:
-                    m_id = item.get("message_id")
-                    m_title = item.get("title", "")
-                    if m_id:
-                        del_ok = await safe_delete_showcase_message(
-                            chat_id=c_int,
-                            topic_id=t_int,
-                            message_id=int(m_id),
-                            title=m_title,
-                        )
-                        if del_ok:
-                            print(f"  🗑 Видалено з Telegram: {m_title} (ID: {m_id})")
-                        else:
-                            print(f"  ⚠️ Не вдалося видалити з Telegram: {m_title} (ID: {m_id})")
-                        await asyncio.sleep(0.08)
-
-            showcase_data = {}
-            save_active_showcase(showcase_data)
-            posted_history = {}
-            save_posted_deals(posted_history)
-            print(f"✅ Базу та історію скинуто. Починаю публікацію 30 свіжих ігор...\n")
-
-        cooldown_seconds = cooldown_days * 86400
-        fresh_history = {
-            k: v for k, v in posted_history.items() if (now_ts - _get_entry_timestamp(v)) < (60 * 86400)
-        }
         total_posted_this_run = 0
 
-        # 5. Process each group destination with Showcase verification
+        # 5. Process each target destination with Snapshot Diff
         for group in target_groups:
             chat_id = group.get("chat_id")
             topic_id = group.get("topic_id")
@@ -358,129 +340,64 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                 continue
 
             showcase_key = f"{chat_id}_{topic_id}" if topic_id else str(chat_id)
-            current_showcase_items = showcase_data.get(showcase_key, [])
-            surviving_items = []
+            yesterday_items = showcase_data.get(showcase_key, [])
 
-            # Step A: Check and delete expired deals from active showcase
-            logger.info(f"Checking {len(current_showcase_items)} active showcase deals in {showcase_key}...")
-            for item in current_showcase_items:
-                item_title = item.get("title", "")
-                msg_id = item.get("message_id")
-                fs_id = item.get("fs_id")
-                is_still_discounted = False
-                try:
-                    game_check = None
-                    if fs_id:
-                        game_check = await eshop_service.get_game_by_fs_id(str(fs_id))
-                    if not game_check and item_title:
-                        results = await eshop_service.search_games(query=item_title, rows=1)
-                        if results:
-                            game_check = results[0]
+            # Compute Snapshot Diff
+            if reset:
+                to_keep = []
+                to_delete = list(yesterday_items)
+                to_add = list(today_top30)
+            else:
+                to_keep = []
+                to_delete = []
+                to_add = []
 
-                    if game_check:
-                        has_discount = (
-                            game_check.discount_percent > 0
-                            and (game_check.regular_price is None or game_check.regular_price > game_check.discount_price)
-                        )
+                for item in yesterday_items:
+                    norm = _normalize_title_key(item.get("title", ""))
+                    if norm in today_map:
+                        today_deal = today_map[norm]
                         old_disc_price = float(item.get("discount_price") or 0.0)
-                        old_disc_pct = float(item.get("discount_percent") or 0.0)
+                        if old_disc_price > 0 and abs(today_deal.discount_price - old_disc_price) <= 0.05:
+                            to_keep.append(item)
+                        else:
+                            to_delete.append(item)
+                    else:
+                        to_delete.append(item)
 
-                        price_changed = False
-                        if old_disc_price > 0 and abs(game_check.discount_price - old_disc_price) > 0.05:
-                            price_changed = True
-                        if old_disc_pct > 0 and abs(game_check.discount_percent - old_disc_pct) > 1.0:
-                            price_changed = True
+                kept_keys = {_normalize_title_key(it.get("title", "")) for it in to_keep}
+                for deal in today_top30:
+                    norm = _normalize_title_key(deal.title)
+                    if norm not in kept_keys:
+                        to_add.append(deal)
 
-                        if has_discount and not price_changed:
-                            is_still_discounted = True
-                except Exception as check_err:
-                    logger.debug(f"Could not verify discount for '{item_title}': {check_err}")
-                    is_still_discounted = True
-
-                if is_still_discounted:
-                    surviving_items.append(item)
-                else:
-                    # Discount expired or price changed: remove from Telegram and database
-                    if msg_id:
-                        await safe_delete_showcase_message(
-                            chat_id=chat_id_int,
-                            topic_id=topic_id_int,
-                            message_id=int(msg_id),
-                            title=item_title,
-                        )
-                    # ALWAYS purge expired/changed deal from history to free slot
-                    if fs_id and str(fs_id) in posted_history:
-                        posted_history.pop(str(fs_id), None)
-                        fresh_history.pop(str(fs_id), None)
-                    norm = _normalize_title_key(item_title)
-                    if norm and f"title_{norm}" in posted_history:
-                        posted_history.pop(f"title_{norm}", None)
-                        fresh_history.pop(f"title_{norm}", None)
-                    print(f"  🗑 Видалено застарілу знижку з вітрини: {item_title} (ID: {msg_id})")
-
-            # Step B: Calculate free slots
-            available_slots = max(0, max_active_showcase - len(surviving_items))
-            logger.info(f"Showcase {showcase_key}: {len(surviving_items)} active, {available_slots} slot(s) available.")
-
-            if available_slots <= 0:
-                logger.info(f"Showcase {showcase_key} is full ({len(surviving_items)}/{max_active_showcase}). No new deals needed.")
-                showcase_data[showcase_key] = surviving_items
-                continue
-
-            # Step C: Fast fetch candidate deals with full pool (curated popular + top Solr discounts)
-            logger.info(f"Fetching candidate games to fill {available_slots} slot(s)...")
-            raw_popular = await eshop_service.fetch_popular_discounted_games(
-                min_discount_percent=criteria.min_discount_percent
+            logger.info(
+                f"📊 [{showcase_key}] Diff: {len(to_keep)} keep, {len(to_delete)} delete, {len(to_add)} add."
             )
-            raw_general = await eshop_service.fetch_discounted_games(
-                rows=120, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
+            print(
+                f"\n📊 [{showcase_key}] Оновлення вітрини: {len(to_keep)} залишається, {len(to_delete)} видаляється, {len(to_add)} додається..."
             )
 
-            # Combine and deduplicate candidates by normalized title and fs_id
-            seen_cand = set()
-            raw_deals = []
-            for d in (raw_popular + raw_general):
-                k = _normalize_title_key(d.title)
-                if k and k not in seen_cand:
-                    seen_cand.add(k)
-                    raw_deals.append(d)
+            # Step A: Delete dropped or price-changed messages from Telegram
+            for item in to_delete:
+                msg_id = item.get("message_id")
+                title = item.get("title", "")
+                if msg_id:
+                    await safe_delete_showcase_message(
+                        chat_id=chat_id_int,
+                        topic_id=topic_id_int,
+                        message_id=int(msg_id),
+                        title=title,
+                    )
+                    print(f"  🗑 [Видалено] {title} (ID: {msg_id}) — вибула з ТОП-30")
+                    await asyncio.sleep(0.08)
 
-            # Step D: Filter out games already in showcase, in cooldown, or duplicates in candidate batch
-            existing_titles = {_normalize_title_key(it.get("title", "")) for it in surviving_items}
-            existing_fsids = {str(it.get("fs_id")) for it in surviving_items if it.get("fs_id")}
-            existing_nsuids = {str(it.get("nsuid")) for it in surviving_items if it.get("nsuid")}
+            # Step B: Current showcase starts with kept items
+            new_showcase = list(to_keep)
+            showcase_data[showcase_key] = new_showcase
+            save_active_showcase(showcase_data)
 
-            deals_to_post: List[GameDeal] = []
-            seen_batch_titles = set()
-            seen_batch_ids = set()
-
-            for d in raw_deals:
-                d_norm = _normalize_title_key(d.title)
-                d_fsid = str(d.fs_id) if d.fs_id else ""
-                d_nsuid = str(d.nsuid) if d.nsuid else ""
-
-                if not d_norm or d_norm in existing_titles or d_norm in seen_batch_titles:
-                    continue
-                if (d_fsid and d_fsid in existing_fsids) or (d_fsid and d_fsid in seen_batch_ids):
-                    continue
-                if (d_nsuid and d_nsuid in existing_nsuids) or (d_nsuid and d_nsuid in seen_batch_ids):
-                    continue
-
-                if _is_deal_already_posted(d, fresh_history, cooldown_seconds, now_ts):
-                    continue
-
-                seen_batch_titles.add(d_norm)
-                if d_fsid:
-                    seen_batch_ids.add(d_fsid)
-                if d_nsuid:
-                    seen_batch_ids.add(d_nsuid)
-
-                deals_to_post.append(d)
-                if len(deals_to_post) >= available_slots:
-                    break
-
-            # Step E: Enrich and send ONLY the selected deals
-            for deal in deals_to_post:
+            # Step C: Publish new deals to reach Top 30
+            for deal in to_add:
                 enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
                 msg_text = format_eshop_deal_message(enriched, language=lang, currency_service=currency_service)
                 badged_img = await download_and_badge_cover(enriched)
@@ -514,7 +431,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         logger.error(f"send_message failed for '{deal.title}': {me}")
 
                 if sent_msg:
-                    surviving_items.append({
+                    new_item = {
                         "fs_id": str(deal.fs_id) if deal.fs_id else None,
                         "nsuid": str(deal.nsuid) if deal.nsuid else None,
                         "title": deal.title,
@@ -524,22 +441,21 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         "discount_price": deal.discount_price,
                         "regular_price": deal.regular_price,
                         "currency": deal.currency,
-                    })
-                    _record_deal_in_history(fresh_history, deal, now_ts)
-                    total_posted_this_run += 1
-                    print(f"  📤 [{len(surviving_items)}/30] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
-
-                    # Persist state immediately to prevent loss of message IDs on interruption/crash
-                    showcase_data[showcase_key] = surviving_items
+                    }
+                    new_showcase.append(new_item)
+                    showcase_data[showcase_key] = new_showcase
                     save_active_showcase(showcase_data)
-                    save_posted_deals(fresh_history)
+                    total_posted_this_run += 1
+                    print(f"  📤 [{len(new_showcase)}/{max_active_showcase}] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
+
                 await asyncio.sleep(1)
 
-            showcase_data[showcase_key] = surviving_items
+            showcase_data[showcase_key] = new_showcase
+            save_active_showcase(showcase_data)
+            print(f"✅ Вітрину {showcase_key} оновлено: {len(new_showcase)}/{max_active_showcase} активних карток.\n")
 
-        # 6. Save state files
+        # 6. Save execution state
         save_active_showcase(showcase_data)
-        save_posted_deals(fresh_history)
         save_last_run({
             "last_run_timestamp": now_ts,
             "last_run_iso": now_dt.isoformat(),

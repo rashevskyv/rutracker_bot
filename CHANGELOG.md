@@ -2,6 +2,16 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.39] - 2026-08-26
+
+### Added
+- **Deterministic Top-30 Snapshot Diff Engine**:
+  - `send_eshop_deals.py`: Completely redesigned showcase rotation to use a pure state-diff algorithm between yesterday's active 30-deal snapshot and today's newly fetched Top-30 valid deals.
+  - Automatically identifies games that dropped from Top 30 (or changed price) and deletes their Telegram messages (`to_delete`).
+  - Retains existing unchanged games without re-posting (`to_keep`).
+  - Publishes only new candidate games entering the Top 30 (`to_add`), guaranteeing exactly 30 active deals in the group at all times.
+  - Added comprehensive automated test `test_snapshot_diff_engine` (29/29 tests passed).
+
 ## [v0.7.38] - 2026-08-26
 
 ### Fixed
