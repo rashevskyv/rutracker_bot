@@ -528,6 +528,11 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                     _record_deal_in_history(fresh_history, deal, now_ts)
                     total_posted_this_run += 1
                     print(f"  📤 [{len(surviving_items)}/30] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
+
+                    # Persist state immediately to prevent loss of message IDs on interruption/crash
+                    showcase_data[showcase_key] = surviving_items
+                    save_active_showcase(showcase_data)
+                    save_posted_deals(fresh_history)
                 await asyncio.sleep(1)
 
             showcase_data[showcase_key] = surviving_items

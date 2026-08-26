@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.38] - 2026-08-26
+
+### Fixed
+- **Atomic Per-Deal State Persistence (Anti-Duplication Guard)**:
+  - `send_eshop_deals.py`: `save_active_showcase` and `save_posted_deals` are now called immediately upon every single published deal card.
+  - Prevents untracked message IDs if a run is interrupted or timed out mid-execution, eliminating duplicate postings on subsequent cron runs.
+
 ## [v0.7.37] - 2026-08-24
 
 ### Fixed
