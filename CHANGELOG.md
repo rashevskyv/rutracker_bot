@@ -2,6 +2,37 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.43] - 2026-08-28
+
+### Added
+- **Automated Scheduling for Custom Switch Releases Collector**:
+  - `.github/workflows/bot_runner.yml`: Added automated execution of `collect_custom_releases.py` at 07:00 Kyiv time (04:00 UTC), exactly 1 hour prior to the main homebrew collector (08:00 Kyiv / 05:00 UTC).
+  - `.github/workflows/bot_runner.yml`: Added `run_collect_custom` option to manual `workflow_dispatch` trigger dropdown.
+
+## [v0.7.42] - 2026-08-27
+
+### Removed
+- **Local Web2API / Port 8081 Deprecation**:
+  - `collect_custom_releases.py`: Completely removed all local `web2api` probe logic, socket checks on port 8081, and local proxy fallback attempts.
+  - Standardized all AI repo analysis, validation, and description generation to run exclusively through **OpenRouter** (`openai/gpt-5.6-luna` / `OPENROUTER_MODEL`), aligning with remote server environments and GitHub Actions.
+
+## [v0.7.41] - 2026-08-27
+
+### Fixed
+- **Custom Releases Collector AI Client & Timeout Resolution**:
+  - `collect_custom_releases.py`: Prioritized configured OpenRouter/OpenAI API settings over probing inactive local Web2API ports, eliminating 5-second `httpx.ReadTimeout` delays.
+  - `collect_custom_releases.py`: Added explicit Switch homebrew port recognition in LLM prompt and code heuristics (`-nx`, `_nx`, `-switch`, `_switch`), preventing valid game ports with upstream PC descriptions (e.g. `skate3recomp-nx`) from being falsely rejected.
+- **Log Noise Suppression**:
+  - `core/logger_setup.py` & `collect_custom_releases.py`: Suppressed verbose low-level debug logs from `httpx`, `httpcore`, `openai`, `urllib3`, `asyncio`, and `telebot`, ensuring clean and readable console/file logs when `LOG: true` is active.
+
+## [v0.7.40] - 2026-08-27
+
+### Added
+- **Linux/Server Shell Runner for Custom Switch Releases Collector**:
+  - `run_custom_collector.sh`: Created an executable Bash runner script for Linux and server environments with automated virtual environment detection (`venv` / `.venv`), Python interpreter discovery (`python3` / `python`), and exit code handling.
+  - `config/run_checker.sh.example`: Added `custom` and `custom-releases` commands to the universal runner script, enabling scheduled execution, Gist state sync (download/upload), and multi-checker chaining.
+  - `README.md`: Documented server automation and execution instructions for the Custom Switch Repositories Collector.
+
 ## [v0.7.39] - 2026-08-26
 
 ### Added

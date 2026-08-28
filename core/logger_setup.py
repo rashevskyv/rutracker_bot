@@ -39,6 +39,10 @@ def setup_logging(log_level=logging.INFO, log_file="log/bot.log", log_to_console
         console_handler.setFormatter(log_format)
         root_logger.addHandler(console_handler)
 
+    # Suppress verbose noisy external library loggers
+    for noisy_logger in ["httpx", "httpcore", "openai", "urllib3", "asyncio", "telebot"]:
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+
     logging.info(f"Logging initialized. Level: {logging.getLevelName(log_level)}, File: {log_file}")
 
 # Initialize by default

@@ -143,19 +143,13 @@ def is_already_added(manual_entries: list, repo_url: str, repo_name: str) -> boo
             
     return False
 
-def is_local_web2api_online() -> bool:
-    import socket
-    try:
-        s = socket.socket()
-        s.settimeout(0.1)
-        s.connect(("127.0.0.1", 8081))
-        s.close()
-        return True
-    except Exception:
-        return False
+# Suppress noisy HTTP/LLM library loggers
+import logging
+for _lib in ["httpx", "httpcore", "openai", "urllib3", "asyncio"]:
+    logging.getLogger(_lib).setLevel(logging.WARNING)
 
 def analyze_repo_with_gemini(repo_name: str, repo_desc: str, topics: list, username: str = "author") -> dict:
-    """Calls Gemini Web2API (or OpenAI API) to format app name, description in Ukrainian, and verify if it's Switch homebrew."""
+    """Calls OpenRouter API (or OpenAI API) to format app name, description in Ukrainian, and verify if it's Switch homebrew."""
     prompt = f"""
 Analyze the following new GitHub repository of user '{username}'.
 
@@ -164,8 +158,10 @@ Description: {repo_desc or "No description provided."}
 Topics: {", ".join(topics) if topics else "None"}
 
 Determine:
-1. Is this repository a homebrew application, game, port, emulator, or utility designed for Nintendo Switch? Set "is_switch_homebrew": true if yes, false if it is for PC only, another platform, non-Switch tutorial/bootcamp, or generic non-Switch code.
-2. Formulate a short, punchy description of this release in Ukrainian (max 1-2 sentences). Example: 'Новий реліз [Name] для Nintendo Switch.'
+1. Is this repository a homebrew application, game, port, emulator, or utility designed or being ported for Nintendo Switch?
+   - Set "is_switch_homebrew": true for any Switch game, homebrew tool, emulator, or port. NOTE: Authors frequently port PC/console games to Switch, adding suffixes like '-nx', '_nx', '-switch' or using Switch libraries, while retaining the original upstream description (e.g. mentioning Windows, Linux, macOS). If the repo name, topics, or description indicates a Switch port/version, it IS a valid Switch release! Set "is_switch_homebrew": true.
+   - Set "is_switch_homebrew": false ONLY if it is clearly an unrelated PC-only project, web service, documentation, or tutorial with no Nintendo Switch relevance.
+2. Formulate a short, punchy description of this release in Ukrainian (max 1-2 sentences). Example: 'Новий порт [Name] для Nintendo Switch.'
 3. Clean the app name (remove suffixes like '-NX', '_nx', '-switch', or similar).
 
 Respond ONLY with a raw JSON object containing these keys:
@@ -176,31 +172,7 @@ Respond ONLY with a raw JSON object containing these keys:
   "platform": "Switch"
 }}
 """
-    # 1. Attempt Local Gemini Web2API (http://localhost:8081/v1) with gemini-3.5-flash-thinking
-    if is_local_web2api_online():
-        try:
-            from core.settings_loader import settings
-            base_url = settings.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or "http://localhost:8081/v1"
-            client = OpenAI(api_key="dummy_key", base_url=base_url, max_retries=0, timeout=5.0)
-            model_name = settings.get("OPENAI_MODEL", "gemini-3.5-flash-thinking")
-            
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1
-            )
-            content = response.choices[0].message.content
-            if content:
-                content = content.strip()
-                import re
-                match = re.search(r'(\{.*\})', content, re.DOTALL)
-                if match:
-                    content = match.group(1)
-                return json.loads(content)
-        except Exception as e:
-            print(f"Info: Local Gemini Web2API call failed ({e}). Trying OpenAI API fallback.")
-
-    # 2. Attempt OpenRouter / OpenAI API (if OPENROUTER_API_KEY or OPENAI_API_KEY is available)
+    # 1. Attempt OpenRouter / OpenAI API
     try:
         from core.settings_loader import settings
         api_key = (
@@ -210,12 +182,14 @@ Respond ONLY with a raw JSON object containing these keys:
             or settings.get("OPENAI_API")
             or os.environ.get("OPENAI_API_KEY")
         )
-        if api_key:
-            is_openrouter = api_key.startswith("sk-or-") or bool(settings.get("OPENROUTER_API_KEY")) or bool(os.environ.get("OPENROUTER_API_KEY"))
-            base_url = "https://openrouter.ai/api/v1" if is_openrouter else None
+        custom_base_url = settings.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+
+        if api_key or custom_base_url:
+            is_openrouter = (api_key and api_key.startswith("sk-or-")) or bool(settings.get("OPENROUTER_API_KEY")) or bool(os.environ.get("OPENROUTER_API_KEY"))
+            base_url = custom_base_url or ("https://openrouter.ai/api/v1" if is_openrouter else None)
             headers = {"HTTP-Referer": "https://github.com/rashevskyv/rutracker_bot", "X-Title": "RuTracker Bot"} if is_openrouter else None
             
-            client = OpenAI(api_key=api_key.strip(), base_url=base_url, default_headers=headers, max_retries=0, timeout=15.0)
+            client = OpenAI(api_key=(api_key or "dummy_key").strip(), base_url=base_url, default_headers=headers, max_retries=0, timeout=20.0)
             default_model = "openai/gpt-5.6-luna" if is_openrouter else "gpt-4o-mini"
             model_name = settings.get("OPENROUTER_MODEL") or settings.get("OPENAI_MODEL") or default_model
             
@@ -231,11 +205,13 @@ Respond ONLY with a raw JSON object containing these keys:
                 match = re.search(r'(\{.*\})', content, re.DOTALL)
                 if match:
                     content = match.group(1)
-                return json.loads(content)
+                res = json.loads(content)
+                if isinstance(res, dict):
+                    return res
     except Exception as e:
-        print(f"Warning: OpenRouter/OpenAI API call failed for {repo_name}: {e}. Using code fallback format.")
+        print(f"Warning: OpenRouter/OpenAI API call failed for {repo_name}: {e}. Using code fallback.")
 
-    # 3. Code-based heuristic fallback
+    # 2. Code-based heuristic fallback
     combined_text = f"{repo_name} {repo_desc or ''} {' '.join(topics)}".lower()
     is_switch = any(kw in combined_text for kw in ["switch", "nx", "homebrew", "nintendo", "libnx", "atmosphere", "hekat", "nro", "nsp", "xci", "hbmenu", "port"])
     clean_name = repo_name.replace("-NX", "").replace("_nx", "").replace("-switch", "").replace("-", " ").title()
@@ -335,6 +311,11 @@ def main():
                 continue
 
             ai_res = analyze_repo_with_gemini(repo_name, repo_desc, topics, username)
+
+            # Heuristic safeguard: if repo name or topics explicitly contain Switch markers, guarantee is_switch_homebrew is True
+            repo_name_lower = repo_name.lower()
+            if any(m in repo_name_lower for m in ["-nx", "_nx", "-switch", "_switch", "switch-", "nx-", "libnx", "atmosphere", "hekate"]) or any("switch" in str(t).lower() for t in topics):
+                ai_res["is_switch_homebrew"] = True
 
             if not ai_res.get("is_switch_homebrew", True):
                 print(f"Skipping repository '{repo_name}': not identified as Nintendo Switch homebrew.")

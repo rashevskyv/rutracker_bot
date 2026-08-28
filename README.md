@@ -56,6 +56,9 @@ Checks various platforms for homebrew updates:
 - State is persisted in `data/custom_releases_state.json` (synced with Gist), tracking `last_run` timestamp and author history.
 - Evaluates releases over the last 3 weeks (21 days) for newly added authors, and since `last_run` for existing authors.
 - Uses LLM verification to confirm that repositories are valid Nintendo Switch homebrew software before queueing them to `data/manual_releases.json`.
+- **Execution Scripts**:
+  - Linux / Server: `./run_custom_collector.sh` (or `bash run_custom_collector.sh`, or via universal runner `./config/run_checker.sh.example custom`)
+  - Windows: `run_custom_collector.bat`
 
 ### 5. Nintendo eShop Deals & Wishlist Module (`send_eshop_deals.py`, `bot_interactive.py`)
 - Automatically monitors official Nintendo eShop catalog for active game discounts on top popular franchises (Zero Shovelware).

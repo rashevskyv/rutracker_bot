@@ -51,7 +51,7 @@ COMMAND="${1:-rt}"
 
 # Download state from Gist for operational commands
 case "$COMMAND" in
-    rt|rutracker|hb|homebrew|digest|daily-digest|hb-digest|homebrew-digest|swuk|switch-ua|swuk-digest|switch-ua-digest|all)
+    rt|rutracker|hb|homebrew|digest|daily-digest|hb-digest|homebrew-digest|swuk|switch-ua|swuk-digest|switch-ua-digest|custom|custom-releases|all)
         echo "=== Downloading state from Gist ==="
         python sync_gist_state.py download
         ;;
@@ -67,6 +67,11 @@ case "$COMMAND" in
     hb|homebrew)
         echo "=== Running Homebrew updates checker ==="
         python collect_homebrew_updates.py
+        ;;
+
+    custom|custom-releases)
+        echo "=== Running Custom Switch Repositories Collector ==="
+        python collect_custom_releases.py
         ;;
 
     digest|daily-digest)
@@ -97,6 +102,9 @@ case "$COMMAND" in
         echo ""
         echo "--- Homebrew checker ---"
         python collect_homebrew_updates.py
+        echo ""
+        echo "--- Custom Releases checker ---"
+        python collect_custom_releases.py
         ;;
 
     help|--help|-h)
@@ -105,6 +113,7 @@ case "$COMMAND" in
         echo "Commands:"
         echo "  rt, rutracker       Run RuTracker checker (default)"
         echo "  hb, homebrew        Run Homebrew updates checker"
+        echo "  custom, custom-releases  Run Custom Switch Repositories Collector"
         echo "  swuk, switch-ua     Run Switch UA updates checker"
         echo "  digest              Send daily digest"
         echo "  hb-digest           Send homebrew digest"
@@ -115,6 +124,7 @@ case "$COMMAND" in
         echo "Examples:"
         echo "  $0                  # Run RuTracker checker"
         echo "  $0 hb               # Check homebrew updates"
+        echo "  $0 custom           # Check custom switch releases"
         echo "  $0 hb-digest        # Send homebrew digest"
         ;;
 
@@ -130,7 +140,7 @@ EXIT_CODE=$?
 
 # Upload state to Gist for operational commands
 case "$COMMAND" in
-    rt|rutracker|hb|homebrew|digest|daily-digest|hb-digest|homebrew-digest|swuk|switch-ua|swuk-digest|switch-ua-digest|all)
+    rt|rutracker|hb|homebrew|digest|daily-digest|hb-digest|homebrew-digest|swuk|switch-ua|swuk-digest|switch-ua-digest|custom|custom-releases|all)
         echo "=== Uploading state to Gist ==="
         python sync_gist_state.py upload
         ;;

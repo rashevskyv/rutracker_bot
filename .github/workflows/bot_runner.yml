@@ -14,6 +14,7 @@ on:
           - none
           - run_daily_digest
           - run_homebrew_digest
+          - run_collect_custom
           - run_collect_homebrew
           - run_swuk_digest
           - run_collect_swuk
@@ -82,6 +83,21 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: python main.py
+
+      - name: Run Collect Custom Releases (if time matches or forced)
+        env:
+          FORCE_TASK: ${{ github.event.inputs.force_task }}
+        run: |
+          CURRENT_HOUR=$(date -u +%H)
+          if [ "$FORCE_TASK" = "run_collect_custom" ]; then
+            echo "Manually forced run_collect_custom..."
+            python collect_custom_releases.py
+          elif [ "$CURRENT_HOUR" = "04" ]; then
+            echo "Time is 07:00 Kyiv time (04:00 UTC), running custom collector..."
+            python collect_custom_releases.py
+          else
+            echo "Skipping custom collector (not scheduled and not forced)"
+          fi
 
       - name: Run Collect Homebrew Updates (if time matches or forced)
         env:

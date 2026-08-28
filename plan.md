@@ -11,12 +11,12 @@ RuTracker Bot забезпечує моніторинг релізів трек�
 - Моніторинг Atom-стрічки, парсинг описів, переклад RU->UA через `openai/gpt-5.6-luna` з fallback на `deepseek/deepseek-v4-flash-0731`, SHA-256 кешування перекладів, валідація трейлерів YouTube. Підтримка доставки репостів роздач підписаним користувачам у приватні повідомлення.
 
 ### Модуль 2: Збір хоумбрю та локалізацій [Виконано]
-- Підтримка Universal-DB, ForTheUsers, VitaForge, SwitchPorts, SWUK та користувацьких репозиторіїв із генерацією підсумків оновлень через OpenRouter та кешуванням у `hb_descriptions.json`.
+- Підтримка Universal-DB, ForTheUsers, VitaForge, SwitchPorts, SWUK та користувацьких репозиторіїв (NaGaa95, ChanseyIsTheBest, delsonazevedo, boraeskicioglu, PalindromicBreadLoaf) із генерацією підсумків оновлень через OpenRouter та кешуванням у `hb_descriptions.json`. Створено скрипти автозапуску для Windows (`run_custom_collector.bat`) та Linux/серверів (`run_custom_collector.sh`, інтеграція в `run_checker.sh`).
 
 ### Модуль 3: Щоденні дайджести (Daily, Homebrew, Swuk) [Виконано]
 - Агрегація та щоденна розсилка дайджестів у налаштовані канали/групи та особисто підписникам категорії `digests`.
 
-### Модуль 4: Nintendo eShop Deals & Wishlist Module (v0.7.39) [Виконано]
+### Модуль 4: Nintendo eShop Deals & Wishlist Module (v0.7.43) [Виконано]
 - [x] Автоматичний моніторинг офіційних знижок Nintendo Switch без блокувань Cloudflare.
 - [x] **Детермінований алгоритм ротації Top-30 Snapshot Diff (`to_keep`, `to_delete`, `to_add`)**.
 - [x] **Миттєве атомарне збереження стану після кожної надісланої картки (захист від дублів)**.
