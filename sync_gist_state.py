@@ -34,7 +34,8 @@ FILES_TO_SYNC = [
     "translations_cache.json"
 ]
 
-DATA_DIR = "data"
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 def get_gist_headers(token: str = None) -> Dict[str, str]:
     headers = {
@@ -182,15 +183,55 @@ def merge_json_files(filename: str, local_content: str, gist_content: str) -> st
                     merged_entries[idx] = local_entry
         return json.dumps({"entries": merged_entries}, ensure_ascii=False, indent=2)
 
-    elif filename in ("last_digest_run.json", "last_homebrew_digest_run.json"):
+    elif filename in ("last_digest_run.json", "last_homebrew_digest_run.json", "last_eshop_deals_run.json", "last_swuk_digest_run.json"):
         if not isinstance(local_data, dict): local_data = {}
         if not isinstance(gist_data, dict): gist_data = {}
-        local_time = local_data.get("last_digest_time", "")
-        gist_time = gist_data.get("last_digest_time", "")
-        if local_time > gist_time:
+        local_time = str(local_data.get("last_digest_time") or local_data.get("last_run_timestamp") or "")
+        gist_time = str(gist_data.get("last_digest_time") or gist_data.get("last_run_timestamp") or "")
+        if local_time >= gist_time:
             return json.dumps(local_data, ensure_ascii=False, indent=2)
         else:
             return json.dumps(gist_data, ensure_ascii=False, indent=2)
+
+    elif filename == "eshop_posted_deals.json":
+        if not isinstance(local_data, dict): local_data = {}
+        if not isinstance(gist_data, dict): gist_data = {}
+        merged_deals = dict(gist_data)
+        for k, v in local_data.items():
+            if k not in merged_deals:
+                merged_deals[k] = v
+            else:
+                local_ts = v.get("posted_at", 0) if isinstance(v, dict) else (float(v) if isinstance(v, (int, float)) else 0)
+                gist_v = merged_deals[k]
+                gist_ts = gist_v.get("posted_at", 0) if isinstance(gist_v, dict) else (float(gist_v) if isinstance(gist_v, (int, float)) else 0)
+                if local_ts >= gist_ts:
+                    merged_deals[k] = v
+        return json.dumps(merged_deals, ensure_ascii=False, indent=2)
+
+    elif filename == "eshop_active_showcase.json":
+        if not isinstance(local_data, dict): local_data = {}
+        if not isinstance(gist_data, dict): gist_data = {}
+        all_keys = set(local_data.keys()) | set(gist_data.keys())
+        merged_showcase = {}
+        for k in all_keys:
+            local_items = local_data.get(k, []) if isinstance(local_data.get(k), list) else []
+            gist_items = gist_data.get(k, []) if isinstance(gist_data.get(k), list) else []
+            if not gist_items:
+                merged_showcase[k] = local_items
+            elif not local_items:
+                merged_showcase[k] = gist_items
+            else:
+                max_local_ts = max((float(it.get("posted_at", 0)) for it in local_items if isinstance(it, dict)), default=0.0)
+                max_gist_ts = max((float(it.get("posted_at", 0)) for it in gist_items if isinstance(it, dict)), default=0.0)
+                max_local_msg = max((int(it.get("message_id", 0)) for it in local_items if isinstance(it, dict) and it.get("message_id")), default=0)
+                max_gist_msg = max((int(it.get("message_id", 0)) for it in gist_items if isinstance(it, dict) and it.get("message_id")), default=0)
+
+                # Local wins if it has newer posts, higher message IDs, or equal recency with >= count
+                if max_local_ts > max_gist_ts or max_local_msg > max_gist_msg or (max_local_ts == max_gist_ts and len(local_items) >= len(gist_items)):
+                    merged_showcase[k] = local_items
+                else:
+                    merged_showcase[k] = gist_items
+        return json.dumps(merged_showcase, ensure_ascii=False, indent=2)
 
     elif filename == "hb_state.json":
         if not isinstance(local_data, dict): local_data = {}

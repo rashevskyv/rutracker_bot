@@ -1,7 +1,11 @@
 """
 Send Nintendo eShop Deals Script for RuTracker Bot.
-Maintains an active Live Showcase of up to 20 deals (auto-deleting expired discounts)
-and only enriches and posts fresh deals when open slots are available.
+
+Maintains an active Live Showcase of up to N deals (default 30):
+- each tracked card is kept while its live Nintendo discount is still valid;
+- expired/changed cards are deleted by stored message_id, then only vacated slots are refilled;
+- showcase state is persisted atomically under PROJECT_ROOT/data after every change;
+- if Telegram refuses deletion, the card stays tracked (no silent orphans / no extra posts).
 """
 
 import asyncio
@@ -13,6 +17,17 @@ import sys
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
+
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 from core.logger_setup import setup_logging
 from core.settings_loader import (
@@ -40,13 +55,36 @@ from services.telegram_sender import send_message_to_admin
 
 logger = logging.getLogger("send_eshop_deals")
 
-STATE_FILE = os.path.join("data", "eshop_posted_deals.json")
-SHOWCASE_FILE = os.path.join("data", "eshop_active_showcase.json")
-LAST_RUN_FILE = os.path.join("data", "last_eshop_deals_run.json")
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE = os.path.join(PROJECT_ROOT, "data", "eshop_posted_deals.json")
+SHOWCASE_FILE = os.path.join(PROJECT_ROOT, "data", "eshop_active_showcase.json")
+LAST_RUN_FILE = os.path.join(PROJECT_ROOT, "data", "last_eshop_deals_run.json")
 
 # Strict Security Lock: Deletions are hard-locked to this exact chat and topic
 AUTHORIZED_SHOWCASE_CHAT_ID = -1001790782971
 AUTHORIZED_SHOWCASE_TOPIC_ID = 561344
+
+
+def log_showcase_diagnostics() -> None:
+    """Log diagnostic information about the showcase state file at run start."""
+    if os.path.exists(SHOWCASE_FILE):
+        try:
+            mtime = datetime.fromtimestamp(os.path.getmtime(SHOWCASE_FILE), tz=timezone.utc).isoformat()
+            showcase = load_active_showcase()
+            if not showcase:
+                logger.info(f"📂 [SHOWCASE DIAGNOSTIC] Path: {os.path.abspath(SHOWCASE_FILE)} | mtime: {mtime} | Content: empty")
+            for key, items in showcase.items():
+                count = len(items) if isinstance(items, list) else 0
+                first_msg = items[0].get("message_id") if count > 0 and isinstance(items[0], dict) else None
+                last_msg = items[-1].get("message_id") if count > 0 and isinstance(items[-1], dict) else None
+                logger.info(
+                    f"📂 [SHOWCASE DIAGNOSTIC] Path: {os.path.abspath(SHOWCASE_FILE)} | mtime: {mtime} | "
+                    f"Key: {key} | Count: {count} | First msg_id: {first_msg} | Last msg_id: {last_msg}"
+                )
+        except Exception as e:
+            logger.warning(f"Could not log showcase diagnostics: {e}")
+    else:
+        logger.info(f"📂 [SHOWCASE DIAGNOSTIC] Path: {os.path.abspath(SHOWCASE_FILE)} does not exist yet.")
 
 
 async def safe_delete_showcase_message(
@@ -76,7 +114,16 @@ async def safe_delete_showcase_message(
         return True
     except Exception as e:
         err_str = str(e).lower()
-        if any(w in err_str for w in ["not found", "can't be deleted", "cant be deleted", "message to delete not found", "message_id_invalid"]):
+        # Only treat truly-absent messages as success. "message can't be deleted" means the
+        # message still exists but Telegram refused deletion — must NOT count as cleaned up.
+        if any(
+            w in err_str
+            for w in [
+                "message to delete not found",
+                "message_id_invalid",
+                "message not found",
+            ]
+        ):
             logger.info(f"🗑 [SAFE DELETE] Message {message_id} ('{title}') already absent from Telegram: {e}")
             return True
         logger.warning(f"⚠️ Could not delete message {message_id} ('{title}') in chat {chat_id}: {e}")
@@ -132,6 +179,18 @@ def _record_deal_in_history(history: dict, deal: GameDeal, now_ts: float) -> Non
         history[f"title_{norm_title}"] = entry
 
 
+def _atomic_write_json(path: str, data: Any) -> None:
+    """Atomically write JSON under PROJECT_ROOT so partial writes / wrong cwd cannot corrupt state."""
+    directory = os.path.dirname(path) or PROJECT_ROOT
+    os.makedirs(directory, exist_ok=True)
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, path)
+
+
 def load_posted_deals() -> dict:
     """Load history of previously posted deals."""
     if os.path.exists(STATE_FILE):
@@ -145,10 +204,8 @@ def load_posted_deals() -> dict:
 
 def save_posted_deals(data: dict) -> None:
     """Save history of posted deals."""
-    os.makedirs("data", exist_ok=True)
     try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        _atomic_write_json(STATE_FILE, data)
     except Exception as e:
         logger.error(f"Failed to save posted deals: {e}")
 
@@ -166,10 +223,8 @@ def load_active_showcase() -> dict:
 
 def save_active_showcase(data: dict) -> None:
     """Save active showcase messages."""
-    os.makedirs("data", exist_ok=True)
     try:
-        with open(SHOWCASE_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        _atomic_write_json(SHOWCASE_FILE, data)
     except Exception as e:
         logger.error(f"Failed to save active showcase: {e}")
 
@@ -187,12 +242,10 @@ def load_last_run() -> dict:
 
 def save_last_run(data: dict) -> None:
     """Save execution timestamp."""
-    os.makedirs("data", exist_ok=True)
     try:
-        with open(LAST_RUN_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+        _atomic_write_json(LAST_RUN_FILE, data)
+    except Exception as e:
+        logger.error(f"Failed to save last run state: {e}")
 
 
 async def send_eshop_deals(force: bool = False, reset: bool = False):
@@ -201,6 +254,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
     if reset:
         force = True
     logger.info(f"Starting Nintendo eShop deals check with Live Showcase Rotation (force={force}, reset={reset})...")
+    log_showcase_diagnostics()
 
     # 1. Load config options
     cfg = load_config(local_settings_path) or load_config(default_settings_path) or {}
@@ -299,33 +353,17 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             logger.warning("No target channels or groups configured in settings.json.")
             return
 
-        # 4. Fetch Today's True Top 30 Valid Deals (Verified with Nintendo Live Price API)
-        logger.info("🔍 Fetching today's top 30 discounted Nintendo Switch games from eShop...")
-        raw_popular = await eshop_service.fetch_popular_discounted_games(
-            min_discount_percent=criteria.min_discount_percent
-        )
-        raw_general = await eshop_service.fetch_discounted_games(
-            rows=150, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
-        )
-
-        # Deduplicate and build Today's Top 30 Snapshot
-        seen_cand_keys = set()
-        today_top30: List[GameDeal] = []
-        for d in (raw_popular + raw_general):
-            k = _normalize_title_key(d.title)
-            if k and k not in seen_cand_keys:
-                seen_cand_keys.add(k)
-                today_top30.append(d)
-                if len(today_top30) >= max_active_showcase:
-                    break
-
-        today_map = {_normalize_title_key(d.title): d for d in today_top30}
-        logger.info(f"Today's Top 30 snapshot contains {len(today_top30)} games.")
-
+        # 4. Load history and showcase data
+        posted_history = load_posted_deals()
         showcase_data = load_active_showcase()
+
+        cooldown_seconds = cooldown_days * 86400
+        fresh_history = {
+            k: v for k, v in posted_history.items() if (now_ts - _get_entry_timestamp(v)) < (60 * 86400)
+        }
         total_posted_this_run = 0
 
-        # 5. Process each target destination with Snapshot Diff
+        # 5. Process each target destination with Expiration-based Showcase verification
         for group in target_groups:
             chat_id = group.get("chat_id")
             topic_id = group.get("topic_id")
@@ -340,64 +378,183 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                 continue
 
             showcase_key = f"{chat_id}_{topic_id}" if topic_id else str(chat_id)
-            yesterday_items = showcase_data.get(showcase_key, [])
+            current_showcase_items = showcase_data.get(showcase_key, [])
+            surviving_items = []
 
-            # Compute Snapshot Diff
+            # Step A: Reset or check and delete expired deals
             if reset:
-                to_keep = []
-                to_delete = list(yesterday_items)
-                to_add = list(today_top30)
+                logger.info(f"🔄 [RESET] Purging {len(current_showcase_items)} active showcase deals from {showcase_key}...")
+                for item in current_showcase_items:
+                    msg_id = item.get("message_id")
+                    title = item.get("title", "")
+                    if msg_id:
+                        await safe_delete_showcase_message(
+                            chat_id=chat_id_int,
+                            topic_id=topic_id_int,
+                            message_id=int(msg_id),
+                            title=title,
+                        )
+                        await asyncio.sleep(0.08)
+                current_showcase_items = []
+                surviving_items = []
+                showcase_data[showcase_key] = []
+                save_active_showcase(showcase_data)
+                fresh_history = {}
+                posted_history = {}
+                save_posted_deals(fresh_history)
             else:
-                to_keep = []
-                to_delete = []
-                to_add = []
+                logger.info(f"Checking {len(current_showcase_items)} active showcase deals in {showcase_key} for discount expiration...")
+                for item in current_showcase_items:
+                    item_title = item.get("title", "")
+                    msg_id = item.get("message_id")
+                    fs_id = item.get("fs_id")
+                    is_still_discounted = False
+                    game_check = None
 
-                for item in yesterday_items:
-                    norm = _normalize_title_key(item.get("title", ""))
-                    if norm in today_map:
-                        today_deal = today_map[norm]
-                        old_disc_price = float(item.get("discount_price") or 0.0)
-                        if old_disc_price > 0 and abs(today_deal.discount_price - old_disc_price) <= 0.05:
-                            to_keep.append(item)
-                        else:
-                            to_delete.append(item)
+                    try:
+                        if fs_id:
+                            game_check = await eshop_service.get_game_by_fs_id(str(fs_id))
+                        if not game_check and item_title:
+                            results = await eshop_service.search_games(query=item_title, rows=1)
+                            if results:
+                                game_check = results[0]
+
+                        if game_check:
+                            has_discount = (
+                                game_check.discount_percent > 0
+                                and (game_check.regular_price is None or game_check.regular_price > game_check.discount_price)
+                            )
+                            old_disc_price = float(item.get("discount_price") or 0.0)
+                            old_disc_pct = float(item.get("discount_percent") or 0.0)
+
+                            price_changed = False
+                            if old_disc_price > 0 and abs(game_check.discount_price - old_disc_price) > 0.05:
+                                price_changed = True
+                            if old_disc_pct > 0 and abs(game_check.discount_percent - old_disc_pct) > 1.0:
+                                price_changed = True
+
+                            if has_discount and not price_changed:
+                                is_still_discounted = True
+                    except Exception as check_err:
+                        logger.debug(f"Could not verify discount for '{item_title}': {check_err}")
+                        is_still_discounted = True
+
+                    if is_still_discounted:
+                        kept = dict(item)
+                        # Refresh stored live prices so tiny API drift does not force churn next run.
+                        if game_check is not None:
+                            kept["discount_price"] = game_check.discount_price
+                            kept["discount_percent"] = game_check.discount_percent
+                            if game_check.regular_price is not None:
+                                kept["regular_price"] = game_check.regular_price
+                            if game_check.currency:
+                                kept["currency"] = game_check.currency
+                        surviving_items.append(kept)
                     else:
-                        to_delete.append(item)
+                        deleted = True
+                        if msg_id:
+                            deleted = await safe_delete_showcase_message(
+                                chat_id=chat_id_int,
+                                topic_id=topic_id_int,
+                                message_id=int(msg_id),
+                                title=item_title,
+                            )
+                            await asyncio.sleep(0.08)
 
-                kept_keys = {_normalize_title_key(it.get("title", "")) for it in to_keep}
-                for deal in today_top30:
-                    norm = _normalize_title_key(deal.title)
-                    if norm not in kept_keys:
-                        to_add.append(deal)
+                        if deleted:
+                            print(f"  🗑 [Видалено] {item_title} (ID: {msg_id}) — знижка завершилась або змінилась")
+                            if fs_id and str(fs_id) in posted_history:
+                                posted_history.pop(str(fs_id), None)
+                                fresh_history.pop(str(fs_id), None)
+                            nsuid = item.get("nsuid")
+                            if nsuid and f"nsuid_{nsuid}" in posted_history:
+                                posted_history.pop(f"nsuid_{nsuid}", None)
+                                fresh_history.pop(f"nsuid_{nsuid}", None)
+                            norm = _normalize_title_key(item_title)
+                            if norm and f"title_{norm}" in posted_history:
+                                posted_history.pop(f"title_{norm}", None)
+                                fresh_history.pop(f"title_{norm}", None)
+                        else:
+                            # Critical: never drop tracking if Telegram still has the card.
+                            # Dropping here caused silent orphans + daily reposts.
+                            logger.error(
+                                f"🛑 Keeping '{item_title}' (msg_id={msg_id}) in showcase after failed delete; "
+                                f"slot will not be refilled until deletion succeeds."
+                            )
+                            print(
+                                f"  ⚠️ [НЕ видалено] {item_title} (ID: {msg_id}) — залишаю в трекінгу, слот не звільняю"
+                            )
+                            surviving_items.append(item)
 
-            logger.info(
-                f"📊 [{showcase_key}] Diff: {len(to_keep)} keep, {len(to_delete)} delete, {len(to_add)} add."
+                # Persist purged surviving list immediately
+                showcase_data[showcase_key] = list(surviving_items)
+                save_active_showcase(showcase_data)
+                save_posted_deals(fresh_history)
+
+            # Step B: Calculate free slots
+            available_slots = max(0, max_active_showcase - len(surviving_items))
+            logger.info(f"Showcase {showcase_key}: {len(surviving_items)} active, {available_slots} slot(s) available (cap: {max_active_showcase}).")
+            print(f"\n📊 [{showcase_key}] Оновлення вітрини: {len(surviving_items)} залишається, {available_slots} вільних слотів...")
+
+            if available_slots <= 0:
+                logger.info(f"Showcase {showcase_key} is full ({len(surviving_items)}/{max_active_showcase}). No new deals needed.")
+                print(f"✅ Вітрину {showcase_key} заповнено: {len(surviving_items)}/{max_active_showcase} активних карток. Нові картки не публікуються.\n")
+                continue
+
+            # Step C: Fetch candidate deals
+            logger.info(f"🔍 Fetching candidates to fill {available_slots} slot(s)...")
+            raw_popular = await eshop_service.fetch_popular_discounted_games(
+                min_discount_percent=criteria.min_discount_percent
             )
-            print(
-                f"\n📊 [{showcase_key}] Оновлення вітрини: {len(to_keep)} залишається, {len(to_delete)} видаляється, {len(to_add)} додається..."
+            raw_general = await eshop_service.fetch_discounted_games(
+                rows=150, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
             )
+            raw_deals = raw_popular + raw_general
 
-            # Step A: Delete dropped or price-changed messages from Telegram
-            for item in to_delete:
-                msg_id = item.get("message_id")
-                title = item.get("title", "")
-                if msg_id:
-                    await safe_delete_showcase_message(
-                        chat_id=chat_id_int,
-                        topic_id=topic_id_int,
-                        message_id=int(msg_id),
-                        title=title,
+            # Step D: Filter out existing surviving deals, cooldown deals, and duplicates
+            existing_titles = {_normalize_title_key(it.get("title", "")) for it in surviving_items}
+            existing_fsids = {str(it.get("fs_id")) for it in surviving_items if it.get("fs_id")}
+            existing_nsuids = {str(it.get("nsuid")) for it in surviving_items if it.get("nsuid")}
+
+            deals_to_post: List[GameDeal] = []
+            seen_batch_titles = set()
+            seen_batch_ids = set()
+
+            for d in raw_deals:
+                d_norm = _normalize_title_key(d.title)
+                d_fsid = str(d.fs_id) if d.fs_id else ""
+                d_nsuid = str(d.nsuid) if d.nsuid else ""
+
+                if not d_norm or d_norm in existing_titles or d_norm in seen_batch_titles:
+                    continue
+                if (d_fsid and d_fsid in existing_fsids) or (d_fsid and d_fsid in seen_batch_ids):
+                    continue
+                if (d_nsuid and d_nsuid in existing_nsuids) or (d_nsuid and d_nsuid in seen_batch_ids):
+                    continue
+
+                if _is_deal_already_posted(d, fresh_history, cooldown_seconds, now_ts):
+                    continue
+
+                seen_batch_titles.add(d_norm)
+                if d_fsid:
+                    seen_batch_ids.add(d_fsid)
+                if d_nsuid:
+                    seen_batch_ids.add(d_nsuid)
+
+                deals_to_post.append(d)
+                if len(deals_to_post) >= available_slots:
+                    break
+
+            logger.info(f"Selected {len(deals_to_post)} deal(s) to publish for {showcase_key}.")
+
+            # Step E: Enrich and send ONLY the selected deals (never exceed hard cap)
+            for deal in deals_to_post:
+                if len(surviving_items) >= max_active_showcase:
+                    logger.info(
+                        f"Hard cap reached ({len(surviving_items)}/{max_active_showcase}); stopping further posts."
                     )
-                    print(f"  🗑 [Видалено] {title} (ID: {msg_id}) — вибула з ТОП-30")
-                    await asyncio.sleep(0.08)
+                    break
 
-            # Step B: Current showcase starts with kept items
-            new_showcase = list(to_keep)
-            showcase_data[showcase_key] = new_showcase
-            save_active_showcase(showcase_data)
-
-            # Step C: Publish new deals to reach Top 30
-            for deal in to_add:
                 enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
                 msg_text = format_eshop_deal_message(enriched, language=lang, currency_service=currency_service)
                 badged_img = await download_and_badge_cover(enriched)
@@ -437,25 +594,28 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         "title": deal.title,
                         "message_id": sent_msg.message_id,
                         "posted_at": now_ts,
-                        "discount_percent": deal.discount_percent,
-                        "discount_price": deal.discount_price,
-                        "regular_price": deal.regular_price,
-                        "currency": deal.currency,
+                        "discount_percent": enriched.discount_percent,
+                        "discount_price": enriched.discount_price,
+                        "regular_price": enriched.regular_price,
+                        "currency": enriched.currency,
                     }
-                    new_showcase.append(new_item)
-                    showcase_data[showcase_key] = new_showcase
+                    surviving_items.append(new_item)
+                    _record_deal_in_history(fresh_history, enriched, now_ts)
+                    showcase_data[showcase_key] = surviving_items
                     save_active_showcase(showcase_data)
+                    save_posted_deals(fresh_history)
                     total_posted_this_run += 1
-                    print(f"  📤 [{len(new_showcase)}/{max_active_showcase}] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
+                    print(f"  📤 [{len(surviving_items)}/{max_active_showcase}] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
 
                 await asyncio.sleep(1)
 
-            showcase_data[showcase_key] = new_showcase
+            showcase_data[showcase_key] = surviving_items
             save_active_showcase(showcase_data)
-            print(f"✅ Вітрину {showcase_key} оновлено: {len(new_showcase)}/{max_active_showcase} активних карток.\n")
+            print(f"✅ Вітрину {showcase_key} оновлено: {len(surviving_items)}/{max_active_showcase} активних карток.\n")
 
         # 6. Save execution state
         save_active_showcase(showcase_data)
+        save_posted_deals(fresh_history)
         save_last_run({
             "last_run_timestamp": now_ts,
             "last_run_iso": now_dt.isoformat(),
@@ -631,6 +791,97 @@ async def remove_showcase_deals(remove_arg: str):
             pass
 
 
+def parse_message_id_targets(arg_str: str) -> List[int]:
+    """Parse comma-separated message IDs and ID ranges (e.g. '564561-564590,564947-564979')."""
+    ids = []
+    parts = [p.strip() for p in arg_str.split(",") if p.strip()]
+    for part in parts:
+        if "-" in part:
+            sub = [s.strip() for s in part.split("-") if s.strip()]
+            if len(sub) == 2 and sub[0].isdigit() and sub[1].isdigit():
+                start_id, end_id = int(sub[0]), int(sub[1])
+                if start_id > end_id:
+                    start_id, end_id = end_id, start_id
+                if (end_id - start_id) > 500:
+                    logger.warning(f"Range {start_id}-{end_id} exceeds safety cap of 500 IDs, truncating.")
+                    end_id = start_id + 500
+                ids.extend(range(start_id, end_id + 1))
+        elif part.isdigit():
+            ids.append(int(part))
+    return sorted(list(set(ids)))
+
+
+async def delete_orphan_showcase_messages(target_arg: str):
+    """
+    Safely delete orphan or untracked deal messages strictly from target topic (561344)
+    using message IDs or ranges (e.g. '564561-564590,564947-564979').
+    """
+    setup_logging()
+    msg_ids = parse_message_id_targets(target_arg)
+    if not msg_ids:
+        print(f"❌ No valid message IDs found in input: '{target_arg}'. Usage: --delete-messages 564561-564590,564947-564979")
+        return
+
+    cfg = load_config(local_settings_path) or load_config(default_settings_path) or {}
+    eshop_cfg = cfg.get("ESHOP_DEALS", {})
+
+    target_chat = int(eshop_cfg.get("chat_id") or -1001790782971)
+    target_topic = int(eshop_cfg.get("topic_id") or 561344)
+    showcase_key = f"{target_chat}_{target_topic}" if target_topic else str(target_chat)
+
+    logger.info(f"Targeting {len(msg_ids)} message IDs for safe deletion in chat {target_chat}, topic {target_topic}...")
+    print(f"\n🗑 [Видалення повідомлень] Цільовий топік: {target_topic} (Чат: {target_chat})")
+    print(f"Всього повідомлень для перевірки/видалення: {len(msg_ids)}\n" + "=" * 60)
+
+    showcase_data = load_active_showcase()
+    current_items = showcase_data.get(showcase_key, [])
+    ids_to_del_set = set(msg_ids)
+
+    # Filter out removed IDs from showcase data if present
+    deleted_items = [it for it in current_items if int(it.get("message_id", 0)) in ids_to_del_set]
+    surviving = [it for it in current_items if int(it.get("message_id", 0)) not in ids_to_del_set]
+
+    total_deleted = 0
+    try:
+        for mid in msg_ids:
+            deleted = await safe_delete_showcase_message(
+                chat_id=target_chat,
+                topic_id=target_topic,
+                message_id=mid,
+                title=f"Manual/Orphan ID {mid}",
+            )
+            if deleted:
+                total_deleted += 1
+                print(f"  🗑 [Видалено] Повідомлення ID: {mid}")
+            await asyncio.sleep(0.08)
+
+        if deleted_items or len(surviving) != len(current_items):
+            showcase_data[showcase_key] = surviving
+            save_active_showcase(showcase_data)
+            print(f"💾 Оновлено базу активної вітрини: залишилось {len(surviving)} карток.")
+
+            posted_history = load_posted_deals()
+            for it in deleted_items:
+                fs_id = it.get("fs_id")
+                title = it.get("title")
+                nsuid = it.get("nsuid")
+                if fs_id and str(fs_id) in posted_history:
+                    posted_history.pop(str(fs_id), None)
+                if nsuid and f"nsuid_{nsuid}" in posted_history:
+                    posted_history.pop(f"nsuid_{nsuid}", None)
+                norm = _normalize_title_key(title)
+                if norm and f"title_{norm}" in posted_history:
+                    posted_history.pop(f"title_{norm}", None)
+            save_posted_deals(posted_history)
+
+        print(f"\n✅ Завершено. Оброблено {len(msg_ids)} повідомлень, видалено/підтверджено: {total_deleted}.\n" + "=" * 60)
+    finally:
+        try:
+            await close_clients()
+        except Exception:
+            pass
+
+
 def list_showcase_deals():
     """
     List all games currently tracked in active showcase database for topic 561344.
@@ -674,7 +925,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Nintendo eShop Deals broadcaster & Showcase Manager.")
     parser.add_argument("--force", "-f", action="store_true", help="Force deals broadcast regardless of interval.")
-    parser.add_argument("--reset", action="store_true", help="Reset active showcase and history, broadcasting 20 fresh deals.")
+    parser.add_argument("--reset", action="store_true", help="Reset active showcase and history, broadcasting 30 fresh deals.")
     parser.add_argument("--refresh", action="store_true", help="Alias for --reset.")
     parser.add_argument("--list", "-l", action="store_true", help="List all currently tracked active deals in showcase database.")
     parser.add_argument(
@@ -682,13 +933,32 @@ if __name__ == "__main__":
         "-r",
         type=str,
         default=None,
-        help="Remove specified number of deals or 'all' from active showcase (e.g. --remove 20, --remove all).",
+        help="Remove specified number of deals, game title, or 'all' from active showcase (e.g. --remove 20, --remove all).",
+    )
+    parser.add_argument(
+        "--delete-messages",
+        "--cleanup-orphans",
+        type=str,
+        default=None,
+        help="Safely delete orphan/untracked deal messages in topic 561344 by ID or range (e.g. --delete-messages 564561-564590,564947-564979).",
     )
 
     args, unknown = parser.parse_known_args()
 
     if args.list or ("--list" in sys.argv) or any(a.lower() in ["list", "--list", "showcase", "--showcase"] for a in sys.argv[1:]):
         list_showcase_deals()
+        sys.exit(0)
+
+    # Detect delete-messages
+    delete_target = getattr(args, "delete_messages", None) or getattr(args, "cleanup_orphans", None)
+    if not delete_target:
+        for idx, arg in enumerate(unknown):
+            if arg.lower() in ["--delete-messages", "--cleanup-orphans", "delete-messages", "cleanup-orphans"] and idx + 1 < len(unknown):
+                delete_target = unknown[idx + 1]
+                break
+
+    if delete_target:
+        asyncio.run(delete_orphan_showcase_messages(delete_target))
         sys.exit(0)
 
     # Detect reset / refresh from flags or positional arguments

@@ -325,6 +325,37 @@ async def test_strict_deletion_guardrail():
         assert result_topic_blocked is False
 
 
+@pytest.mark.asyncio
+async def test_safe_delete_cannot_delete_is_failure_not_success():
+    """Telegram 'message can't be deleted' means the message still exists — must return False."""
+    from send_eshop_deals import safe_delete_showcase_message
+    from unittest.mock import AsyncMock, patch
+
+    with patch("send_eshop_deals.IS_TEST_MODE", False):
+        with patch("send_eshop_deals.bot") as mock_bot:
+            mock_bot.delete_message = AsyncMock(
+                side_effect=Exception("Bad Request: message can't be deleted")
+            )
+            result = await safe_delete_showcase_message(
+                chat_id=-1001790782971,
+                topic_id=561344,
+                message_id=564561,
+                title="Persona 5 Royal",
+            )
+            assert result is False
+
+            mock_bot.delete_message = AsyncMock(
+                side_effect=Exception("Bad Request: message to delete not found")
+            )
+            result_absent = await safe_delete_showcase_message(
+                chat_id=-1001790782971,
+                topic_id=561344,
+                message_id=564947,
+                title="Gone",
+            )
+            assert result_absent is True
+
+
 def test_parse_deal_command_args():
     from services.eshop.bot_commands import parse_deal_command_args
 
@@ -533,50 +564,73 @@ def test_cli_list_showcase(capsys):
 
 
 @pytest.mark.asyncio
-async def test_snapshot_diff_engine():
-    from send_eshop_deals import send_eshop_deals, _normalize_title_key
+async def test_showcase_keeps_active_sale_not_in_top_candidates():
+    """Verify that a tracked game with an active sale is KEPT even if NOT in today's top candidate pool."""
+    from send_eshop_deals import send_eshop_deals
     from services.eshop.models import GameDeal
     from unittest.mock import AsyncMock, patch, MagicMock
 
-    # Yesterday: Game A (101), Game B (102), Game C (103)
-    yesterday_showcase = {
+    # Tracked in showcase: Hollow Knight (fs_id "hk_1", msg_id 501, 50% off)
+    active_showcase = {
         "-1001790782971_561344": [
-            {"fs_id": "1", "title": "Game A", "message_id": 101, "discount_price": 10.0, "currency": "EUR"},
-            {"fs_id": "2", "title": "Game B", "message_id": 102, "discount_price": 20.0, "currency": "EUR"},
-            {"fs_id": "3", "title": "Game C", "message_id": 103, "discount_price": 30.0, "currency": "EUR"},
+            {
+                "fs_id": "hk_1",
+                "title": "Hollow Knight",
+                "message_id": 501,
+                "discount_percent": 50.0,
+                "discount_price": 7.49,
+                "regular_price": 14.99,
+                "currency": "EUR",
+            }
         ]
     }
 
-    # Today: Game B (unchanged), Game C (price changed from 30 to 25), Game D (new)
-    today_deals = [
-        GameDeal(fs_id="2", title="Game B", regular_price=40.0, discount_price=20.0, discount_percent=50.0, currency="EUR"),
-        GameDeal(fs_id="3", title="Game C", regular_price=40.0, discount_price=25.0, discount_percent=37.5, currency="EUR"),
-        GameDeal(fs_id="4", title="Game D", regular_price=50.0, discount_price=15.0, discount_percent=70.0, currency="EUR"),
-    ]
+    # Live check confirms Hollow Knight is still on sale
+    hk_live_deal = GameDeal(
+        fs_id="hk_1",
+        title="Hollow Knight",
+        regular_price=14.99,
+        discount_price=7.49,
+        discount_percent=50.0,
+        currency="EUR",
+    )
+
+    # Fresh candidates pool does NOT contain Hollow Knight (only new game Fresh Candidate)
+    new_candidate = GameDeal(
+        fs_id="fresh_cand_1",
+        title="Fresh Unique Candidate",
+        regular_price=19.99,
+        discount_price=4.99,
+        discount_percent=75.0,
+        currency="EUR",
+    )
 
     saved_showcase = {}
+    deleted_msgs = []
 
     def fake_save_active(data):
         nonlocal saved_showcase
         saved_showcase = dict(data)
-
-    deleted_msgs = []
 
     async def fake_delete(chat_id, topic_id, message_id, title=""):
         deleted_msgs.append(message_id)
         return True
 
     mock_eshop = AsyncMock()
-    mock_eshop.fetch_popular_discounted_games.return_value = today_deals
+    mock_eshop.get_game_by_fs_id.return_value = hk_live_deal
+    mock_eshop.fetch_popular_discounted_games.return_value = [new_candidate]
     mock_eshop.fetch_discounted_games.return_value = []
 
     mock_bot = AsyncMock()
     mock_sent_msg = MagicMock()
     mock_sent_msg.message_id = 999
     mock_bot.send_photo.return_value = mock_sent_msg
+    mock_bot.send_message.return_value = mock_sent_msg
 
-    with patch("send_eshop_deals.load_active_showcase", return_value=yesterday_showcase), \
+    with patch("send_eshop_deals.load_active_showcase", return_value=active_showcase), \
          patch("send_eshop_deals.save_active_showcase", side_effect=fake_save_active), \
+         patch("send_eshop_deals.load_posted_deals", return_value={}), \
+         patch("send_eshop_deals.save_posted_deals"), \
          patch("send_eshop_deals.safe_delete_showcase_message", side_effect=fake_delete), \
          patch("send_eshop_deals.EShopService", return_value=mock_eshop), \
          patch("send_eshop_deals.bot", mock_bot), \
@@ -585,17 +639,334 @@ async def test_snapshot_diff_engine():
 
         await send_eshop_deals(force=True, reset=False)
 
-    # 1. Game A (101) was dropped and Game C (103) had price changed -> both deleted
-    assert 101 in deleted_msgs
-    assert 103 in deleted_msgs
+    # Hollow Knight was NOT deleted
+    assert 501 not in deleted_msgs
 
-    # 2. Saved showcase should keep Game B (102), and have new entries for Game C and Game D
-    res_items = saved_showcase.get("-1001790782971_561344", [])
-    res_titles = [it["title"] for it in res_items]
-    assert "Game B" in res_titles
-    assert "Game C" in res_titles
-    assert "Game D" in res_titles
-    assert "Game A" not in res_titles
+    # Hollow Knight remains in saved showcase along with newly added Fresh Unique Candidate
+    items = saved_showcase.get("-1001790782971_561344", [])
+    titles = [it["title"] for it in items]
+    assert "Hollow Knight" in titles
+    assert "Fresh Unique Candidate" in titles
+
+
+@pytest.mark.asyncio
+async def test_showcase_expired_sale_deleted_and_refilled():
+    """Verify that expired deals are deleted and exactly the vacated slots are refilled."""
+    from send_eshop_deals import send_eshop_deals
+    from services.eshop.models import GameDeal
+    from unittest.mock import AsyncMock, patch, MagicMock
+
+    active_showcase = {
+        "-1001790782971_561344": [
+            # Game A: Sale expired (0% discount, price == regular)
+            {
+                "fs_id": "game_a",
+                "title": "Game A",
+                "message_id": 101,
+                "discount_percent": 50.0,
+                "discount_price": 10.0,
+                "regular_price": 20.0,
+                "currency": "EUR",
+            },
+            # Game B: Sale still active
+            {
+                "fs_id": "game_b",
+                "title": "Game B",
+                "message_id": 102,
+                "discount_percent": 50.0,
+                "discount_price": 15.0,
+                "regular_price": 30.0,
+                "currency": "EUR",
+            },
+        ]
+    }
+
+    async def mock_get_game_by_fs_id(fs_id: str):
+        if fs_id == "game_a":
+            return GameDeal(fs_id="game_a", title="Game A", regular_price=20.0, discount_price=20.0, discount_percent=0.0, currency="EUR")
+        if fs_id == "game_b":
+            return GameDeal(fs_id="game_b", title="Game B", regular_price=30.0, discount_price=15.0, discount_percent=50.0, currency="EUR")
+        return None
+
+    candidate_game_c = GameDeal(fs_id="game_c", title="Game C", regular_price=50.0, discount_price=25.0, discount_percent=50.0, currency="EUR")
+
+    saved_showcase = {}
+    deleted_msgs = []
+
+    def fake_save_active(data):
+        nonlocal saved_showcase
+        saved_showcase = dict(data)
+
+    async def fake_delete(chat_id, topic_id, message_id, title=""):
+        deleted_msgs.append(message_id)
+        return True
+
+    mock_eshop = AsyncMock()
+    mock_eshop.get_game_by_fs_id.side_effect = mock_get_game_by_fs_id
+    mock_eshop.fetch_popular_discounted_games.return_value = [candidate_game_c]
+    mock_eshop.fetch_discounted_games.return_value = []
+
+    mock_bot = AsyncMock()
+    mock_sent_msg = MagicMock()
+    mock_sent_msg.message_id = 999
+    mock_bot.send_photo.return_value = mock_sent_msg
+    mock_bot.send_message.return_value = mock_sent_msg
+
+    with patch("send_eshop_deals.load_active_showcase", return_value=active_showcase), \
+         patch("send_eshop_deals.save_active_showcase", side_effect=fake_save_active), \
+         patch("send_eshop_deals.load_posted_deals", return_value={}), \
+         patch("send_eshop_deals.save_posted_deals"), \
+         patch("send_eshop_deals.safe_delete_showcase_message", side_effect=fake_delete), \
+         patch("send_eshop_deals.EShopService", return_value=mock_eshop), \
+         patch("send_eshop_deals.bot", mock_bot), \
+         patch("send_eshop_deals.download_and_badge_cover", new_callable=AsyncMock, return_value=None), \
+         patch("send_eshop_deals.save_last_run"):
+
+        await send_eshop_deals(force=True, reset=False)
+
+    # 1. Game A (101) was deleted
+    assert 101 in deleted_msgs
+    assert 102 not in deleted_msgs
+
+    # 2. Saved showcase keeps Game B and adds Game C (vacated slot refilled)
+    items = saved_showcase.get("-1001790782971_561344", [])
+    titles = [it["title"] for it in items]
+    assert "Game A" not in titles
+    assert "Game B" in titles
+    assert "Game C" in titles
+
+
+@pytest.mark.asyncio
+async def test_failed_telegram_delete_keeps_tracking_and_blocks_refill():
+    """Full showcase + refused delete must keep tracking and post 0 (no silent slot free / no growth)."""
+    from send_eshop_deals import send_eshop_deals
+    from services.eshop.models import GameDeal
+    from unittest.mock import AsyncMock, patch, MagicMock
+
+    items = []
+    for i in range(1, 31):
+        items.append(
+            {
+                "fs_id": f"game_{i}",
+                "title": f"Game {i}",
+                "message_id": 5000 + i,
+                "discount_percent": 50.0,
+                "discount_price": 10.0,
+                "regular_price": 20.0,
+                "currency": "EUR",
+            }
+        )
+    # game_1 is expired; games 2..30 still on sale
+    active_showcase = {"-1001790782971_561344": items}
+
+    async def mock_get_game(fs_id: str):
+        if fs_id == "game_1":
+            return GameDeal(
+                fs_id="game_1",
+                title="Game 1",
+                regular_price=20.0,
+                discount_price=20.0,
+                discount_percent=0.0,
+                currency="EUR",
+            )
+        return GameDeal(
+            fs_id=fs_id,
+            title=fs_id,
+            regular_price=20.0,
+            discount_price=10.0,
+            discount_percent=50.0,
+            currency="EUR",
+        )
+
+    saved_showcase = {}
+
+    def fake_save_active(data):
+        nonlocal saved_showcase
+        saved_showcase = dict(data)
+
+    mock_eshop = AsyncMock()
+    mock_eshop.get_game_by_fs_id.side_effect = mock_get_game
+    mock_eshop.fetch_popular_discounted_games.return_value = [
+        GameDeal(fs_id="cand", title="Should Not Post", regular_price=40.0, discount_price=10.0, discount_percent=75.0, currency="EUR")
+    ]
+    mock_eshop.fetch_discounted_games.return_value = []
+
+    mock_bot = AsyncMock()
+
+    with patch("send_eshop_deals.load_active_showcase", return_value=active_showcase), \
+         patch("send_eshop_deals.save_active_showcase", side_effect=fake_save_active), \
+         patch("send_eshop_deals.load_posted_deals", return_value={}), \
+         patch("send_eshop_deals.save_posted_deals"), \
+         patch("send_eshop_deals.safe_delete_showcase_message", new_callable=AsyncMock, return_value=False), \
+         patch("send_eshop_deals.EShopService", return_value=mock_eshop), \
+         patch("send_eshop_deals.bot", mock_bot), \
+         patch("send_eshop_deals.save_last_run"):
+
+        await send_eshop_deals(force=True, reset=False)
+
+    saved_items = saved_showcase.get("-1001790782971_561344", [])
+    assert len(saved_items) == 30
+    assert any(it.get("message_id") == 5001 for it in saved_items)
+    assert mock_bot.send_photo.call_count == 0
+    assert mock_bot.send_message.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_full_showcase_posts_zero_new_cards():
+    """Verify that when showcase is at max capacity and all sales are active, 0 new cards are posted."""
+    from send_eshop_deals import send_eshop_deals
+    from services.eshop.models import GameDeal
+    from unittest.mock import AsyncMock, patch, MagicMock
+
+    # 30 active deals
+    full_showcase_items = [
+        {
+            "fs_id": f"game_{i}",
+            "title": f"Game {i}",
+            "message_id": 1000 + i,
+            "discount_percent": 50.0,
+            "discount_price": 10.0,
+            "regular_price": 20.0,
+            "currency": "EUR",
+        }
+        for i in range(1, 31)
+    ]
+    active_showcase = {"-1001790782971_561344": full_showcase_items}
+
+    async def mock_get_game(fs_id: str):
+        return GameDeal(fs_id=fs_id, title=f"Game {fs_id}", regular_price=20.0, discount_price=10.0, discount_percent=50.0, currency="EUR")
+
+    mock_eshop = AsyncMock()
+    mock_eshop.get_game_by_fs_id.side_effect = mock_get_game
+    mock_eshop.fetch_popular_discounted_games.return_value = [
+        GameDeal(fs_id="cand_1", title="Candidate 1", regular_price=30.0, discount_price=15.0, discount_percent=50.0, currency="EUR")
+    ]
+
+    mock_bot = AsyncMock()
+
+    with patch("send_eshop_deals.load_active_showcase", return_value=active_showcase), \
+         patch("send_eshop_deals.save_active_showcase"), \
+         patch("send_eshop_deals.load_posted_deals", return_value={}), \
+         patch("send_eshop_deals.save_posted_deals"), \
+         patch("send_eshop_deals.safe_delete_showcase_message") as mock_del, \
+         patch("send_eshop_deals.EShopService", return_value=mock_eshop), \
+         patch("send_eshop_deals.bot", mock_bot), \
+         patch("send_eshop_deals.save_last_run"):
+
+        await send_eshop_deals(force=True, reset=False)
+
+    # Zero deletions and zero posts
+    assert mock_del.call_count == 0
+    assert mock_bot.send_photo.call_count == 0
+    assert mock_bot.send_message.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_persist_message_ids_across_consecutive_runs():
+    """Verify that newly posted message IDs persist and are correctly deleted on subsequent runs if expired."""
+    from send_eshop_deals import send_eshop_deals
+    from services.eshop.models import GameDeal
+    from unittest.mock import AsyncMock, patch, MagicMock
+    import json
+
+    state_storage = {}
+
+    def fake_save_active(data):
+        state_storage["showcase"] = json.loads(json.dumps(data))
+
+    def fake_load_active():
+        return state_storage.get("showcase", {"-1001790782971_561344": []})
+
+    # RUN 1: Empty showcase -> post Game X with message_id 565315
+    game_x = GameDeal(fs_id="gx_1", title="Game X", regular_price=20.0, discount_price=10.0, discount_percent=50.0, currency="EUR")
+
+    mock_eshop = AsyncMock()
+    mock_eshop.fetch_popular_discounted_games.return_value = [game_x]
+    mock_eshop.fetch_discounted_games.return_value = []
+    mock_eshop.get_game_by_fs_id.return_value = game_x
+
+    mock_bot = AsyncMock()
+    mock_sent_msg = MagicMock()
+    mock_sent_msg.message_id = 565315
+    mock_bot.send_photo.return_value = mock_sent_msg
+    mock_bot.send_message.return_value = mock_sent_msg
+
+    with patch("send_eshop_deals.load_active_showcase", side_effect=fake_load_active), \
+         patch("send_eshop_deals.save_active_showcase", side_effect=fake_save_active), \
+         patch("send_eshop_deals.load_posted_deals", return_value={}), \
+         patch("send_eshop_deals.save_posted_deals"), \
+         patch("send_eshop_deals.EShopService", return_value=mock_eshop), \
+         patch("send_eshop_deals.bot", mock_bot), \
+         patch("send_eshop_deals.download_and_badge_cover", new_callable=AsyncMock, return_value=None), \
+         patch("send_eshop_deals.save_last_run"):
+
+        await send_eshop_deals(force=True, reset=False)
+
+    # Verify Run 1 stored message_id 565315
+    stored = fake_load_active()["-1001790782971_561344"]
+    assert len(stored) == 1
+    assert stored[0]["message_id"] == 565315
+
+    # RUN 2: Game X sale has ended -> must delete message 565315
+    expired_game_x = GameDeal(fs_id="gx_1", title="Game X", regular_price=20.0, discount_price=20.0, discount_percent=0.0, currency="EUR")
+    mock_eshop_run2 = AsyncMock()
+    mock_eshop_run2.get_game_by_fs_id.return_value = expired_game_x
+    mock_eshop_run2.fetch_popular_discounted_games.return_value = []
+    mock_eshop_run2.fetch_discounted_games.return_value = []
+
+    deleted_run2 = []
+
+    async def fake_delete_run2(chat_id, topic_id, message_id, title=""):
+        deleted_run2.append(message_id)
+        return True
+
+    with patch("send_eshop_deals.load_active_showcase", side_effect=fake_load_active), \
+         patch("send_eshop_deals.save_active_showcase", side_effect=fake_save_active), \
+         patch("send_eshop_deals.load_posted_deals", return_value={}), \
+         patch("send_eshop_deals.save_posted_deals"), \
+         patch("send_eshop_deals.safe_delete_showcase_message", side_effect=fake_delete_run2), \
+         patch("send_eshop_deals.EShopService", return_value=mock_eshop_run2), \
+         patch("send_eshop_deals.bot", mock_bot), \
+         patch("send_eshop_deals.save_last_run"):
+
+        await send_eshop_deals(force=True, reset=False)
+
+    # Deletion was executed on the exact message ID 565315 from Run 1
+    assert 565315 in deleted_run2
+    assert len(fake_load_active()["-1001790782971_561344"]) == 0
+
+
+def test_parse_message_id_targets():
+    from send_eshop_deals import parse_message_id_targets
+    # Test range and single ID parsing
+    res = parse_message_id_targets("564561-564563, 564947, 564949-564950")
+    assert res == [564561, 564562, 564563, 564947, 564949, 564950]
+
+
+def test_gist_merge_eshop_active_showcase():
+    import json
+    from sync_gist_state import merge_json_files
+
+    local_data = {
+        "-1001790782971_561344": [
+            {"title": "Game 1", "message_id": 565315, "posted_at": 1788000000.0},
+            {"title": "Game 2", "message_id": 565316, "posted_at": 1788000100.0},
+        ]
+    }
+    gist_stale_data = {
+        "-1001790782971_561344": [
+            {"title": "Old Game", "message_id": 561432, "posted_at": 1787000000.0}
+        ]
+    }
+
+    merged = merge_json_files(
+        "eshop_active_showcase.json",
+        json.dumps(local_data),
+        json.dumps(gist_stale_data),
+    )
+    res = json.loads(merged)
+    assert len(res["-1001790782971_561344"]) == 2
+    assert res["-1001790782971_561344"][0]["message_id"] == 565315
 
 
 

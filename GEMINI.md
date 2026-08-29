@@ -191,3 +191,21 @@ If a manual release for an app is pending (has `"processed": false` in `data/man
 2. Posting duplicate update news after the manual release is processed (since state is updated beforehand).
 Once the manual release's `"processed"` status becomes `true`, normal update tracking resumes.
 
+## Nintendo eShop Live Deals Showcase (`send_eshop_deals.py`)
+
+### Intended Behavior & Architecture
+- **Target Topic:** `https://t.me/kefir_ukr/561344` (`chat_id: -1001790782971`, `topic_id: 561344`).
+- **Showcase Cap:** Configurable active showcase capacity (default: 30 deal cards).
+- **Expiration-based Rotation:**
+  1. Loads `data/eshop_active_showcase.json`.
+  2. For each tracked deal, queries official Nintendo Price API via `EShopService.get_game_by_fs_id()` (fallback: title search).
+  3. If discount is still active (`discount_percent > 0` and price not materially changed), the card is kept.
+  4. If discount has ended or changed, the Telegram message is safely deleted via `safe_delete_showcase_message()` and removed from showcase tracking and cooldown history.
+  5. If open slots remain (`max_active_showcase - len(surviving) > 0`), fetches fresh candidate deals, publishes exactly the required number of new cards, and immediately saves each card to `eshop_active_showcase.json`.
+  6. If showcase is full (30/30) and all sales remain active, **0 new cards are posted**.
+- **State Persistence & Gist Sync:**
+  - `data/eshop_active_showcase.json` tracks `{chat_id}_{topic_id}: [{fs_id, nsuid, title, message_id, posted_at, discount_percent, discount_price, regular_price, currency}]`.
+  - `sync_gist_state.py` implements safe merge: local active showcase with newer timestamps or higher message IDs always wins over stale Gist contents.
+- **Orphan Cleanup:**
+  - `python send_eshop_deals.py --delete-messages <ids or ranges>` safely deletes untracked message IDs in topic `561344`.
+

@@ -2,6 +2,33 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.44] - 2026-08-29
+
+### Fixed
+- **Restored Expiration-Based Live eShop Showcase Rotation**:
+  - `send_eshop_deals.py`: Replaced the problematic Top-30 Snapshot Diff mechanism with live sale expiration and price verification via the official Nintendo Price API (`get_game_by_fs_id` with title search fallback).
+  - Cards in `data/eshop_active_showcase.json` are preserved across runs as long as their discounts remain active, eliminating unwanted churn and duplicate re-posts caused by minor popularity fluctuations.
+  - When tracked sales expire or prices materially change, their Telegram messages are deleted via `safe_delete_showcase_message()`, and only the vacated slots are refilled with fresh candidate deals.
+  - Guarantees 0 new card posts on daily/forced runs when the showcase is full and all tracked discounts remain active.
+- **No Silent Orphans After Failed Deletes**:
+  - `safe_delete_showcase_message`: `message can't be deleted` is treated as **failure** (message still exists), not success.
+  - Expiration loop keeps the card in showcase tracking when deletion fails, so the slot is not freed and cron cannot stack duplicate batches.
+  - Hard post cap: never publish beyond `max_active_showcase`.
+- **Atomic Showcase Persistence**:
+  - State files are written via temp file + `os.replace` under absolute `PROJECT_ROOT/data` paths (no relative `makedirs("data")` cwd trap).
+  - Live prices on kept cards are refreshed in the showcase file to reduce false “price changed” churn.
+- **Robust State Persistence & Gist Sync Merge Safety**:
+  - `sync_gist_state.py`: Implemented specialized merge rules for `eshop_active_showcase.json`, `eshop_posted_deals.json`, and `last_eshop_deals_run.json`. Local active showcases with newer timestamps and higher Telegram message IDs are preserved, preventing stale/shorter Gist states from overwriting newly published cards.
+  - `sync_gist_state.py` & `send_eshop_deals.py`: Standardized all data paths (`SHOWCASE_FILE`, `STATE_FILE`, `LAST_RUN_FILE`) to absolute paths anchored at `PROJECT_ROOT`, eliminating working directory divergence between `/root` and `/root/rutracker_bot`.
+  - `send_eshop_deals.py`: Added diagnostic logging (`log_showcase_diagnostics`) at the start of every run detailing file path, mtime, tracked item count, and first/last `message_id`.
+- **Windows Console Unicode Safety**:
+  - `send_eshop_deals.py`: Configured `sys.stdout` and `sys.stderr` UTF-8 reconfigure with replacement fallback to prevent `UnicodeEncodeError` crashes on Windows `cp1251` terminals.
+
+### Added
+- **Telegram Orphan Message Cleanup Tooling**:
+  - `send_eshop_deals.py`: Added `--delete-messages` / `--cleanup-orphans` CLI flags to safely parse and delete comma-separated message IDs and ID ranges (e.g. `python send_eshop_deals.py --delete-messages 564561-564590,564947-564979`) strictly within the authorized eShop topic (`561344`).
+  - Orphan deletion also clears matching cooldown keys from `eshop_posted_deals.json`.
+
 ## [v0.7.43] - 2026-08-28
 
 ### Added

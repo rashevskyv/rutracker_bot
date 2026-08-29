@@ -62,7 +62,13 @@ Checks various platforms for homebrew updates:
 
 ### 5. Nintendo eShop Deals & Wishlist Module (`send_eshop_deals.py`, `bot_interactive.py`)
 - Automatically monitors official Nintendo eShop catalog for active game discounts on top popular franchises (Zero Shovelware).
-- **Live Deals Showcase Rotation**: Maintains an active pool of up to 30 top deals in the target forum topic (`561344`). Automatically deletes expired discounts via `safe_delete_showcase_message()` and refills slots with fresh top discounts.
+- **Live Deals Showcase Rotation**: Maintains an active pool of up to 30 top deals in the target forum topic (`561344`). Automatically validates live Nintendo Price API discount status on each run, deletes expired/price-changed cards via `safe_delete_showcase_message()`, and refills only vacated slots with fresh top discounts (guaranteeing 0 new posts if all 30 sales remain active).
+- **Showcase Management CLI**:
+  - `python send_eshop_deals.py --list`: View all currently active tracked showcase cards and message IDs.
+  - `python send_eshop_deals.py --delete-messages <ids or ranges>`: Safely purge orphan/untracked message IDs or ranges in topic `561344` (e.g. `--delete-messages 564561-564590,564947-564979`).
+  - `python send_eshop_deals.py --remove <N|all|title>`: Remove tracked cards and delete them from Telegram.
+  - `python send_eshop_deals.py --force`: Run rotation immediately, bypassing interval checks.
+  - `python send_eshop_deals.py --reset`: Explicit full wipe and rebuild of all 30 cards.
 - Enriches games with **Metacritic** and **RAWG** ratings, original English hashtag genres, direct links to **eShop-Prices.com** (`🌐 eShop-Prices.com`), and AI synopsis translations with persistent multi-key caching.
 - Dynamically generates graphic platform badges directly onto game covers (`Nintendo Switch`, `Nintendo Switch 2 • EXCLUSIVE`, `Nintendo Switch 1 & 2`).
 - Real-time multi-regional price comparison:
