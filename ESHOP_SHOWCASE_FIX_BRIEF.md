@@ -5,7 +5,13 @@
 
 ---
 
-## Guarantees now in code (v0.7.44 hardened)
+## Guarantees now in code (v0.7.45)
+
+- After every showcase mutation, eShop state is **force-uploaded to Gist**.
+- Digest/rt/hb gist sync **excludes** Live Showcase files (`--exclude-eshop-state`).
+- Gist **download merges** JSON; newer local showcase cannot be overwritten by stale Gist.
+
+## Guarantees from v0.7.44 (still in force)
 
 1. **Rotation = live discount check**, not Top-30 snapshot.
 2. **Delete failed ⇒ keep tracking** (`message can't be deleted` is failure). Slot is not freed → no extra posts → no new orphan stacks.

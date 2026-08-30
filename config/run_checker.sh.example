@@ -9,6 +9,7 @@
 #   ./run_checker.sh digest    - Send daily digest
 #   ./run_checker.sh hb-digest - Send homebrew digest
 #   ./run_checker.sh swuk-digest - Send Switch UA digest
+#   ./run_checker.sh eshop     - eShop Live Showcase rotation (+ Gist force-upload)
 
 # Get project root (one level up from config/)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -49,11 +50,19 @@ fi
 # Parse command
 COMMAND="${1:-rt}"
 
+# Digest/rt/hb must NOT download/upload Live Showcase state — that races with eshop
+# and used to restore stale 20-card Gist over a fresh local 30-card showcase.
+GIST_EXCLUDE_ESHOP="--exclude-eshop-state"
+
 # Download state from Gist for operational commands
 case "$COMMAND" in
     rt|rutracker|hb|homebrew|digest|daily-digest|hb-digest|homebrew-digest|swuk|switch-ua|swuk-digest|switch-ua-digest|custom|custom-releases|all)
-        echo "=== Downloading state from Gist ==="
-        python sync_gist_state.py download
+        echo "=== Downloading state from Gist (excluding eShop Live Showcase) ==="
+        python sync_gist_state.py download $GIST_EXCLUDE_ESHOP
+        ;;
+    eshop|eshop-deals|deals)
+        echo "=== Downloading eShop Live Showcase state from Gist ==="
+        python sync_gist_state.py download eshop_active_showcase.json eshop_posted_deals.json last_eshop_deals_run.json
         ;;
 esac
 
@@ -94,6 +103,11 @@ case "$COMMAND" in
         python send_swuk_digest.py
         ;;
 
+    eshop|eshop-deals|deals)
+        echo "=== Running eShop Live Showcase rotation ==="
+        python send_eshop_deals.py --force
+        ;;
+
     all)
         echo "=== Running all checkers ==="
         echo ""
@@ -118,6 +132,7 @@ case "$COMMAND" in
         echo "  digest              Send daily digest"
         echo "  hb-digest           Send homebrew digest"
         echo "  swuk-digest         Send Switch UA digest"
+        echo "  eshop               eShop Live Showcase (--force) + Gist upload"
         echo "  all                 Run all checkers"
         echo "  help                Show this help message"
         echo ""
@@ -126,6 +141,7 @@ case "$COMMAND" in
         echo "  $0 hb               # Check homebrew updates"
         echo "  $0 custom           # Check custom switch releases"
         echo "  $0 hb-digest        # Send homebrew digest"
+        echo "  $0 eshop            # Refresh eShop showcase"
         ;;
 
     *)
@@ -141,8 +157,14 @@ EXIT_CODE=$?
 # Upload state to Gist for operational commands
 case "$COMMAND" in
     rt|rutracker|hb|homebrew|digest|daily-digest|hb-digest|homebrew-digest|swuk|switch-ua|swuk-digest|switch-ua-digest|custom|custom-releases|all)
-        echo "=== Uploading state to Gist ==="
-        python sync_gist_state.py upload
+        echo "=== Uploading state to Gist (excluding eShop Live Showcase) ==="
+        python sync_gist_state.py upload $GIST_EXCLUDE_ESHOP
+        ;;
+    eshop|eshop-deals|deals)
+        # send_eshop_deals.py already force-uploads showcase state; keep an explicit
+        # upload here as a safety net if the Python-side upload failed.
+        echo "=== Ensuring eShop Live Showcase state is on Gist ==="
+        python sync_gist_state.py upload --force eshop_active_showcase.json eshop_posted_deals.json last_eshop_deals_run.json
         ;;
 esac
 

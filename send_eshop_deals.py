@@ -5,7 +5,8 @@ Maintains an active Live Showcase of up to N deals (default 30):
 - each tracked card is kept while its live Nintendo discount is still valid;
 - expired/changed cards are deleted by stored message_id, then only vacated slots are refilled;
 - showcase state is persisted atomically under PROJECT_ROOT/data after every change;
-- if Telegram refuses deletion, the card stays tracked (no silent orphans / no extra posts).
+- if Telegram refuses deletion, the card stays tracked (no silent orphans / no extra posts);
+- after every showcase mutation, state is force-uploaded to Gist so digest sync cannot revive stale cards.
 """
 
 import asyncio
@@ -227,6 +228,34 @@ def save_active_showcase(data: dict) -> None:
         _atomic_write_json(SHOWCASE_FILE, data)
     except Exception as e:
         logger.error(f"Failed to save active showcase: {e}")
+
+
+def prune_showcase_to_keys(showcase_data: dict, keep_keys: Set[str]) -> dict:
+    """Drop stale destination keys so old topic leftovers cannot revive via Gist."""
+    if not keep_keys:
+        return showcase_data
+    pruned = {k: v for k, v in showcase_data.items() if k in keep_keys}
+    dropped = sorted(set(showcase_data.keys()) - set(pruned.keys()))
+    if dropped:
+        logger.info(f"Pruned stale showcase keys: {dropped}")
+    return pruned
+
+
+def sync_eshop_state_after_change(reason: str = "") -> None:
+    """Push Live Showcase state to Gist immediately after local changes."""
+    try:
+        from sync_gist_state import sync_eshop_state_to_gist
+
+        ok = sync_eshop_state_to_gist(force=True)
+        if ok:
+            logger.info(f"eShop state force-uploaded to Gist ({reason or 'update'}).")
+        else:
+            logger.error(
+                f"eShop state Gist upload failed ({reason or 'update'}). "
+                "Local showcase is saved, but digest download could revive stale Gist until upload succeeds."
+            )
+    except Exception as e:
+        logger.error(f"eShop state Gist upload error ({reason or 'update'}): {e}")
 
 
 def load_last_run() -> dict:
@@ -613,7 +642,15 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             save_active_showcase(showcase_data)
             print(f"✅ Вітрину {showcase_key} оновлено: {len(surviving_items)}/{max_active_showcase} активних карток.\n")
 
-        # 6. Save execution state
+        # 6. Save execution state (only keys touched this run — drop stale destinations)
+        active_keys = set()
+        for group in target_groups:
+            cid = group.get("chat_id")
+            if not cid:
+                continue
+            tid = group.get("topic_id")
+            active_keys.add(f"{cid}_{tid}" if tid else str(cid))
+        showcase_data = prune_showcase_to_keys(showcase_data, active_keys)
         save_active_showcase(showcase_data)
         save_posted_deals(fresh_history)
         save_last_run({
@@ -621,6 +658,9 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             "last_run_iso": now_dt.isoformat(),
             "posted_count": total_posted_this_run,
         })
+        sync_eshop_state_after_change(
+            f"showcase cycle posted={total_posted_this_run} force={force} reset={reset}"
+        )
 
         # 7. Check Wishlists and send direct alerts
         try:
@@ -777,6 +817,7 @@ async def remove_showcase_deals(remove_arg: str):
             if norm and f"title_{norm}" in posted_history:
                 posted_history.pop(f"title_{norm}", None)
         save_posted_deals(posted_history)
+        sync_eshop_state_after_change(f"remove arg={clean_arg} deleted={total_deleted}")
 
         if total_deleted > 0:
             logger.info(f"✅ Removal complete. Successfully deleted {total_deleted} tracked deal message(s) from topic {target_topic}.")
@@ -873,6 +914,7 @@ async def delete_orphan_showcase_messages(target_arg: str):
                 if norm and f"title_{norm}" in posted_history:
                     posted_history.pop(f"title_{norm}", None)
             save_posted_deals(posted_history)
+            sync_eshop_state_after_change(f"delete-messages surviving={len(surviving)}")
 
         print(f"\n✅ Завершено. Оброблено {len(msg_ids)} повідомлень, видалено/підтверджено: {total_deleted}.\n" + "=" * 60)
     finally:

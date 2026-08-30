@@ -2,6 +2,17 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.45] - 2026-08-30
+
+### Fixed
+- **eShop Live Showcase no longer revived from stale Gist**:
+  - Root cause: `send_eshop_deals.py` wrote a fresh 30-card showcase locally, but never uploaded it; the next `run_checker.sh digest/rt/hb` did a blind Gist download and restored an old 20-card file, so the next `--force` posted another batch on top of Telegram.
+  - `sync_gist_state.py download`: JSON files are **merged** with local state (same rules as upload). Newer local showcase / higher `message_id` wins — stale Gist cannot clobber a good local file.
+  - `run_checker.sh` (example): digest/rt/hb/swuk sync uses `--exclude-eshop-state`, so Live Showcase files are not downloaded or uploaded by non-eShop jobs.
+  - `send_eshop_deals.py`: after every showcase change (`--force`/`--reset`/`--remove`/`--delete-messages`), force-uploads `eshop_active_showcase.json`, `eshop_posted_deals.json`, and `last_eshop_deals_run.json` to Gist.
+  - Stale destination keys (old chats/topics) are pruned from the showcase file after each cycle.
+  - New `run_checker.sh eshop` command: download eShop state → `send_eshop_deals.py --force` → safety-net force-upload.
+
 ## [v0.7.44] - 2026-08-29
 
 ### Fixed

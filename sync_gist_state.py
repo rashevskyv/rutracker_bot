@@ -10,7 +10,15 @@ from typing import Dict
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Files to sync
+# eShop Live Showcase state — must not be clobbered by digest/rt/hb gist sync.
+# These are synced only by the eshop runner (or explicit CLI file args).
+ESHOP_STATE_FILES = [
+    "eshop_posted_deals.json",
+    "eshop_active_showcase.json",
+    "last_eshop_deals_run.json",
+]
+
+# Files to sync by default (operational + caches). Includes eShop unless excluded.
 FILES_TO_SYNC = [
     "posted_links.json",
     "hb_state.json",
@@ -47,24 +55,69 @@ def get_gist_headers(token: str = None) -> Dict[str, str]:
         headers["Authorization"] = f"token {token}"
     return headers
 
-def normalize_target_files(files_arg) -> list:
+def normalize_target_files(files_arg, exclude_files: list = None) -> list:
     if not files_arg:
-        return FILES_TO_SYNC
-    normalized = []
-    for f in files_arg:
-        basename = os.path.basename(f)
-        if basename in FILES_TO_SYNC:
-            normalized.append(basename)
-        elif f"{basename}.json" in FILES_TO_SYNC:
-            normalized.append(f"{basename}.json")
-        elif f"{basename}.txt" in FILES_TO_SYNC:
-            normalized.append(f"{basename}.txt")
-        else:
-            normalized.append(basename)
+        normalized = list(FILES_TO_SYNC)
+    else:
+        normalized = []
+        for f in files_arg:
+            basename = os.path.basename(f)
+            if basename in FILES_TO_SYNC:
+                normalized.append(basename)
+            elif f"{basename}.json" in FILES_TO_SYNC:
+                normalized.append(f"{basename}.json")
+            elif f"{basename}.txt" in FILES_TO_SYNC:
+                normalized.append(f"{basename}.txt")
+            else:
+                normalized.append(basename)
+    if exclude_files:
+        exclude = {os.path.basename(f) for f in exclude_files}
+        normalized = [f for f in normalized if f not in exclude]
     return normalized
 
-def download_state(gist_id: str, token: str, target_files: list = None):
-    sync_list = normalize_target_files(target_files)
+
+def resolve_gist_credentials():
+    """Load GIST_ID / token from env or local_settings. Returns (gist_id, token, used_github_token)."""
+    gist_id = os.environ.get("GIST_ID")
+    token = os.environ.get("GIST_TOKEN")
+    used_github_token = False
+
+    if not gist_id or not token:
+        try:
+            from core.settings_loader import settings
+            gist_id = gist_id or settings.get("GIST_ID")
+            if not token:
+                token = settings.get("GIST_TOKEN")
+                if not token:
+                    token = settings.get("GITHUB_TOKEN")
+                    used_github_token = bool(token)
+        except Exception as e:
+            logger.debug(f"Could not load Gist settings from config: {e}")
+
+    return gist_id, token, used_github_token
+
+
+def sync_eshop_state_to_gist(force: bool = True) -> bool:
+    """Force-upload eShop showcase/history/last_run so digest sync cannot revive stale cards."""
+    gist_id, token, used_github_token = resolve_gist_credentials()
+    if not gist_id:
+        logger.error("Cannot sync eShop state to Gist: GIST_ID is not set.")
+        return False
+    if not token:
+        logger.error("Cannot sync eShop state to Gist: GIST_TOKEN/GITHUB_TOKEN is not set.")
+        return False
+    if used_github_token:
+        logger.warning("GIST_TOKEN not set — falling back to GITHUB_TOKEN for eShop state upload.")
+    try:
+        upload_state(gist_id, token, force=force, target_files=ESHOP_STATE_FILES)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to upload eShop state to Gist: {e}")
+        return False
+
+
+def download_state(gist_id: str, token: str, target_files: list = None, exclude_files: list = None):
+    sync_list = normalize_target_files(target_files, exclude_files=exclude_files)
     logger.info(f"Downloading state from Gist {gist_id} (files: {', '.join(sync_list)})...")
     url = f"https://api.github.com/gists/{gist_id}"
     req = urllib.request.Request(url, headers=get_gist_headers(token))
@@ -96,6 +149,27 @@ def download_state(gist_id: str, token: str, target_files: list = None):
                     else:
                         content = file_info.get("content", "")
                     filepath = os.path.join(DATA_DIR, filename)
+
+                    # Never blindly overwrite newer local JSON (especially eshop showcase).
+                    if filename.endswith(".json") and os.path.exists(filepath):
+                        try:
+                            with open(filepath, "r", encoding="utf-8") as lf:
+                                local_content = lf.read()
+                            if local_content.strip() and content.strip():
+                                merged = merge_json_files(filename, local_content, content)
+                                if merged != content:
+                                    logger.info(
+                                        f"Download merge kept newer/local-preferred state for {filename}"
+                                    )
+                                content = merged
+                            elif local_content.strip() and not content.strip():
+                                content = local_content
+                                logger.info(f"Download kept non-empty local {filename} (Gist empty)")
+                        except Exception as merge_err:
+                            logger.warning(
+                                f"Download merge failed for {filename}, using Gist content: {merge_err}"
+                            )
+
                     with open(filepath, "w", encoding="utf-8") as f:
                         f.write(content)
                     logger.info(f"Downloaded {filename}")
@@ -275,8 +349,8 @@ def merge_json_files(filename: str, local_content: str, gist_content: str) -> st
     return gist_content if gist_content.strip() else local_content
 
 
-def upload_state(gist_id: str, token: str, force: bool = False, target_files: list = None):
-    sync_list = normalize_target_files(target_files)
+def upload_state(gist_id: str, token: str, force: bool = False, target_files: list = None, exclude_files: list = None):
+    sync_list = normalize_target_files(target_files, exclude_files=exclude_files)
     logger.info(f"Uploading state to Gist {gist_id} (force={force}, files: {', '.join(sync_list)})...")
     
     # 1. Download current Gist content first to perform a safe merge unless force is True
@@ -370,24 +444,26 @@ def main():
     parser.add_argument("action", choices=["download", "upload"], help="Action to perform")
     parser.add_argument("files", nargs="*", default=None, help="Optional specific file(s) to sync (e.g. manual_releases.json)")
     parser.add_argument("-f", "--force", action="store_true", help="Force upload local files directly without merging")
+    parser.add_argument(
+        "--exclude",
+        nargs="*",
+        default=None,
+        help="Basenames to skip (e.g. --exclude eshop_active_showcase.json). "
+             "Use --exclude-eshop-state as a shortcut for Live Showcase files.",
+    )
+    parser.add_argument(
+        "--exclude-eshop-state",
+        action="store_true",
+        help="Skip eshop_active_showcase.json / eshop_posted_deals.json / last_eshop_deals_run.json",
+    )
     
     args = parser.parse_args()
-    
-    gist_id = os.environ.get("GIST_ID")
-    token = os.environ.get("GIST_TOKEN")
-    used_github_token = False
 
-    if not gist_id or not token:
-        try:
-            from core.settings_loader import settings
-            gist_id = gist_id or settings.get("GIST_ID")
-            if not token:
-                token = settings.get("GIST_TOKEN")
-                if not token:
-                    token = settings.get("GITHUB_TOKEN")
-                    used_github_token = bool(token)
-        except Exception as e:
-            logger.debug(f"Could not load Gist settings from config: {e}")
+    exclude = list(args.exclude or [])
+    if args.exclude_eshop_state:
+        exclude.extend(ESHOP_STATE_FILES)
+    
+    gist_id, token, used_github_token = resolve_gist_credentials()
 
     if not gist_id:
         logger.error(
@@ -408,9 +484,15 @@ def main():
                        "otherwise uploads fail with 403 and state is silently lost.")
         
     if args.action == "download":
-        download_state(gist_id, token, target_files=args.files)
+        download_state(gist_id, token, target_files=args.files or None, exclude_files=exclude or None)
     elif args.action == "upload":
-        upload_state(gist_id, token, force=args.force, target_files=args.files)
+        upload_state(
+            gist_id,
+            token,
+            force=args.force,
+            target_files=args.files or None,
+            exclude_files=exclude or None,
+        )
 
 if __name__ == "__main__":
     main()

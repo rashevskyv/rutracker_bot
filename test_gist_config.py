@@ -57,6 +57,12 @@ def test_normalize_target_files():
     assert sync_gist_state.normalize_target_files(["manual_releases"]) == ["manual_releases.json"]
     assert sync_gist_state.normalize_target_files(["last_entry"]) == ["last_entry.txt"]
 
+    excluded = sync_gist_state.normalize_target_files(None, exclude_files=sync_gist_state.ESHOP_STATE_FILES)
+    for name in sync_gist_state.ESHOP_STATE_FILES:
+        assert name not in excluded
+    assert "posted_links.json" in excluded
+    assert "eshop_region_prices_cache.json" in excluded
+
 
 def test_merge_eshop_states():
     import json
@@ -100,6 +106,50 @@ def test_merge_eshop_states():
     gist_run = {"last_run_timestamp": 4000.0, "posted_count": 2}
     merged_run = sync_gist_state.merge_json_files("last_eshop_deals_run.json", json.dumps(local_run), json.dumps(gist_run))
     assert json.loads(merged_run)["last_run_timestamp"] == 5000.0
+
+
+def test_download_merge_keeps_newer_local_showcase():
+    """Simulates digest download: stale Gist must not overwrite newer local showcase."""
+    import json
+    import tempfile
+    from pathlib import Path
+    import sync_gist_state
+
+    local = {
+        "-1001790782971_561344": [
+            {"title": "Fresh", "message_id": 565432, "posted_at": 1788000000.0},
+        ]
+    }
+    stale_gist = {
+        "-1001790782971_561344": [
+            {"title": "Stale", "message_id": 561432, "posted_at": 1787000000.0},
+        ]
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "eshop_active_showcase.json"
+        path.write_text(json.dumps(local), encoding="utf-8")
+        # Same merge path download_state uses before writing the file.
+        merged = sync_gist_state.merge_json_files(
+            "eshop_active_showcase.json",
+            path.read_text(encoding="utf-8"),
+            json.dumps(stale_gist),
+        )
+        path.write_text(merged, encoding="utf-8")
+        got = json.loads(path.read_text(encoding="utf-8"))
+        assert got["-1001790782971_561344"][0]["message_id"] == 565432
+
+
+def test_prune_showcase_to_keys():
+    from send_eshop_deals import prune_showcase_to_keys
+
+    data = {
+        "-1001790782971_561344": [{"message_id": 1}],
+        "-1001277664260_29459": [{"message_id": 2}],
+        "-1001738235675_1216": [{"message_id": 3}],
+    }
+    pruned = prune_showcase_to_keys(data, {"-1001790782971_561344"})
+    assert list(pruned.keys()) == ["-1001790782971_561344"]
+    assert pruned["-1001790782971_561344"][0]["message_id"] == 1
 
 
 if __name__ == "__main__":
