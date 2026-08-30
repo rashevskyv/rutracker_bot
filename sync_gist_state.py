@@ -446,9 +446,9 @@ def main():
     parser.add_argument("-f", "--force", action="store_true", help="Force upload local files directly without merging")
     parser.add_argument(
         "--exclude",
-        nargs="*",
+        action="append",
         default=None,
-        help="Basenames to skip (e.g. --exclude eshop_active_showcase.json). "
+        help="Basename to skip (repeatable), e.g. --exclude eshop_active_showcase.json. "
              "Use --exclude-eshop-state as a shortcut for Live Showcase files.",
     )
     parser.add_argument(
