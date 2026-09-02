@@ -114,11 +114,12 @@ Shared across all sources. Key format: `{prefix}:{id}`. Descriptions are transla
 **Priority per entry:**
 1. `list_hb.json` description (already Ukrainian) → used directly
 2. `hb_descriptions.json` cache hit → used directly
-3. API `long_description`/`description` → GPT translate → saved to cache
+3. API `description`/`long_description` (prefers short description first) → GPT translate → saved to cache (validates Ukrainian Cyrillic, fallback on failure without caching raw English)
 
-### Changelog Summarization
+### Changelog Summarization & Formatting Guardrails
 
-All sources: `_extract_latest_changelog()` extracts the top block, then GPT (`gpt-4o-mini`) summarizes to 1–2 Ukrainian sentences. Appended as `<i>...</i>` to the digest entry.
+All sources: `_extract_latest_changelog()` extracts the top block, then GPT summarizes to 1–2 Ukrainian sentences. Appended as `<i>...</i>` to the digest entry.
+`digest/homebrew.py` implements `sanitize_digest_description()` to strictly strip raw markdown (`**`, `###`, bullets, links), collapse newlines, and limit descriptions and changelogs to 1–2 clean sentences before posting to Telegram.
 
 ### State Files
 

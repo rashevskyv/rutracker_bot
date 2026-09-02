@@ -2,6 +2,22 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.46] - 2026-09-02
+
+### Fixed
+- **Homebrew Digest Changelog & Description Compression**:
+  - Fixed an issue where giant unsummarized multi-paragraph READMEs/install manuals with raw markdown (`**IMPORTANT...**`, `### Features`, `* **Live Telemetry:**`) leaked into `#homebrew_digest:` Telegram posts.
+  - `digest/homebrew.py`: Implemented `sanitize_digest_description()` guardrail that strips raw Markdown (`**`, `###`, bullets, links), normalizes multi-paragraph text, limits main descriptions to 1-2 concise sentences (max ~220 chars), and limits italicized changelogs (`<i>...</i>`) to 1-2 concise sentences (max ~180 chars).
+  - `collect_homebrew_updates.py`: Fixed source field preference across all repo collectors (Universal-DB, ForTheUsers, VitaDB) to prefer clean short `description` before falling back to `long_description` / `details`.
+  - `collect_homebrew_updates.py`: Fixed `_get_description_cached()` to validate translated text (must contain Ukrainian Cyrillic and differ from raw input) before caching, falling back to a clean single-sentence `Додаток {fallback_name}.` instead of saving raw multi-line English markdown.
+  - `collect_homebrew_updates.py`: Pre-cleaned HTML/URLs and post-cleaned markdown/bullet formatting in `summarize_and_translate_notes()` to guarantee 1-2 sentence plain-text Ukrainian summaries.
+  - `services/translation.py`: Hardened `translate_short_description()` so LLM failures return `""` (empty string) instead of passing through raw multi-paragraph input text, and validated cache hits against markdown poisoning.
+  - Cleaned corrupted raw markdown entries from `data/homebrew_digest_data.json` (SysMon) and purged invalid entries from `data/hb_descriptions.json`.
+
+### Added
+- **Homebrew Digest Formatting Unit Tests**:
+  - `test_homebrew_digest_formatting.py`: Added comprehensive unit tests covering markdown stripping, sentence limiting, changelog preservation, fallback behavior on translation failure, and full Telegram digest message sanitization.
+
 ## [v0.7.45] - 2026-08-30
 
 ### Fixed

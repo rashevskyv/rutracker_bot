@@ -304,27 +304,42 @@ class HomebrewUpdatesCollector:
         return None
 
     async def summarize_and_translate_notes(self, notes: str) -> Optional[str]:
-        """Summarize update notes to exactly 1 Ukrainian sentence using OpenRouter/GPT."""
+        """Summarize update notes to 1-2 concise Ukrainian sentences using OpenRouter/GPT."""
         if not notes or not notes.strip():
             return None
         try:
+            import re
+            # Pre-clean input notes: strip HTML tags and URLs
+            cleaned_input = re.sub(r'</?[a-zA-Z][^>]*>', ' ', notes)
+            cleaned_input = re.sub(r'https?://\S+', '', cleaned_input)
+            cleaned_input = re.sub(r'\s+', ' ', cleaned_input).strip()
+            if not cleaned_input or len(cleaned_input) < 5:
+                return None
+
             from services import gpt
             prompt = (
-                f"Summarize the following software update notes into exactly ONE concise sentence in Ukrainian.\n\n"
+                f"Summarize the following software update notes into 1-2 concise sentences in Ukrainian.\n\n"
                 f"Rules:\n"
-                f"1. ONE sentence only — no more.\n"
+                f"1. 1-2 short sentences only — no more.\n"
                 f"2. Describe only WHAT was changed, fixed, or added in this update.\n"
                 f"3. Do NOT include thanks, credits, author names, or release ceremony text.\n"
                 f"4. Keep English brand names and technical terms untranslated.\n"
-                f"5. Output plain text only (no HTML, no markdown). End with a period.\n\n"
-                f"Update notes:\n{notes.strip()}\n\n"
-                f"One-sentence Ukrainian summary:"
+                f"5. Output plain text only (no HTML, no markdown, no bullets). End with a period.\n\n"
+                f"Update notes:\n{cleaned_input[:1500]}\n\n"
+                f"Ukrainian summary:"
             )
-            result = await gpt.complete(prompt, max_tokens=100, model=GPT_MODEL, temperature=0.3, label="Homebrew Notes")
-            if result:
-                result = result.strip()
-                logger.info(f"Summarized update notes: {result[:80]}")
-                return result
+            result = await gpt.complete(prompt, max_tokens=150, model=GPT_MODEL, temperature=0.3, label="Homebrew Notes")
+            if result and result.strip():
+                # Post-clean: remove markdown and newlines
+                clean = re.sub(r'(\*\*|__)(.*?)\1', r'\2', result)
+                clean = re.sub(r'(\*|_)(.*?)\1', r'\2', clean)
+                clean = re.sub(r'#+\s*', '', clean)
+                clean = re.sub(r'</?[a-zA-Z][^>]*>', '', clean)
+                clean = re.sub(r'\s+', ' ', clean).strip()
+                # Check for Cyrillic
+                if re.search(r'[\u0400-\u04FF]', clean):
+                    logger.info(f"Summarized update notes: {clean[:80]}")
+                    return clean
             return None
         except Exception as e:
             logger.error(f"Error summarizing update notes: {e}")
@@ -344,31 +359,49 @@ class HomebrewUpdatesCollector:
         if local_entry and local_entry.get('description'):
             return local_entry['description']
 
-        # 2. Shared descriptions cache
+        # 2. Shared descriptions cache (ignore corrupted/markdown entries)
         if cache_key in self._descriptions:
-            return self._descriptions[cache_key]
+            cached_val = self._descriptions[cache_key]
+            if cached_val and not cached_val.startswith('**') and '\n' not in cached_val and '\ufffd' not in cached_val:
+                return cached_val
 
-        # 3. Translate and cache
+        # Safe default fallback
+        fallback = f"Додаток {fallback_name}." if fallback_name else "Оновлення додатку."
         if not raw_text.strip():
-            return fallback_name
+            return fallback
 
         logger.info(f"[{cache_key}]: translating and caching description...")
         try:
             from services.translation import translate_short_description
             translated = await translate_short_description(raw_text)
-            # Only cache if translation succeeded (i.e. result differs from raw input or is clearly Ukrainian)
-            self._descriptions[cache_key] = translated
-            return translated
+            if not translated or not translated.strip():
+                logger.warning(f"[{cache_key}]: translation returned empty, using fallback: {fallback}")
+                return fallback
+
+            # Validation: must contain Cyrillic and not be raw input
+            import re
+            has_cyrillic = bool(re.search(r'[\u0400-\u04FF]', translated))
+            if not has_cyrillic or translated.strip() == raw_text.strip():
+                logger.warning(f"[{cache_key}]: translation did not produce valid Ukrainian text, using fallback: {fallback}")
+                return fallback
+
+            # Clean markdown and whitespace to guarantee a clean single line
+            clean_translated = re.sub(r'(\*\*|__)(.*?)\1', r'\2', translated)
+            clean_translated = re.sub(r'#+\s*', '', clean_translated)
+            clean_translated = re.sub(r'</?[a-zA-Z][^>]*>', '', clean_translated)
+            clean_translated = re.sub(r'\s+', ' ', clean_translated).strip()
+
+            self._descriptions[cache_key] = clean_translated
+            return clean_translated
         except Exception as e:
             logger.error(f"[{cache_key}]: description translation failed: {e}")
-            # Do NOT cache — return fallback without saving raw English text
-            return fallback_name
+            return fallback
 
     async def _get_description_for_udb_app(
         self, slug: str, udb_app: Dict, local_entry: Optional[Dict]
     ) -> str:
-        """Resolve description for a UDB app."""
-        raw_desc = udb_app.get('long_description') or udb_app.get('description') or ''
+        """Resolve description for a UDB app (prefer short description over long manual)."""
+        raw_desc = udb_app.get('description') or udb_app.get('long_description') or ''
         return await self._get_description_cached(
             cache_key=f'udb:{slug}',
             local_entry=local_entry,
@@ -784,8 +817,8 @@ class HomebrewUpdatesCollector:
                 udb_slug, udb_app, local_entry
             )
 
-            # Summarize update notes if available
-            update_notes_text = udb_app.get('update_notes') or udb_app.get('update_notes_md') or ''
+            # Summarize update notes if available (prefer markdown over HTML)
+            update_notes_text = udb_app.get('update_notes_md') or udb_app.get('update_notes') or ''
             summarized_notes = None
             if update_notes_text.strip():
                 summarized_notes = await self.summarize_and_translate_notes(update_notes_text)
@@ -952,7 +985,7 @@ class HomebrewUpdatesCollector:
             local_entry = local_by_gh_slug.get((gh_slug or '').lower()) if gh_slug else None
 
             # Get description (priority chain via shared cache)
-            raw_desc = pkg.get('details') or pkg.get('description') or ''
+            raw_desc = pkg.get('description') or pkg.get('details') or ''
             description = await self._get_description_cached(
                 cache_key=state_key,
                 local_entry=local_entry,
@@ -1123,7 +1156,7 @@ class HomebrewUpdatesCollector:
             local_entry = local_by_gh_slug.get((gh_slug or '').lower()) if gh_slug else None
 
             # Get description via shared cache
-            raw_desc = pkg.get('long_description') or pkg.get('description') or ''
+            raw_desc = pkg.get('description') or pkg.get('long_description') or ''
             description = await self._get_description_cached(
                 cache_key=state_key,
                 local_entry=local_entry,

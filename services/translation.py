@@ -174,16 +174,19 @@ async def translate_short_description(text: str, model: str = gpt.DEFAULT_MODEL)
 
     :param text: App description text (any language).
     :param model: Model to use (primary).
-    :return: 1-sentence Ukrainian description, or original text on error.
+    :return: 1-sentence Ukrainian description, or empty string on error/failure.
     """
     if not text or not text.strip():
-        return text
+        return ""
 
     cache = _get_cache()
     short_hash = f"short_{hashlib.sha256(text.strip().encode('utf-8')).hexdigest()}"
     if short_hash in cache:
-        logger.info("Short description found in cache. Skipping LLM request.")
-        return cache[short_hash]
+        cached = cache[short_hash]
+        # Validate cache is not poisoned with raw markdown, multiple newlines, or non-Cyrillic text
+        if cached and not cached.startswith('**') and '\n' not in cached and re.search(r'[\u0400-\u04FF]', cached):
+            logger.info("Short description found in cache. Skipping LLM request.")
+            return cached
 
     prompt = (
         f"Summarize the following app description into exactly ONE short sentence in Ukrainian.\n\n"
@@ -200,22 +203,37 @@ async def translate_short_description(text: str, model: str = gpt.DEFAULT_MODEL)
         f"'який дає змогу...', 'для консолі...', 'це порт...', 'щоб ви могли грати...'. "
         f"Keep it as concise and direct as possible. Example: 'Порт гри Adventures of Mana для Nintendo Switch.' "
         f"instead of 'Порт гри Adventures of Mana для Switch, який дозволяє вам грати в цю гру на консолі.'\n\n"
-        f"**App description:**\n{text}\n\n**One-sentence Ukrainian summary:**"
+        f"**App description:**\n{text[:1500]}\n\n**One-sentence Ukrainian summary:**"
     )
 
     logger.info(f"Summarizing description using model: {model}...")
-    translated_text = await gpt.complete(prompt, max_tokens=100, model=model, temperature=0.3,
+    translated_text = await gpt.complete(prompt, max_tokens=150, model=model, temperature=0.3,
                                          label="Description summarization")
-    if translated_text is None:
-        return text  # Both models failed — caller decides whether to cache
+    if translated_text is None or not translated_text.strip():
+        logger.warning("Description summarization returned None or empty from LLM")
+        return ""  # Do not return raw multi-paragraph input
 
     # Clean any markdown artifacts
-    translated_text = re.sub(r"^(```html|```)", "", translated_text.strip()).strip()
-    result = re.sub(r"```$", "", translated_text).strip()
+    cleaned = re.sub(r"^(```html|```|```markdown)", "", translated_text.strip()).strip()
+    cleaned = re.sub(r"```$", "", cleaned).strip()
+    cleaned = re.sub(r'(\*\*|__)(.*?)\1', r'\2', cleaned)
+    cleaned = re.sub(r'(\*|_)(.*?)\1', r'\2', cleaned)
+    cleaned = re.sub(r'#+\s*', '', cleaned)
+    cleaned = re.sub(r'</?[a-zA-Z][^>]*>', '', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
-    cache[short_hash] = result
-    _save_cache()
-    return result
+    # Limit to at most 1-2 sentences
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', cleaned) if s.strip()]
+    if len(sentences) > 2:
+        cleaned = " ".join(sentences[:2])
+
+    if cleaned and re.search(r'[\u0400-\u04FF]', cleaned):
+        cache[short_hash] = cleaned
+        _save_cache()
+        return cleaned
+
+    logger.warning("Description summarization did not produce valid Ukrainian text")
+    return ""
 
 
 async def translate_eshop_synopsis(title: str, synopsis: str, fs_id: Optional[str] = None) -> str:

@@ -43,8 +43,8 @@ Checks various platforms for homebrew updates:
 - **Phase 1d (PS Vita & PSP)**: VitaForge / VitaDBtoo database (Homebrew, Plugins, PC Tools, PSP Homebrew).
 - **Phase 1e (Switch Ports)**: ChanseyIsTheBest/SwitchPorts markdown tables with Collision Resolution against manual releases and existing repos.
 - **Phase 2 (GitHub/GitLab)**: General registry matching of repositories.
-- **Descriptions Cache**: Translated app descriptions are cached in `data/hb_descriptions.json` to prevent duplicate translations.
-- **Changelog Summarization**: GPT compiles a one-sentence Ukrainian summary from raw update notes.
+- **Descriptions Cache**: Translated app descriptions are cached in `data/hb_descriptions.json` to prevent duplicate translations. Validates Ukrainian output and suppresses raw markdown leakage.
+- **Changelog & Description Compression**: GPT compiles concise 1–2 sentence Ukrainian summaries from raw update notes without markdown lists or release ceremony. Formatting guardrails in `digest/homebrew.py` (`sanitize_digest_description`) strictly limit descriptions and changelogs to 1–2 clean sentences without excess markdown formatting.
 
 ### 3. Swuk Localizations Collector (`collect_swuk_updates.py`)
 - Tracks Ukrainian Switch translation releases via the swuk.com.ua RSS feed.

@@ -4,6 +4,7 @@ Collects and formats daily summaries of homebrew application updates
 """
 import html
 import os
+import re
 import logging
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -13,6 +14,95 @@ from digest.base import BaseDigest
 logger = logging.getLogger(__name__)
 
 HOMEBREW_DIGEST_FILE = os.path.join("data", "homebrew_digest_data.json")
+
+
+def clean_markdown_and_whitespace(text: str) -> str:
+    """Strip raw markdown syntax, unwanted HTML tags, and normalize whitespace."""
+    if not text:
+        return ""
+    # Strip HTML tags like <p>, <div>, <b>, <a> except Telegram <i> handled separately
+    text = re.sub(r'</?(?!i\b|/i\b)[a-zA-Z][^>]*>', ' ', text)
+    # Remove markdown images ![caption](url) BEFORE links
+    text = re.sub(r'!\[[^\]]*\]\([^)]+\)', '', text)
+    # Remove markdown links [text](url) -> text
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    # Remove bold / italics (**text**, *text*, __text__, _text_)
+    text = re.sub(r'(\*\*|__)(.*?)\1', r'\2', text)
+    text = re.sub(r'(\*|_)(.*?)\1', r'\2', text)
+    # Remove headers (#, ##, ###, etc.)
+    text = re.sub(r'(?m)^#{1,6}\s*', '', text)
+    # Remove bullet markers (*, -, +, •)
+    text = re.sub(r'(?m)^\s*[\*\-\+•]\s*', '', text)
+    # Remove backticks `code`
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    # Clean up lingering markdown artifacts
+    text = text.replace('**', '').replace('###', '')
+    # Normalize multiple whitespaces and newlines
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def limit_to_sentences(text: str, max_sentences: int = 2, max_chars: int = 220) -> str:
+    """Limit text to at most max_sentences and max_chars without cutting mid-word when possible."""
+    if not text:
+        return ""
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+    if len(sentences) > max_sentences:
+        text = " ".join(sentences[:max_sentences])
+    if len(text) > max_chars:
+        truncated = text[:max_chars]
+        last_punct = max(truncated.rfind('.'), truncated.rfind('!'), truncated.rfind('?'))
+        if last_punct > 50:
+            text = truncated[:last_punct + 1]
+        else:
+            last_space = truncated.rfind(' ')
+            if last_space > 50:
+                text = truncated[:last_space] + "..."
+            else:
+                text = truncated + "..."
+    return text.strip()
+
+
+def sanitize_digest_description(description: str) -> str:
+    """
+    Sanitize homebrew description for digest:
+    - Strips raw markdown (**, ###, bullets, [links](url))
+    - Collapses multiple newlines
+    - Limits main description to 1-2 sentences (max ~220 chars)
+    - Limits optional changelog (<i>...</i>) to 1-2 sentences (max ~180 chars)
+    - Ensures clean Telegram HTML formatting without walls of text
+    """
+    if not description or not description.strip():
+        return ""
+
+    raw = description.strip()
+
+    # Check if there is an italic changelog block (<i>...</i>)
+    if '<i>' in raw:
+        parts = raw.split('<i>', 1)
+        base_desc = parts[0].strip()
+        cl_part = parts[1]
+        if '</i>' in cl_part:
+            cl_text = cl_part.split('</i>')[0].strip()
+        else:
+            cl_text = cl_part.strip()
+    else:
+        base_desc = raw
+        cl_text = ""
+
+    clean_base = clean_markdown_and_whitespace(base_desc)
+    clean_base = limit_to_sentences(clean_base, max_sentences=2, max_chars=220)
+
+    clean_cl = clean_markdown_and_whitespace(cl_text)
+    clean_cl = limit_to_sentences(clean_cl, max_sentences=2, max_chars=180)
+
+    if clean_base and clean_cl:
+        return f"{clean_base}\n<i>{clean_cl}</i>"
+    elif clean_cl:
+        return f"<i>{clean_cl}</i>"
+    else:
+        return clean_base
+
 
 
 class HomebrewDigest(BaseDigest):
@@ -122,7 +212,7 @@ class HomebrewDigest(BaseDigest):
             for entry in sorted(platform_entries, key=lambda e: e['app_name'].lower()):
                 app_name = html.escape(entry['app_name'])
                 version = html.escape(entry['version'])
-                description = entry['description']  # Already contains Telegram HTML, don't escape
+                description = sanitize_digest_description(entry.get('description', ''))
                 is_new = entry.get('is_new', False)
 
                 # Parse date from timestamp
@@ -135,7 +225,10 @@ class HomebrewDigest(BaseDigest):
                 # Format: • <a href="url">AppName version</a> від date — description
                 # Add ⚠️ emoji for new apps
                 marker = "⚠️ " if is_new else "• "
-                line = f"{marker}<a href=\"{entry['release_url']}\">{app_name} {version}</a> від {date_str} — {description}"
+                if description:
+                    line = f"{marker}<a href=\"{entry['release_url']}\">{app_name} {version}</a> від {date_str} — {description}"
+                else:
+                    line = f"{marker}<a href=\"{entry['release_url']}\">{app_name} {version}</a> від {date_str}"
                 message_parts.append(line)
 
             message_parts.append("")  # Empty line after each platform section
