@@ -15,6 +15,7 @@ import html
 import io
 import json
 import logging
+import math
 import os
 import re
 import sys
@@ -138,12 +139,12 @@ async def safe_delete_showcase_message(
 
 
 def create_deals_collage(cover_bytes_list: List[bytes]) -> Optional[io.BytesIO]:
-    """Create a simple 2x2 grid collage from up to 4 game cover images using Pillow."""
+    """Create a near-square collage from every available updated game cover."""
     if not cover_bytes_list:
         return None
     try:
         valid_imgs = []
-        for raw in cover_bytes_list[:4]:
+        for raw in cover_bytes_list:
             if not raw:
                 continue
             try:
@@ -157,8 +158,8 @@ def create_deals_collage(cover_bytes_list: List[bytes]) -> Optional[io.BytesIO]:
 
         n = len(valid_imgs)
         tile_w, tile_h = 480, 270
-        cols = 2 if n > 1 else 1
-        rows = 2 if n > 2 else 1
+        cols = math.ceil(math.sqrt(n))
+        rows = math.ceil(n / cols)
 
         canvas = Image.new("RGB", (tile_w * cols, tile_h * rows), color=(20, 20, 20))
         for idx, img in enumerate(valid_imgs):

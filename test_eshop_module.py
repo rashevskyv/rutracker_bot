@@ -1405,6 +1405,22 @@ async def test_notification_sends_photo_collage_when_covers_available():
     assert len(photo_kwargs.get("photo")) > 0
 
 
+def test_deals_collage_includes_all_sixteen_covers():
+    """Sixteen updated games produce a 4x4 collage instead of truncating after four."""
+    import io
+
+    from PIL import Image
+    from send_eshop_deals import create_deals_collage
+
+    raw = io.BytesIO()
+    Image.new("RGB", (100, 100), color="blue").save(raw, format="JPEG")
+    collage = create_deals_collage([raw.getvalue()] * 16)
+
+    assert collage is not None
+    with Image.open(collage) as image:
+        assert image.size == (1920, 1080)
+
+
 @pytest.mark.asyncio
 async def test_previous_notification_cleanup_before_new():
     """Verify that previous notification (< 48h) is deleted before sending a new one."""
@@ -1676,7 +1692,6 @@ def test_gist_merge_eshop_active_showcase():
     res = json.loads(merged)
     assert len(res["-1001790782971_561344"]) == 2
     assert res["-1001790782971_561344"][0]["message_id"] == 565315
-
 
 
 
