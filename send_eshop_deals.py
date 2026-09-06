@@ -3,13 +3,16 @@ Send Nintendo eShop Deals Script for RuTracker Bot.
 
 Maintains an active Live Showcase of up to N deals (default 30):
 - each tracked card is kept while its live Nintendo discount is still valid;
-- expired/changed cards are deleted by stored message_id, then only vacated slots are refilled;
+- expired/changed cards and cards displaced by more popular candidates are edited in-place (preserving message_id);
+- sends a single update notification message with a collage and direct links when cards are rotated;
+- previous update notification (< 48h) is safely deleted before posting a new one;
 - showcase state is persisted atomically under PROJECT_ROOT/data after every change;
-- if Telegram refuses deletion, the card stays tracked (no silent orphans / no extra posts);
 - after every showcase mutation, state is force-uploaded to Gist so digest sync cannot revive stale cards.
 """
 
 import asyncio
+import html
+import io
 import json
 import logging
 import os
@@ -18,6 +21,9 @@ import sys
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
+
+from PIL import Image
+from telebot import types
 
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     try:
@@ -129,6 +135,64 @@ async def safe_delete_showcase_message(
             return True
         logger.warning(f"⚠️ Could not delete message {message_id} ('{title}') in chat {chat_id}: {e}")
         return False
+
+
+def create_deals_collage(cover_bytes_list: List[bytes]) -> Optional[io.BytesIO]:
+    """Create a simple 2x2 grid collage from up to 4 game cover images using Pillow."""
+    if not cover_bytes_list:
+        return None
+    try:
+        valid_imgs = []
+        for raw in cover_bytes_list[:4]:
+            if not raw:
+                continue
+            try:
+                im = Image.open(io.BytesIO(raw))
+                valid_imgs.append(im)
+            except Exception as ie:
+                logger.debug(f"Could not open image for collage: {ie}")
+
+        if not valid_imgs:
+            return None
+
+        n = len(valid_imgs)
+        tile_w, tile_h = 480, 270
+        cols = 2 if n > 1 else 1
+        rows = 2 if n > 2 else 1
+
+        canvas = Image.new("RGB", (tile_w * cols, tile_h * rows), color=(20, 20, 20))
+        for idx, img in enumerate(valid_imgs):
+            r = idx // cols
+            c = idx % cols
+            resized = img.convert("RGB").resize((tile_w, tile_h), Image.Resampling.LANCZOS)
+            canvas.paste(resized, (c * tile_w, r * tile_h))
+
+        buf = io.BytesIO()
+        canvas.save(buf, format="JPEG", quality=85)
+        buf.seek(0)
+        return buf
+    except Exception as e:
+        logger.warning(f"Error creating deals collage: {e}")
+        return None
+
+
+def format_showcase_update_notification(updated_cards: List[Dict[str, Any]]) -> str:
+    """Format single notification message listing all updated deals in the showcase."""
+    count = len(updated_cards)
+    lines = [
+        "🔄 <b>Вітрина знижок оновлена!</b>",
+        f"Змінено карток: <b>{count}</b>\n",
+    ]
+    for card in updated_cards:
+        escaped_title = html.escape(card.get("title", "Unknown"))
+        mid = card.get("message_id")
+        link = f"https://t.me/kefir_ukr/561344/{mid}"
+        disc = card.get("discount_percent")
+        if disc is not None and float(disc) > 0:
+            lines.append(f"• <a href=\"{link}\">{escaped_title}</a> (-{float(disc):.0f}%)")
+        else:
+            lines.append(f"• <a href=\"{link}\">{escaped_title}</a>")
+    return "\n".join(lines)
 
 
 def _normalize_title_key(title: str) -> str:
@@ -391,6 +455,8 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             k: v for k, v in posted_history.items() if (now_ts - _get_entry_timestamp(v)) < (60 * 86400)
         }
         total_posted_this_run = 0
+        last_notif_message_id = None
+        last_notif_timestamp = None
 
         # 5. Process each target destination with Expiration-based Showcase verification
         for group in target_groups:
@@ -409,8 +475,10 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             showcase_key = f"{chat_id}_{topic_id}" if topic_id else str(chat_id)
             current_showcase_items = showcase_data.get(showcase_key, [])
             surviving_items = []
+            expired_targets: List[Dict[str, Any]] = []
+            updated_cards: List[Dict[str, Any]] = []
 
-            # Step A: Reset or check and delete expired deals
+            # Step A: Reset or check expired deals
             if reset:
                 logger.info(f"🔄 [RESET] Purging {len(current_showcase_items)} active showcase deals from {showcase_key}...")
                 for item in current_showcase_items:
@@ -426,6 +494,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         await asyncio.sleep(0.08)
                 current_showcase_items = []
                 surviving_items = []
+                expired_targets = []
                 showcase_data[showcase_key] = []
                 save_active_showcase(showcase_data)
                 fresh_history = {}
@@ -482,42 +551,13 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                                 kept["downloads_rank"] = game_check.downloads_rank
                         surviving_items.append(kept)
                     else:
-                        deleted = True
-                        if msg_id:
-                            deleted = await safe_delete_showcase_message(
-                                chat_id=chat_id_int,
-                                topic_id=topic_id_int,
-                                message_id=int(msg_id),
-                                title=item_title,
-                            )
-                            await asyncio.sleep(0.08)
+                        # Do NOT delete message; keep in surviving_items and mark as priority target for in-place edit
+                        surviving_items.append(dict(item))
+                        expired_targets.append(dict(item))
+                        logger.info(f"⚠️ [EXPIRED DEAL] '{item_title}' (msg_id={msg_id}) discount ended/changed; queued for in-place edit.")
+                        print(f"  ⚠️ [Неактуальна картка] {item_title} (ID: {msg_id}) — знижка завершилась або змінилась, позначено для заміни")
 
-                        if deleted:
-                            print(f"  🗑 [Видалено] {item_title} (ID: {msg_id}) — знижка завершилась або змінилась")
-                            if fs_id and str(fs_id) in posted_history:
-                                posted_history.pop(str(fs_id), None)
-                                fresh_history.pop(str(fs_id), None)
-                            nsuid = item.get("nsuid")
-                            if nsuid and f"nsuid_{nsuid}" in posted_history:
-                                posted_history.pop(f"nsuid_{nsuid}", None)
-                                fresh_history.pop(f"nsuid_{nsuid}", None)
-                            norm = _normalize_title_key(item_title)
-                            if norm and f"title_{norm}" in posted_history:
-                                posted_history.pop(f"title_{norm}", None)
-                                fresh_history.pop(f"title_{norm}", None)
-                        else:
-                            # Critical: never drop tracking if Telegram still has the card.
-                            # Dropping here caused silent orphans + daily reposts.
-                            logger.error(
-                                f"🛑 Keeping '{item_title}' (msg_id={msg_id}) in showcase after failed delete; "
-                                f"slot will not be refilled until deletion succeeds."
-                            )
-                            print(
-                                f"  ⚠️ [НЕ видалено] {item_title} (ID: {msg_id}) — залишаю в трекінгу, слот не звільняю"
-                            )
-                            surviving_items.append(item)
-
-                # Persist purged surviving list immediately
+                # Persist surviving list immediately
                 showcase_data[showcase_key] = list(surviving_items)
                 save_active_showcase(showcase_data)
                 save_posted_deals(fresh_history)
@@ -577,10 +617,12 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
 
             logger.info(f"Selected {len(candidate_deals)} candidate deal(s) for {showcase_key}.")
 
-            # Step E: Fill free slots and rotate out less popular deals
+            # Step E: Fill free slots and rotate cards in-place
+            expired_msg_ids = {it.get("message_id") for it in expired_targets}
             displaceable_items = [
                 it for it in surviving_items
-                if it.get("downloads_rank") is not None
+                if it.get("message_id") not in expired_msg_ids
+                and it.get("downloads_rank") is not None
                 and isinstance(it.get("downloads_rank"), (int, float))
                 and not isinstance(it.get("downloads_rank"), bool)
             ]
@@ -588,58 +630,102 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             displaceable_items.sort(key=lambda it: it["downloads_rank"], reverse=True)
 
             for deal in candidate_deals:
-                # If showcase is at capacity, check if candidate can displace a less popular card
-                if len(surviving_items) >= max_active_showcase:
+                target_item = None
+                is_replacing_expired = False
+
+                # Priority 1: Replace expired cards
+                if expired_targets:
+                    target_item = expired_targets[0]
+                    is_replacing_expired = True
+                # Priority 2: If showcase is at capacity, replace less popular active card
+                elif len(surviving_items) >= max_active_showcase:
                     if deal.downloads_rank is None or isinstance(deal.downloads_rank, bool):
                         break
-
                     if not displaceable_items:
                         break
-
-                    target_item = displaceable_items[0]
-                    target_rank = target_item.get("downloads_rank")
-
-                    # Replacement only allowed if candidate rank is strictly better (smaller number)
+                    worst_item = displaceable_items[0]
+                    target_rank = worst_item.get("downloads_rank")
                     if deal.downloads_rank >= target_rank:
                         break
+                    target_item = worst_item
+                    is_replacing_expired = False
 
+                if target_item is not None:
                     target_msg_id = target_item.get("message_id")
                     target_title = target_item.get("title", "")
-                    logger.info(
-                        f"🔄 Rotating showcase: candidate '{deal.title}' (rank #{deal.downloads_rank}) "
-                        f"qualifies to replace '{target_title}' (rank #{target_rank}, msg_id={target_msg_id})."
-                    )
+                    target_rank = target_item.get("downloads_rank")
 
-                    del_ok = False
-                    if target_msg_id:
-                        del_ok = await safe_delete_showcase_message(
-                            chat_id=chat_id_int,
-                            topic_id=topic_id_int,
-                            message_id=int(target_msg_id),
-                            title=target_title,
-                        )
-                        await asyncio.sleep(0.08)
+                    if is_replacing_expired:
+                        expired_targets.pop(0)
+                    else:
+                        displaceable_items.pop(0)
 
-                    # Remove from displaceable regardless of deletion outcome so we don't re-target it this run
-                    displaceable_items.pop(0)
+                    enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
+                    msg_text = format_eshop_deal_message(enriched, language=lang, currency_service=currency_service)
+                    badged_img = await download_and_badge_cover(enriched)
+                    cover_bytes = badged_img.getvalue() if badged_img else None
+                    photo_payload = cover_bytes or (enriched.banner_url or enriched.image_url)
 
-                    if not del_ok:
+                    edit_success = False
+                    edited_msg = None
+
+                    if photo_payload and target_msg_id:
+                        try:
+                            media_obj = types.InputMediaPhoto(
+                                media=photo_payload,
+                                caption=msg_text,
+                                parse_mode="HTML",
+                            )
+                            edited_msg = await bot.edit_message_media(
+                                chat_id=chat_id_int,
+                                message_id=int(target_msg_id),
+                                media=media_obj,
+                            )
+                            if edited_msg:
+                                edit_success = True
+                        except Exception as pe:
+                            logger.debug(f"edit_message_media failed for {target_msg_id} ({pe}), trying edit_message_caption...")
+
+                    # A candidate may have no usable cover.  Keep an existing photo card and
+                    # update its caption before falling back to an old text-only card.
+                    if not edit_success and target_msg_id:
+                        try:
+                            edited_msg = await bot.edit_message_caption(
+                                chat_id=chat_id_int,
+                                message_id=int(target_msg_id),
+                                caption=msg_text,
+                                parse_mode="HTML",
+                            )
+                            if edited_msg:
+                                edit_success = True
+                        except Exception as ce:
+                            logger.debug(f"edit_message_caption failed for {target_msg_id} ({ce}), trying edit_message_text...")
+
+                    if not edit_success and target_msg_id:
+                        try:
+                            edited_msg = await bot.edit_message_text(
+                                chat_id=chat_id_int,
+                                message_id=int(target_msg_id),
+                                text=msg_text,
+                                parse_mode="HTML",
+                                disable_web_page_preview=False,
+                            )
+                            if edited_msg:
+                                edit_success = True
+                        except Exception as me:
+                            logger.error(f"edit_message_text failed for {target_msg_id} ('{deal.title}'): {me}")
+
+                    if not edit_success:
                         logger.error(
-                            f"🛑 [ROTATION BLOCKED] Could not delete message {target_msg_id} for '{target_title}'; "
-                            f"keeping in state, candidate '{deal.title}' will not be published."
+                            f"🛑 [ROTATION BLOCKED] Could not edit message {target_msg_id} for '{target_title}'; "
+                            f"keeping original in state, candidate '{deal.title}' will not be applied."
                         )
                         print(
-                            f"  ⚠️ [НЕ замінено] {target_title} (ID: {target_msg_id}) — видалення не вдалося, заміну не публікую"
+                            f"  ⚠️ [НЕ змінено] {target_title} (ID: {target_msg_id}) — редагування не вдалося, заміну не застосовано"
                         )
                         continue
 
-                    # Successful deletion: remove from active items and history
-                    print(
-                        f"  🗑 [Ротація: видалено] {target_title} (ID: {target_msg_id}, ранг #{target_rank}) — "
-                        f"витіснено більш популярною грою {deal.title} (ранг #{deal.downloads_rank})"
-                    )
-                    surviving_items = [it for it in surviving_items if it.get("message_id") != target_msg_id]
-
+                    # Successful edit: release cooldown for displaced target in history
                     target_fsid = target_item.get("fs_id")
                     if target_fsid and str(target_fsid) in posted_history:
                         posted_history.pop(str(target_fsid), None)
@@ -653,47 +739,6 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         posted_history.pop(f"title_{target_norm}", None)
                         fresh_history.pop(f"title_{target_norm}", None)
 
-                    showcase_data[showcase_key] = list(surviving_items)
-                    save_active_showcase(showcase_data)
-                    save_posted_deals(fresh_history)
-
-                # Hard cap guard: never exceed max_active_showcase
-                if len(surviving_items) >= max_active_showcase:
-                    break
-
-                enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
-                msg_text = format_eshop_deal_message(enriched, language=lang, currency_service=currency_service)
-                badged_img = await download_and_badge_cover(enriched)
-                photo_payload = badged_img.getvalue() if badged_img else (enriched.banner_url or enriched.image_url)
-
-                sent_msg = None
-                if photo_payload:
-                    try:
-                        sent_msg = await bot.send_photo(
-                            chat_id=chat_id_int,
-                            message_thread_id=topic_id_int,
-                            photo=photo_payload,
-                            caption=msg_text,
-                            parse_mode="HTML",
-                            allow_sending_without_reply=True,
-                        )
-                    except Exception as pe:
-                        logger.debug(f"send_photo failed ({pe}), falling back to text message...")
-
-                if not sent_msg:
-                    try:
-                        sent_msg = await bot.send_message(
-                            chat_id=chat_id_int,
-                            message_thread_id=topic_id_int,
-                            text=msg_text,
-                            parse_mode="HTML",
-                            disable_web_page_preview=False,
-                            allow_sending_without_reply=True,
-                        )
-                    except Exception as me:
-                        logger.error(f"send_message failed for '{deal.title}': {me}")
-
-                if sent_msg:
                     deal_rank = getattr(enriched, "downloads_rank", None)
                     if deal_rank is None or isinstance(deal_rank, bool):
                         deal_rank = getattr(deal, "downloads_rank", None)
@@ -704,7 +749,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         "fs_id": str(deal.fs_id) if deal.fs_id else None,
                         "nsuid": str(deal.nsuid) if deal.nsuid else None,
                         "title": deal.title,
-                        "message_id": sent_msg.message_id,
+                        "message_id": int(target_msg_id),
                         "posted_at": now_ts,
                         "discount_percent": enriched.discount_percent,
                         "discount_price": enriched.discount_price,
@@ -712,19 +757,181 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         "currency": enriched.currency,
                         "downloads_rank": deal_rank,
                     }
-                    surviving_items.append(new_item)
+
+                    # Update surviving_items in place (keeping the same message_id!)
+                    for idx_s, sit in enumerate(surviving_items):
+                        if sit.get("message_id") == target_msg_id:
+                            surviving_items[idx_s] = new_item
+                            break
+
                     _record_deal_in_history(fresh_history, enriched, now_ts)
                     showcase_data[showcase_key] = list(surviving_items)
                     save_active_showcase(showcase_data)
                     save_posted_deals(fresh_history)
                     total_posted_this_run += 1
-                    print(f"  📤 [{len(surviving_items)}/{max_active_showcase}] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
 
-                await asyncio.sleep(1)
+                    updated_cards.append({
+                        "title": deal.title,
+                        "message_id": int(target_msg_id),
+                        "discount_percent": enriched.discount_percent,
+                        "cover_bytes": cover_bytes,
+                    })
+
+                    if is_replacing_expired:
+                        print(
+                            f"  🔄 [Оновлено картку: завершена знижка] {target_title} (ID: {target_msg_id}) -> "
+                            f"{deal.title} (ранг #{deal_rank})"
+                        )
+                    else:
+                        print(
+                            f"  🔄 [Оновлено картку: популярність] {target_title} (ID: {target_msg_id}, ранг #{target_rank}) -> "
+                            f"{deal.title} (ранг #{deal_rank})"
+                        )
+
+                    await asyncio.sleep(1)
+
+                else:
+                    # Free slot in showcase (< max_active_showcase) and no expired targets
+                    if len(surviving_items) >= max_active_showcase:
+                        break
+
+                    enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
+                    msg_text = format_eshop_deal_message(enriched, language=lang, currency_service=currency_service)
+                    badged_img = await download_and_badge_cover(enriched)
+                    cover_bytes = badged_img.getvalue() if badged_img else None
+                    photo_payload = cover_bytes or (enriched.banner_url or enriched.image_url)
+
+                    sent_msg = None
+                    if photo_payload:
+                        try:
+                            sent_msg = await bot.send_photo(
+                                chat_id=chat_id_int,
+                                message_thread_id=topic_id_int,
+                                photo=photo_payload,
+                                caption=msg_text,
+                                parse_mode="HTML",
+                                allow_sending_without_reply=True,
+                            )
+                        except Exception as pe:
+                            logger.debug(f"send_photo failed ({pe}), falling back to text message...")
+
+                    if not sent_msg:
+                        try:
+                            sent_msg = await bot.send_message(
+                                chat_id=chat_id_int,
+                                message_thread_id=topic_id_int,
+                                text=msg_text,
+                                parse_mode="HTML",
+                                disable_web_page_preview=False,
+                                allow_sending_without_reply=True,
+                            )
+                        except Exception as me:
+                            logger.error(f"send_message failed for '{deal.title}': {me}")
+
+                    if sent_msg:
+                        deal_rank = getattr(enriched, "downloads_rank", None)
+                        if deal_rank is None or isinstance(deal_rank, bool):
+                            deal_rank = getattr(deal, "downloads_rank", None)
+                        if isinstance(deal_rank, bool):
+                            deal_rank = None
+
+                        new_item = {
+                            "fs_id": str(deal.fs_id) if deal.fs_id else None,
+                            "nsuid": str(deal.nsuid) if deal.nsuid else None,
+                            "title": deal.title,
+                            "message_id": sent_msg.message_id,
+                            "posted_at": now_ts,
+                            "discount_percent": enriched.discount_percent,
+                            "discount_price": enriched.discount_price,
+                            "regular_price": enriched.regular_price,
+                            "currency": enriched.currency,
+                            "downloads_rank": deal_rank,
+                        }
+                        surviving_items.append(new_item)
+                        _record_deal_in_history(fresh_history, enriched, now_ts)
+                        showcase_data[showcase_key] = list(surviving_items)
+                        save_active_showcase(showcase_data)
+                        save_posted_deals(fresh_history)
+                        total_posted_this_run += 1
+                        print(f"  📤 [{len(surviving_items)}/{max_active_showcase}] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
+
+                    await asyncio.sleep(1)
 
             showcase_data[showcase_key] = list(surviving_items)
             save_active_showcase(showcase_data)
             print(f"✅ Вітрину {showcase_key} оновлено: {len(surviving_items)}/{max_active_showcase} активних карток.\n")
+
+            # Notification for main showcase if any cards were updated
+            is_main_showcase = (
+                IS_TEST_MODE
+                or (chat_id_int == AUTHORIZED_SHOWCASE_CHAT_ID and (topic_id_int is None or topic_id_int in [AUTHORIZED_SHOWCASE_TOPIC_ID, 0]))
+            )
+            if is_main_showcase and updated_cards:
+                prev_notif_id = last_run_info.get("last_notification_message_id")
+                prev_notif_ts = float(last_run_info.get("last_notification_timestamp") or 0.0)
+
+                should_send_notif = True
+                if prev_notif_id:
+                    is_under_48h = (now_ts - prev_notif_ts) < (48 * 3600) if prev_notif_ts > 0 else True
+                    if is_under_48h:
+                        try:
+                            logger.info(f"Deleting previous showcase notification message {prev_notif_id}...")
+                            del_success = await safe_delete_showcase_message(
+                                chat_id=chat_id_int,
+                                topic_id=topic_id_int,
+                                message_id=int(prev_notif_id),
+                                title="Previous showcase update notification",
+                            )
+                            if not del_success:
+                                logger.warning(
+                                    f"Failed to delete previous notification {prev_notif_id}; "
+                                    f"skipping sending new notification to prevent duplicates."
+                                )
+                                should_send_notif = False
+                        except Exception as del_err:
+                            logger.warning(f"Could not delete previous notification {prev_notif_id}: {del_err}")
+                            should_send_notif = False
+                    else:
+                        logger.info(f"Previous notification {prev_notif_id} is older than 48h, skipping deletion.")
+
+                if should_send_notif:
+                    notif_text = format_showcase_update_notification(updated_cards)
+                    cover_bytes_list = [c["cover_bytes"] for c in updated_cards if c.get("cover_bytes")]
+                    collage_buf = create_deals_collage(cover_bytes_list) if cover_bytes_list else None
+
+                    sent_notif = None
+                    if collage_buf:
+                        try:
+                            sent_notif = await bot.send_photo(
+                                chat_id=chat_id_int,
+                                message_thread_id=topic_id_int,
+                                photo=collage_buf.getvalue(),
+                                caption=notif_text,
+                                parse_mode="HTML",
+                                allow_sending_without_reply=True,
+                            )
+                        except Exception as pe:
+                            logger.debug(f"send_photo for notification failed ({pe}), falling back to text...")
+
+                    if not sent_notif:
+                        try:
+                            sent_notif = await bot.send_message(
+                                chat_id=chat_id_int,
+                                message_thread_id=topic_id_int,
+                                text=notif_text,
+                                parse_mode="HTML",
+                                disable_web_page_preview=True,
+                                allow_sending_without_reply=True,
+                            )
+                        except Exception as me:
+                            logger.error(f"send_message for notification failed: {me}")
+
+                    if sent_notif and getattr(sent_notif, "message_id", None):
+                        last_notif_message_id = sent_notif.message_id
+                        last_notif_timestamp = now_ts
+                        logger.info(f"📢 Sent showcase update notification (ID: {last_notif_message_id}) for {len(updated_cards)} card(s).")
+                else:
+                    logger.info("Skipped sending new showcase update notification because previous notification could not be deleted.")
 
         # 6. Save execution state (only keys touched this run — drop stale destinations)
         active_keys = set()
@@ -737,11 +944,18 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
         showcase_data = prune_showcase_to_keys(showcase_data, active_keys)
         save_active_showcase(showcase_data)
         save_posted_deals(fresh_history)
-        save_last_run({
+        last_run_payload = {
             "last_run_timestamp": now_ts,
             "last_run_iso": now_dt.isoformat(),
             "posted_count": total_posted_this_run,
-        })
+        }
+        if last_notif_message_id is not None:
+            last_run_payload["last_notification_message_id"] = int(last_notif_message_id)
+            last_run_payload["last_notification_timestamp"] = float(last_notif_timestamp)
+        elif "last_notification_message_id" in last_run_info:
+            last_run_payload["last_notification_message_id"] = last_run_info["last_notification_message_id"]
+            last_run_payload["last_notification_timestamp"] = float(last_run_info.get("last_notification_timestamp") or 0.0)
+        save_last_run(last_run_payload)
         sync_eshop_state_after_change(
             f"showcase cycle posted={total_posted_this_run} force={force} reset={reset}"
         )
