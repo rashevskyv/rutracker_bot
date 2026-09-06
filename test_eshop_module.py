@@ -268,9 +268,11 @@ def test_cron_deals_deduplication():
     assert not _is_deal_already_posted(deal1, history, cooldown, now_ts + (15 * 86400))
 
 
-def test_showcase_state_management():
+def test_showcase_state_management(tmp_path, monkeypatch):
+    import send_eshop_deals
+    test_file = str(tmp_path / "eshop_active_showcase.json")
+    monkeypatch.setattr(send_eshop_deals, "SHOWCASE_FILE", test_file)
     from send_eshop_deals import load_active_showcase, save_active_showcase
-    import os
 
     test_data = {
         "-100123456_561344": [
@@ -1694,6 +1696,182 @@ def test_gist_merge_eshop_active_showcase():
     assert res["-1001790782971_561344"][0]["message_id"] == 565315
 
 
+def test_showcase_update_notification_full_summary_with_all_active_cards_and_new_badges():
+    """
+    Verify that format_showcase_update_notification produces a complete snapshot of all active cards:
+    - 30 active cards -> exactly 30 clickable links (one per card);
+    - Exactly 2 cards have 🆕 badge, matching the updated message IDs;
+    - Non-updated cards do not have 🆕;
+    - Special HTML characters are properly escaped;
+    - Discounts are formatted correctly when present.
+    """
+    from send_eshop_deals import format_showcase_update_notification
+
+    active_cards = [
+        {
+            "fs_id": f"game_{i}",
+            "title": f"Game <{i}> & Fun",
+            "message_id": 3000 + i,
+            "discount_percent": 50.0 if i % 2 == 0 else None,
+            "discount_price": 10.0,
+            "regular_price": 20.0,
+            "currency": "EUR",
+        }
+        for i in range(1, 31)
+    ]
+
+    updated_mids = {3005, 3020}
+    text = format_showcase_update_notification(active_cards, updated_mids)
+
+    # Check header and legend
+    assert "🔄 <b>Вітрина знижок оновлена!</b>" in text
+    assert "🆕 — нова або замінена картка" in text
+
+    # Extract all lines that contain showcase item links
+    card_lines = [line for line in text.splitlines() if "https://t.me/kefir_ukr/561344/" in line]
+    assert len(card_lines) == 30
+
+    new_count = 0
+    normal_count = 0
+
+    for card in active_cards:
+        mid = card["message_id"]
+        expected_link = f"https://t.me/kefir_ukr/561344/{mid}"
+        line = next((l for l in card_lines if expected_link in l), None)
+        assert line is not None, f"Card {mid} missing from notification"
+        assert "Game &lt;" in line  # HTML escaping
+        assert "&amp; Fun" in line
+
+        if mid in updated_mids:
+            assert line.startswith("🆕 ")
+            assert "🆕" in line
+            new_count += 1
+        else:
+            assert line.startswith("• ")
+            assert "🆕" not in line
+            normal_count += 1
+
+    assert new_count == 2
+    assert normal_count == 28
 
 
+@pytest.mark.asyncio
+async def test_rotation_sends_notification_with_all_thirty_active_cards_and_two_new_badges():
+    """
+    End-to-end rotation test:
+    - 30 active cards in showcase, 2 replaced by new candidates;
+    - Notification contains exactly 30 links;
+    - Exactly 2 cards marked with 🆕;
+    - Non-updated cards present without 🆕.
+    """
+    from send_eshop_deals import send_eshop_deals
+    from services.eshop.models import GameDeal
+    from unittest.mock import AsyncMock, patch, MagicMock
 
+    active_items = [
+        {
+            "fs_id": f"game_{i}",
+            "title": f"Existing Game {i}",
+            "message_id": 4000 + i,
+            "discount_percent": 30.0,
+            "discount_price": 14.0,
+            "regular_price": 20.0,
+            "currency": "EUR",
+            "downloads_rank": i * 10,
+        }
+        for i in range(1, 31)
+    ]
+    active_showcase = {"-1001790782971_561344": active_items}
+
+    async def mock_get_game(fs_id: str):
+        idx = int(fs_id.replace("game_", ""))
+        return GameDeal(
+            fs_id=fs_id,
+            title=f"Existing Game {idx}",
+            regular_price=20.0,
+            discount_price=14.0,
+            discount_percent=30.0,
+            currency="EUR",
+            downloads_rank=idx * 10,
+        )
+
+    # 2 top candidates replacing worst 2 (Game 29 and Game 30, ranks 290 and 300)
+    candidates = [
+        GameDeal(
+            fs_id="top_cand_1",
+            title="Brand New Hit 1",
+            regular_price=40.0,
+            discount_price=20.0,
+            discount_percent=50.0,
+            currency="EUR",
+            downloads_rank=1,
+            banner_url="https://example.com/hit1.jpg",
+        ),
+        GameDeal(
+            fs_id="top_cand_2",
+            title="Brand New Hit 2",
+            regular_price=40.0,
+            discount_price=20.0,
+            discount_percent=50.0,
+            currency="EUR",
+            downloads_rank=2,
+            banner_url="https://example.com/hit2.jpg",
+        ),
+    ]
+
+    saved_showcase = {}
+    def fake_save_active(data):
+        nonlocal saved_showcase
+        saved_showcase = dict(data)
+
+    mock_eshop = AsyncMock()
+    mock_eshop.get_game_by_fs_id.side_effect = mock_get_game
+    mock_eshop.fetch_popular_discounted_games.return_value = candidates
+    mock_eshop.fetch_discounted_games.return_value = []
+
+    mock_bot = AsyncMock()
+    mock_edit_msg = MagicMock()
+    mock_bot.edit_message_media.return_value = mock_edit_msg
+    mock_bot.edit_message_text.return_value = mock_edit_msg
+
+    mock_notif = MagicMock()
+    mock_notif.message_id = 99999
+    mock_bot.send_message.return_value = mock_notif
+    mock_bot.send_photo.return_value = mock_notif
+
+    with patch("send_eshop_deals.load_active_showcase", return_value=active_showcase), \
+         patch("send_eshop_deals.save_active_showcase", side_effect=fake_save_active), \
+         patch("send_eshop_deals.load_posted_deals", return_value={}), \
+         patch("send_eshop_deals.save_posted_deals"), \
+         patch("send_eshop_deals.safe_delete_showcase_message"), \
+         patch("send_eshop_deals.EShopService", return_value=mock_eshop), \
+         patch("send_eshop_deals.bot", mock_bot), \
+         patch("send_eshop_deals.download_and_badge_cover", new_callable=AsyncMock, return_value=None), \
+         patch("send_eshop_deals.save_last_run"):
+
+        await send_eshop_deals(force=True, reset=False)
+
+    # 2 cards were edited in-place
+    assert mock_bot.edit_message_media.call_count == 2
+
+    # Exactly 1 notification was sent
+    assert mock_bot.send_message.call_count == 1
+    notif_text = mock_bot.send_message.call_args.kwargs.get("text", "")
+
+    # Notification contains 30 links: one for each card
+    card_links = [line for line in notif_text.splitlines() if "https://t.me/kefir_ukr/561344/" in line]
+    assert len(card_links) == 30
+
+    # Exactly 2 lines have 🆕 badge (for the replaced cards 4030 and 4029)
+    new_card_lines = [l for l in card_links if l.startswith("🆕 ")]
+    normal_card_lines = [l for l in card_links if l.startswith("• ")]
+    assert len(new_card_lines) == 2
+    assert len(normal_card_lines) == 28
+
+    # Replaced cards are marked with 🆕 and have the new titles
+    assert any("https://t.me/kefir_ukr/561344/4030" in l and "Brand New Hit 1" in l for l in new_card_lines)
+    assert any("https://t.me/kefir_ukr/561344/4029" in l and "Brand New Hit 2" in l for l in new_card_lines)
+
+    # None of the normal card lines contain 🆕
+    for l in normal_card_lines:
+        assert "🆕" not in l

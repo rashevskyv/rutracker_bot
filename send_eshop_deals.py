@@ -177,22 +177,46 @@ def create_deals_collage(cover_bytes_list: List[bytes]) -> Optional[io.BytesIO]:
         return None
 
 
-def format_showcase_update_notification(updated_cards: List[Dict[str, Any]]) -> str:
-    """Format single notification message listing all updated deals in the showcase."""
-    count = len(updated_cards)
+def format_showcase_update_notification(
+    active_cards: List[Dict[str, Any]],
+    updated_message_ids: Optional[Set[int]] = None,
+) -> str:
+    """Format single notification message listing all active deals in the showcase."""
+    updated_ids: Set[int] = set()
+    if updated_message_ids:
+        for mid in updated_message_ids:
+            try:
+                updated_ids.add(int(mid))
+            except (ValueError, TypeError):
+                pass
+
     lines = [
         "🔄 <b>Вітрина знижок оновлена!</b>",
-        f"Змінено карток: <b>{count}</b>\n",
+        "🆕 — нова або замінена картка\n",
     ]
-    for card in updated_cards:
-        escaped_title = html.escape(card.get("title", "Unknown"))
+    for card in active_cards:
+        escaped_title = html.escape(str(card.get("title") or "Unknown"))
         mid = card.get("message_id")
+        try:
+            mid_int = int(mid) if mid is not None else None
+        except (ValueError, TypeError):
+            mid_int = None
+
+        is_updated = mid_int is not None and mid_int in updated_ids
+        prefix = "🆕 " if is_updated else "• "
         link = f"https://t.me/kefir_ukr/561344/{mid}"
+
         disc = card.get("discount_percent")
-        if disc is not None and float(disc) > 0:
-            lines.append(f"• <a href=\"{link}\">{escaped_title}</a> (-{float(disc):.0f}%)")
+        try:
+            disc_val = float(disc) if disc is not None else 0.0
+        except (ValueError, TypeError):
+            disc_val = 0.0
+
+        if disc_val > 0:
+            lines.append(f"{prefix}<a href=\"{link}\">{escaped_title}</a> (-{disc_val:.0f}%)")
         else:
-            lines.append(f"• <a href=\"{link}\">{escaped_title}</a>")
+            lines.append(f"{prefix}<a href=\"{link}\">{escaped_title}</a>")
+
     return "\n".join(lines)
 
 
@@ -896,23 +920,34 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         logger.info(f"Previous notification {prev_notif_id} is older than 48h, skipping deletion.")
 
                 if should_send_notif:
-                    notif_text = format_showcase_update_notification(updated_cards)
+                    updated_mids = {
+                        int(c["message_id"])
+                        for c in updated_cards
+                        if c.get("message_id") is not None
+                    }
+                    notif_text = format_showcase_update_notification(surviving_items, updated_mids)
                     cover_bytes_list = [c["cover_bytes"] for c in updated_cards if c.get("cover_bytes")]
                     collage_buf = create_deals_collage(cover_bytes_list) if cover_bytes_list else None
 
                     sent_notif = None
                     if collage_buf:
-                        try:
-                            sent_notif = await bot.send_photo(
-                                chat_id=chat_id_int,
-                                message_thread_id=topic_id_int,
-                                photo=collage_buf.getvalue(),
-                                caption=notif_text,
-                                parse_mode="HTML",
-                                allow_sending_without_reply=True,
+                        if len(notif_text) <= 1024:
+                            try:
+                                sent_notif = await bot.send_photo(
+                                    chat_id=chat_id_int,
+                                    message_thread_id=topic_id_int,
+                                    photo=collage_buf.getvalue(),
+                                    caption=notif_text,
+                                    parse_mode="HTML",
+                                    allow_sending_without_reply=True,
+                                )
+                            except Exception as pe:
+                                logger.debug(f"send_photo for notification failed ({pe}), falling back to text...")
+                        else:
+                            logger.info(
+                                f"Showcase notification ({len(notif_text)} chars) exceeds photo caption limit (1024); "
+                                f"falling back to text message to preserve complete showcase card list."
                             )
-                        except Exception as pe:
-                            logger.debug(f"send_photo for notification failed ({pe}), falling back to text...")
 
                     if not sent_notif:
                         try:
