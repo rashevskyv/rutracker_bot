@@ -478,6 +478,8 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                                 kept["regular_price"] = game_check.regular_price
                             if game_check.currency:
                                 kept["currency"] = game_check.currency
+                            if getattr(game_check, "downloads_rank", None) is not None:
+                                kept["downloads_rank"] = game_check.downloads_rank
                         surviving_items.append(kept)
                     else:
                         deleted = True
@@ -525,13 +527,8 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             logger.info(f"Showcase {showcase_key}: {len(surviving_items)} active, {available_slots} slot(s) available (cap: {max_active_showcase}).")
             print(f"\n📊 [{showcase_key}] Оновлення вітрини: {len(surviving_items)} залишається, {available_slots} вільних слотів...")
 
-            if available_slots <= 0:
-                logger.info(f"Showcase {showcase_key} is full ({len(surviving_items)}/{max_active_showcase}). No new deals needed.")
-                print(f"✅ Вітрину {showcase_key} заповнено: {len(surviving_items)}/{max_active_showcase} активних карток. Нові картки не публікуються.\n")
-                continue
-
             # Step C: Fetch candidate deals
-            logger.info(f"🔍 Fetching candidates to fill {available_slots} slot(s)...")
+            logger.info(f"🔍 Fetching candidates for {showcase_key}...")
             raw_popular = await eshop_service.fetch_popular_discounted_games(
                 min_discount_percent=criteria.min_discount_percent
             )
@@ -545,7 +542,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             existing_fsids = {str(it.get("fs_id")) for it in surviving_items if it.get("fs_id")}
             existing_nsuids = {str(it.get("nsuid")) for it in surviving_items if it.get("nsuid")}
 
-            deals_to_post: List[GameDeal] = []
+            candidate_deals: List[GameDeal] = []
             seen_batch_titles = set()
             seen_batch_ids = set()
 
@@ -570,18 +567,98 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                 if d_nsuid:
                     seen_batch_ids.add(d_nsuid)
 
-                deals_to_post.append(d)
-                if len(deals_to_post) >= available_slots:
-                    break
+                candidate_deals.append(d)
 
-            logger.info(f"Selected {len(deals_to_post)} deal(s) to publish for {showcase_key}.")
+            # Sort candidates by downloads_rank ascending (lower number = higher popularity).
+            # Deals without rank are sorted to the end and cannot replace active cards.
+            candidate_deals.sort(
+                key=lambda d: (0, d.downloads_rank) if (d.downloads_rank is not None and not isinstance(d.downloads_rank, bool)) else (1, 0)
+            )
 
-            # Step E: Enrich and send ONLY the selected deals (never exceed hard cap)
-            for deal in deals_to_post:
+            logger.info(f"Selected {len(candidate_deals)} candidate deal(s) for {showcase_key}.")
+
+            # Step E: Fill free slots and rotate out less popular deals
+            displaceable_items = [
+                it for it in surviving_items
+                if it.get("downloads_rank") is not None
+                and isinstance(it.get("downloads_rank"), (int, float))
+                and not isinstance(it.get("downloads_rank"), bool)
+            ]
+            # Worst popularity first (highest downloads_rank number)
+            displaceable_items.sort(key=lambda it: it["downloads_rank"], reverse=True)
+
+            for deal in candidate_deals:
+                # If showcase is at capacity, check if candidate can displace a less popular card
                 if len(surviving_items) >= max_active_showcase:
+                    if deal.downloads_rank is None or isinstance(deal.downloads_rank, bool):
+                        break
+
+                    if not displaceable_items:
+                        break
+
+                    target_item = displaceable_items[0]
+                    target_rank = target_item.get("downloads_rank")
+
+                    # Replacement only allowed if candidate rank is strictly better (smaller number)
+                    if deal.downloads_rank >= target_rank:
+                        break
+
+                    target_msg_id = target_item.get("message_id")
+                    target_title = target_item.get("title", "")
                     logger.info(
-                        f"Hard cap reached ({len(surviving_items)}/{max_active_showcase}); stopping further posts."
+                        f"🔄 Rotating showcase: candidate '{deal.title}' (rank #{deal.downloads_rank}) "
+                        f"qualifies to replace '{target_title}' (rank #{target_rank}, msg_id={target_msg_id})."
                     )
+
+                    del_ok = False
+                    if target_msg_id:
+                        del_ok = await safe_delete_showcase_message(
+                            chat_id=chat_id_int,
+                            topic_id=topic_id_int,
+                            message_id=int(target_msg_id),
+                            title=target_title,
+                        )
+                        await asyncio.sleep(0.08)
+
+                    # Remove from displaceable regardless of deletion outcome so we don't re-target it this run
+                    displaceable_items.pop(0)
+
+                    if not del_ok:
+                        logger.error(
+                            f"🛑 [ROTATION BLOCKED] Could not delete message {target_msg_id} for '{target_title}'; "
+                            f"keeping in state, candidate '{deal.title}' will not be published."
+                        )
+                        print(
+                            f"  ⚠️ [НЕ замінено] {target_title} (ID: {target_msg_id}) — видалення не вдалося, заміну не публікую"
+                        )
+                        continue
+
+                    # Successful deletion: remove from active items and history
+                    print(
+                        f"  🗑 [Ротація: видалено] {target_title} (ID: {target_msg_id}, ранг #{target_rank}) — "
+                        f"витіснено більш популярною грою {deal.title} (ранг #{deal.downloads_rank})"
+                    )
+                    surviving_items = [it for it in surviving_items if it.get("message_id") != target_msg_id]
+
+                    target_fsid = target_item.get("fs_id")
+                    if target_fsid and str(target_fsid) in posted_history:
+                        posted_history.pop(str(target_fsid), None)
+                        fresh_history.pop(str(target_fsid), None)
+                    target_nsuid = target_item.get("nsuid")
+                    if target_nsuid and f"nsuid_{target_nsuid}" in posted_history:
+                        posted_history.pop(f"nsuid_{target_nsuid}", None)
+                        fresh_history.pop(f"nsuid_{target_nsuid}", None)
+                    target_norm = _normalize_title_key(target_title)
+                    if target_norm and f"title_{target_norm}" in posted_history:
+                        posted_history.pop(f"title_{target_norm}", None)
+                        fresh_history.pop(f"title_{target_norm}", None)
+
+                    showcase_data[showcase_key] = list(surviving_items)
+                    save_active_showcase(showcase_data)
+                    save_posted_deals(fresh_history)
+
+                # Hard cap guard: never exceed max_active_showcase
+                if len(surviving_items) >= max_active_showcase:
                     break
 
                 enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
@@ -617,6 +694,12 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         logger.error(f"send_message failed for '{deal.title}': {me}")
 
                 if sent_msg:
+                    deal_rank = getattr(enriched, "downloads_rank", None)
+                    if deal_rank is None or isinstance(deal_rank, bool):
+                        deal_rank = getattr(deal, "downloads_rank", None)
+                    if isinstance(deal_rank, bool):
+                        deal_rank = None
+
                     new_item = {
                         "fs_id": str(deal.fs_id) if deal.fs_id else None,
                         "nsuid": str(deal.nsuid) if deal.nsuid else None,
@@ -627,10 +710,11 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         "discount_price": enriched.discount_price,
                         "regular_price": enriched.regular_price,
                         "currency": enriched.currency,
+                        "downloads_rank": deal_rank,
                     }
                     surviving_items.append(new_item)
                     _record_deal_in_history(fresh_history, enriched, now_ts)
-                    showcase_data[showcase_key] = surviving_items
+                    showcase_data[showcase_key] = list(surviving_items)
                     save_active_showcase(showcase_data)
                     save_posted_deals(fresh_history)
                     total_posted_this_run += 1
@@ -638,7 +722,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
 
                 await asyncio.sleep(1)
 
-            showcase_data[showcase_key] = surviving_items
+            showcase_data[showcase_key] = list(surviving_items)
             save_active_showcase(showcase_data)
             print(f"✅ Вітрину {showcase_key} оновлено: {len(surviving_items)}/{max_active_showcase} активних карток.\n")
 

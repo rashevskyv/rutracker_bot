@@ -813,12 +813,12 @@ async def test_failed_telegram_delete_keeps_tracking_and_blocks_refill():
 
 @pytest.mark.asyncio
 async def test_full_showcase_posts_zero_new_cards():
-    """Verify that when showcase is at max capacity and all sales are active, 0 new cards are posted."""
+    """Verify that when showcase is at max capacity, candidates with worse or unknown rank cause no churn."""
     from send_eshop_deals import send_eshop_deals
     from services.eshop.models import GameDeal
     from unittest.mock import AsyncMock, patch, MagicMock
 
-    # 30 active deals
+    # 30 active deals with known downloads_rank (10, 20, ..., 300)
     full_showcase_items = [
         {
             "fs_id": f"game_{i}",
@@ -828,19 +828,32 @@ async def test_full_showcase_posts_zero_new_cards():
             "discount_price": 10.0,
             "regular_price": 20.0,
             "currency": "EUR",
+            "downloads_rank": i * 10,
         }
         for i in range(1, 31)
     ]
     active_showcase = {"-1001790782971_561344": full_showcase_items}
 
     async def mock_get_game(fs_id: str):
-        return GameDeal(fs_id=fs_id, title=f"Game {fs_id}", regular_price=20.0, discount_price=10.0, discount_percent=50.0, currency="EUR")
+        idx = int(fs_id.replace("game_", ""))
+        return GameDeal(
+            fs_id=fs_id,
+            title=f"Game {fs_id}",
+            regular_price=20.0,
+            discount_price=10.0,
+            discount_percent=50.0,
+            currency="EUR",
+            downloads_rank=idx * 10,
+        )
 
     mock_eshop = AsyncMock()
     mock_eshop.get_game_by_fs_id.side_effect = mock_get_game
+    # Candidates with worse rank (500 > 300) and unknown rank (None)
     mock_eshop.fetch_popular_discounted_games.return_value = [
-        GameDeal(fs_id="cand_1", title="Candidate 1", regular_price=30.0, discount_price=15.0, discount_percent=50.0, currency="EUR")
+        GameDeal(fs_id="cand_worse", title="Candidate Worse", regular_price=30.0, discount_price=15.0, discount_percent=50.0, currency="EUR", downloads_rank=500),
+        GameDeal(fs_id="cand_no_rank", title="Candidate No Rank", regular_price=30.0, discount_price=15.0, discount_percent=50.0, currency="EUR", downloads_rank=None),
     ]
+    mock_eshop.fetch_discounted_games.return_value = []
 
     mock_bot = AsyncMock()
 
@@ -855,10 +868,106 @@ async def test_full_showcase_posts_zero_new_cards():
 
         await send_eshop_deals(force=True, reset=False)
 
-    # Zero deletions and zero posts
+    # Zero deletions and zero posts (no churn)
     assert mock_del.call_count == 0
     assert mock_bot.send_photo.call_count == 0
     assert mock_bot.send_message.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_full_showcase_rotates_least_popular_for_better_candidate():
+    """Verify that when showcase is full, a candidate with a better rank evicts the least popular card."""
+    from send_eshop_deals import send_eshop_deals
+    from services.eshop.models import GameDeal
+    from unittest.mock import AsyncMock, patch, MagicMock
+
+    # 30 active deals with known ranks: game_1 (rank 10, best) ... game_30 (rank 300, worst)
+    full_showcase_items = [
+        {
+            "fs_id": f"game_{i}",
+            "title": f"Game {i}",
+            "message_id": 1000 + i,
+            "discount_percent": 50.0,
+            "discount_price": 10.0,
+            "regular_price": 20.0,
+            "currency": "EUR",
+            "downloads_rank": i * 10,
+        }
+        for i in range(1, 31)
+    ]
+    active_showcase = {"-1001790782971_561344": full_showcase_items}
+
+    async def mock_get_game(fs_id: str):
+        idx = int(fs_id.replace("game_", ""))
+        return GameDeal(
+            fs_id=fs_id,
+            title=f"Game {fs_id}",
+            regular_price=20.0,
+            discount_price=10.0,
+            discount_percent=50.0,
+            currency="EUR",
+            downloads_rank=idx * 10,
+        )
+
+    cand_top = GameDeal(
+        fs_id="cand_top",
+        title="Top Candidate",
+        regular_price=40.0,
+        discount_price=20.0,
+        discount_percent=50.0,
+        currency="EUR",
+        downloads_rank=5,
+    )
+
+    saved_showcase = {}
+    deleted_msgs = []
+
+    def fake_save_active(data):
+        nonlocal saved_showcase
+        saved_showcase = dict(data)
+
+    async def fake_delete(chat_id, topic_id, message_id, title=""):
+        deleted_msgs.append(message_id)
+        return True
+
+    mock_eshop = AsyncMock()
+    mock_eshop.get_game_by_fs_id.side_effect = mock_get_game
+    mock_eshop.fetch_popular_discounted_games.return_value = [cand_top]
+    mock_eshop.fetch_discounted_games.return_value = []
+
+    mock_bot = AsyncMock()
+    mock_sent_msg = MagicMock()
+    mock_sent_msg.message_id = 9999
+    mock_bot.send_photo.return_value = mock_sent_msg
+    mock_bot.send_message.return_value = mock_sent_msg
+
+    with patch("send_eshop_deals.load_active_showcase", return_value=active_showcase), \
+         patch("send_eshop_deals.save_active_showcase", side_effect=fake_save_active), \
+         patch("send_eshop_deals.load_posted_deals", return_value={}), \
+         patch("send_eshop_deals.save_posted_deals"), \
+         patch("send_eshop_deals.safe_delete_showcase_message", side_effect=fake_delete), \
+         patch("send_eshop_deals.EShopService", return_value=mock_eshop), \
+         patch("send_eshop_deals.bot", mock_bot), \
+         patch("send_eshop_deals.download_and_badge_cover", new_callable=AsyncMock, return_value=None), \
+         patch("send_eshop_deals.save_last_run"):
+
+        await send_eshop_deals(force=True, reset=False)
+
+    # 1. Exactly the least popular card (Game 30, rank 300, message_id 1030) was deleted
+    assert deleted_msgs == [1030]
+
+    # 2. Saved showcase maintains exact capacity of 30 cards
+    items = saved_showcase.get("-1001790782971_561344", [])
+    assert len(items) == 30
+
+    titles = [it["title"] for it in items]
+    assert "Game 30" not in titles
+    assert "Top Candidate" in titles
+
+    # 3. New candidate is stored with correct downloads_rank and message_id
+    cand_item = next(it for it in items if it["title"] == "Top Candidate")
+    assert cand_item["downloads_rank"] == 5
+    assert cand_item["message_id"] == 9999
 
 
 @pytest.mark.asyncio

@@ -62,7 +62,7 @@ Checks various platforms for homebrew updates:
 
 ### 5. Nintendo eShop Deals & Wishlist Module (`send_eshop_deals.py`, `bot_interactive.py`)
 - Automatically monitors official Nintendo eShop catalog for active game discounts on top popular franchises (Zero Shovelware).
-- **Live Deals Showcase Rotation**: Maintains an active pool of up to 30 top deals in the target forum topic (`561344`). Automatically validates live Nintendo Price API discount status on each run, deletes expired/price-changed cards via `safe_delete_showcase_message()`, and refills only vacated slots with fresh top discounts (guaranteeing 0 new posts if all 30 sales remain active).
+- **Live Deals Showcase Rotation**: Maintains an active pool of up to 30 top deals in the target forum topic (`561344`). Automatically validates live Nintendo Price API discount status on each run, deletes expired/price-changed cards via `safe_delete_showcase_message()`, fills vacant slots, and safely replaces a less-popular active card only when a new deal has a strictly better Nintendo popularity rank.
 - **Showcase Management CLI**:
   - `python send_eshop_deals.py --list`: View all currently active tracked showcase cards and message IDs.
   - `python send_eshop_deals.py --delete-messages <ids or ranges>`: Safely purge orphan/untracked message IDs or ranges in topic `561344` (e.g. `--delete-messages 564561-564590,564947-564979`).
