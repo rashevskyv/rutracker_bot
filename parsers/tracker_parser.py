@@ -181,11 +181,14 @@ async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_che
             if not post_body_div: continue
 
             # Remove quote blocks before checking for phrase
-            post_body_copy = post_body_div.__copy__()
+            post_body_copy = BeautifulSoup(str(post_body_div), 'html.parser')
             for quote in post_body_copy.find_all("div", class_="q-wrap"):
-                quote.decompose()
+                if quote.parent is not None:
+                    quote.decompose()
 
-            for br in post_body_copy.find_all("br"): br.replace_with("\n")
+            for br in post_body_copy.find_all("br"):
+                if br.parent is not None:
+                    br.replace_with("\n")
             post_text_content = post_body_copy.get_text(separator=" ", strip=True) # Check text content without quotes
             if phrase in post_text_content:
                 logger.info(f"Found update phrase '{phrase}' in post on {page_url}")
@@ -405,7 +408,9 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
 
     if title_elements_html:
         title_soup = BeautifulSoup("".join(title_elements_html), 'html.parser')
-        for br in title_soup.find_all('br'): br.decompose()
+        for br in title_soup.find_all('br'):
+            if br.parent is not None:
+                br.decompose()
         title_text_for_youtube = title_soup.get_text(separator=' ', strip=True)
         title_text_for_youtube = re.sub(r'\s+', ' ', title_text_for_youtube).strip()
     if not title_text_for_youtube or len(title_text_for_youtube) < 3:

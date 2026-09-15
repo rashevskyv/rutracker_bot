@@ -2,6 +2,43 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.50] - 2026-09-15
+
+### Fixed
+- **Tracker Parser & HTML Sanitizer DOM Tree Safety**:
+  - `utils/html_utils.py`: Fixed `ValueError: Cannot replace one element with another when the element to be replaced is not part of a tree` when parsing RuTracker topics with nested quotes (`q-wrap`), nested spoilers (`sp-wrap`), or elements inside decomposed blocks (such as "Скриншоты" spoilers).
+  - Added defensive `element.parent is not None` guards across `clean_description_html` and `sanitize_html_for_telegram` prior to calling `replace_with()`, `unwrap()`, or `decompose()`.
+  - Improved quote header parsing to handle English "wrote:" headers alongside Russian "писал(а):" without duplicating colons.
+  - `parsers/tracker_parser.py`: Isolated post body cloning using `BeautifulSoup(str(post_body_div), 'html.parser')` and protected quote/line break replacements against detached DOM elements.
+
+### Added
+- **Unit Tests for Nested DOM Elements**:
+  - `test_html_cleaner.py`: Added comprehensive test coverage for nested quotes, inner spoilers inside decomposed blocks, code blocks, lists, and deep nested spans.
+
+## [v0.7.49] - 2026-09-07
+
+### Added
+- **Manual Release**: Added native source port `Star Fox Enhanced (kandowontu)` v0.0.4 for Nintendo Switch and PS Vita (`https://github.com/kandowontu/starfox-enhanced/releases/tag/v0.0.4`) with full Ukrainian description, `Switch/PSVita` platform grouping, and `processed: false` status to `data/manual_releases.json`.
+- **Gist State Synchronization**: Downloaded authoritative state from GitHub Gist, merged with local state, appended `Star Fox Enhanced (kandowontu)`, and uploaded the updated 238 releases state back to Gist.
+
+## [v0.7.48] - 2026-09-07
+
+### Added
+- **Manual Release**: Added modern source port `GZDoom NX Modern (Thorhax)` v4.14.2 (Update 1) for Nintendo Switch (`https://github.com/Thorhax/GZDoom-NX-Modern/releases/tag/Update-1`) with full Ukrainian description and `processed: false` status to `data/manual_releases.json`.
+- **Gist State Synchronization**: Downloaded authoritative state from GitHub Gist, merged recent additions from remote CI collectors (235 items) and local pending drafts (Mega Man X Regenesis), added GZDoom NX Modern, and uploaded the updated 237 releases state back to Gist.
+
+## [v0.7.47] - 2026-09-03
+
+### Fixed
+- **Gist Download Merge Safety for Manual Releases**:
+  - `sync_gist_state.py`: Fixed `download_state()` merge behavior for `manual_releases.json` by adding `is_download=True` flag to `merge_json_files()`.
+  - Previously, `download_state()` relied on upload merge logic that only traversed `local_data`, causing remote Gist additions (e.g. from CI collectors) to be ignored if local state was older.
+  - Now, `download` guarantees all remote Gist entries are preserved and merged, while retaining local un-synced additions (`processed: false`) and honoring local deletions during `upload`.
+
+### Added
+- **Manual Release**: Added `Mega Man X Regenesis (StevensND)` v1.0.0 for Nintendo Switch (`https://github.com/StevensND/mmxregenesis_nx`) with Ukrainian description and `processed: false` status to `data/manual_releases.json` and synced to Gist.
+- **Unit Tests**: Added `test_merge_manual_releases_download_and_upload()` to `test_gist_config.py` verifying both download preservation of remote additions and upload preservation of local edits/deletions.
+
 ## [v0.7.46] - 2026-09-02
 
 ### Fixed

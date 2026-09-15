@@ -152,48 +152,47 @@ def test_prune_showcase_to_keys():
     assert pruned["-1001790782971_561344"][0]["message_id"] == 1
 
 
-def test_merge_eshop_states():
+def test_merge_manual_releases_download_and_upload():
     import json
     import sync_gist_state
 
-    # 1. Test eshop_active_showcase.json merge (local newer / higher msg_id wins over stale gist)
-    local_showcase = {
-        "-1001790782971_561344": [
-            {"title": "New Deal 1", "message_id": 565315, "posted_at": 1788000000.0},
-            {"title": "New Deal 2", "message_id": 565316, "posted_at": 1788000100.0},
-        ]
-    }
-    gist_showcase = {
-        "-1001790782971_561344": [
-            {"title": "Old Deal", "message_id": 561432, "posted_at": 1787000000.0}
-        ]
-    }
-    merged_sc = sync_gist_state.merge_json_files("eshop_active_showcase.json", json.dumps(local_showcase), json.dumps(gist_showcase))
-    parsed_sc = json.loads(merged_sc)
-    assert len(parsed_sc["-1001790782971_561344"]) == 2
-    assert parsed_sc["-1001790782971_561344"][0]["message_id"] == 565315
+    # 1. Download merge: Gist items must NOT be discarded, local additions preserved
+    local_releases = [
+        {"app_name": "App A", "version": "1.0", "release_url": "https://example.com/a", "processed": True},
+        {"app_name": "App C (Local Draft)", "version": "0.9", "release_url": "https://example.com/c", "processed": False},
+    ]
+    gist_releases = [
+        {"app_name": "App A", "version": "1.0", "release_url": "https://example.com/a", "processed": False},
+        {"app_name": "App B (Remote CI)", "version": "1.2", "release_url": "https://example.com/b", "processed": True},
+    ]
 
-    # 2. Test eshop_posted_deals.json merge (union with higher timestamps)
-    local_posted = {
-        "111": {"title": "Game A", "posted_at": 1000.0},
-        "222": {"title": "Game B", "posted_at": 3000.0},
-    }
-    gist_posted = {
-        "111": {"title": "Game A", "posted_at": 2000.0},
-        "333": {"title": "Game C", "posted_at": 1500.0},
-    }
-    merged_pd = sync_gist_state.merge_json_files("eshop_posted_deals.json", json.dumps(local_posted), json.dumps(gist_posted))
-    parsed_pd = json.loads(merged_pd)
-    assert set(parsed_pd.keys()) == {"111", "222", "333"}
-    assert parsed_pd["111"]["posted_at"] == 2000.0
-    assert parsed_pd["222"]["posted_at"] == 3000.0
-    assert parsed_pd["333"]["posted_at"] == 1500.0
+    download_merged = sync_gist_state.merge_json_files(
+        "manual_releases.json",
+        json.dumps(local_releases),
+        json.dumps(gist_releases),
+        is_download=True,
+    )
+    parsed_dl = json.loads(download_merged)
+    names_dl = [r["app_name"] for r in parsed_dl]
+    assert "App A" in names_dl
+    assert "App B (Remote CI)" in names_dl
+    assert "App C (Local Draft)" in names_dl
+    # Processed status preserved if either is True
+    app_a = next(r for r in parsed_dl if r["app_name"] == "App A")
+    assert app_a["processed"] is True
 
-    # 3. Test last_eshop_deals_run.json merge (newer timestamp wins)
-    local_run = {"last_run_timestamp": 5000.0, "posted_count": 5}
-    gist_run = {"last_run_timestamp": 4000.0, "posted_count": 2}
-    merged_run = sync_gist_state.merge_json_files("last_eshop_deals_run.json", json.dumps(local_run), json.dumps(gist_run))
-    assert json.loads(merged_run)["last_run_timestamp"] == 5000.0
+    # 2. Upload merge: Local deletions are respected
+    upload_merged = sync_gist_state.merge_json_files(
+        "manual_releases.json",
+        json.dumps(local_releases),
+        json.dumps(gist_releases),
+        is_download=False,
+    )
+    parsed_ul = json.loads(upload_merged)
+    names_ul = [r["app_name"] for r in parsed_ul]
+    assert "App A" in names_ul
+    assert "App C (Local Draft)" in names_ul
+    assert "App B (Remote CI)" not in names_ul  # deleted locally, respected on upload
 
 
 if __name__ == "__main__":

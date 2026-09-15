@@ -1,74 +1,47 @@
-# Walkthrough: Стиснення та санітизація ченджлогів і описів у Homebrew Digest (v0.7.46)
+# Walkthrough: Виправлення помилки парсингу сторінки трекера ("Cannot replace one element with another when the element to be replaced is not part of a tree") (v0.7.50)
 
 ## Огляд змін
-У релізі `v0.7.46` повністю виправлено проблему потрапляння велетенських багаторядкових описів, мануалів з встановлення та нестиснених списків змін з сирою розміткою Markdown (`**bold**`, `* bullet`, `### heading`, `[text](url)`) у Telegram-повідомлення `#homebrew_digest:`. 
-
-Усі описи та ченджлоги тепер суворо скорочуються до 1–2 стислих речень українською мовою без зайвої розмітки, впроваджено захисний санітайзер на рівні форматтера дайджесту, виправлено пріоритет коротких полів у колекторі, додано валідацію перекладу та очищено збережені дані.
-
----
-
-## 1. Першопричина проблеми (Root Cause Analysis)
-
-1. **Неправильний пріоритет полів у колекторах (`collect_homebrew_updates.py`)**:
-   - У Universal-DB (3DS/DS) код обирав `long_description` замість `description`. У структурі UDB `description` — це короткий 1-рядковий підсумок, а `long_description` — повне багатосторінкове README з інструкціями з встановлення, переліком функцій та markdown-розміткою.
-   - Аналогічно для ForTheUsers обирався `details` замість `description`, а для VitaDB — `long_description` замість `description`.
-2. **Пропуск сирого тексту при невдалому перекладі (`translate_short_description`)**:
-   - Якщо виклик до OpenRouter/GPT зазнавав збою або повертав `None`, функція `translate_short_description` повертала сирий вхідний текст `text`.
-   - `_get_description_cached` приймав цей сирий текст і зберігав його у кеш `_descriptions` та передавав у дайджест.
-3. **Відсутність захисного санітайзера у форматтері (`digest/homebrew.py`)**:
-   - `format_digest_message` безпосередньо виводив `entry['description']` після дефіса. Якщо в базі опинився текст на 15 абзаців з Markdown-списками (як це сталось із `SysMon`), він напряму публікувався в Telegram-канал.
-
----
-
-## 2. Реалізовані зміни
-
-### `digest/homebrew.py`
-- Додано санітизаційні функції:
-  - `clean_markdown_and_whitespace(text: str) -> str`: очищає сирий Markdown (`**bold**`, `*italic*`, `__bold__`, `_italic_`, `### headings`, маркери списків `*`, `-`, `+`, `•`, посилання `[text](url)` -> `text`, бектіки `` `code` ``) та згортає надлишкові переноси рядків у пробіли.
-  - `limit_to_sentences(text: str, max_sentences: int = 2, max_chars: int = 220) -> str`: обмежує текст до 1–2 речень та заданої кількості символів без обрізання слів посередині.
-  - `sanitize_digest_description(description: str) -> str`: розділяє базовий опис та блок ченджлогу `<i>...</i>`, санітизує кожну частину окремо та збирає компактний рядок виду:
-    `{clean_desc}\n<i>{clean_changelog}</i>`
-- У `format_digest_message`: застосовано `sanitize_digest_description` для кожного запису платформи перед додаванням у дайджест.
-
-### `collect_homebrew_updates.py`
-- Змінено пріоритети полів:
-  - UDB: `udb_app.get('description') or udb_app.get('long_description') or ''`.
-  - ForTheUsers: `pkg.get('description') or pkg.get('details') or ''`.
-  - VitaDB: `pkg.get('description') or pkg.get('long_description') or ''`.
-  - UDB Update Notes: `udb_app.get('update_notes_md') or udb_app.get('update_notes') or ''` (пріоритет чистого Markdown над HTML).
-- У `_get_description_cached`:
-  - Додано валідацію кешу (пропуск пошкоджених записів з `**`, `\n`, `\ufffd`).
-  - Додано перевірку успішності перекладу (наявність української кирилиці та відмінність від вхідного тексту).
-  - При збої перекладу або неотриманні кирилиці: повертається чистий фолбек `Додаток {fallback_name}.` без збереження сирого англійського тексту в кеш.
-- У `summarize_and_translate_notes`:
-  - Додано попереднє очищення HTML-тегів та URL із вхідних нотаток.
-  - Додано посточищення результату GPT від Markdown-символів (`**`, `_`, `#`, HTML).
-  - Результат суворо обмежується 1–2 реченнями.
-
-### `services/translation.py`
-- У `translate_short_description`:
-  - При невдачі LLM повертається `""` (порожній рядок) замість передачі багаторядкового сирого тексту.
-  - Очищення результату від залишків Markdown-блоків, заголовків та зайвих символів.
-  - Обмеження до максимум 1–2 речень.
-  - Валідація наявності кирилиці перед записом у `translations_cache.json`.
-
-### Очищення даних (`data/`)
-- У `data/homebrew_digest_data.json`: виправлено запис `SysMon` (індекс 511), видалено 15 рядків сирого мануалу і встановлено коректний стислий опис:
-  `"SysMon — монітор апаратного забезпечення та виконавець макросів для перетворення Nintendo 3DS на додаткову панель керування ПК.\n<i>Оновлено SysMon з версії v0.3.1 до v0.3.2.</i>"`
-- У `data/hb_descriptions.json`: видалено невалідні багаторядкові англійські ключі (`wiiu-hb:Trogdor-Reburninated`, `switch-hb:TomoToolNX`).
+У версії `v0.7.50`:
+1. **Діагностовано причину збою парсера**:
+   - Помилка `ValueError: Cannot replace one element with another when the element to be replaced is not part of a tree` виникала при виклику `replace_with()` або `unwrap()` для елементів BeautifulSoup, якщо їхній батьківський вузол був видалений або розгорнутий (`element.parent is None`).
+   - Типові сценарії відтворення:
+     1. **Вкладені цитати (`q-wrap` всередині `q-wrap`)**: список `find_all("div", class_="q-wrap")` знаходить і зовнішній, і внутрішній блоки цитат. При обробці зовнішньої цитати внутрішня розгортається (`sq.unwrap()`). Коли черга доходить до внутрішньої цитати в зовнішньому циклі, вона вже від'єднана (`quote.parent is None`), і виклик `quote.replace_with(...)` призводив до помилки.
+     2. **Вкладені спойлери у видалених блоках**: якщо зовнішній спойлер має назву "Скриншоты", викликається `target_spoiler.decompose()`. Всі внутрішні спойлери, які були заздалегідь зібрані через `find_all("div", class_="sp-wrap")`, втрачають батьківський вузол (`parent is None`), викликаючи збій на наступних ітераціях.
+2. **Впроваджено захист операцій над деревом DOM**:
+   - [utils/html_utils.py](file:///d:/git/dev/rutracker_bot/utils/html_utils.py):
+     - Додано перевірки `if target_spoiler.parent is None: continue` перед обробкою та заміною спойлерів.
+     - Захищено операції над внутрішніми блоками коду (`c_wrap`), цитатами (`q_wrap`), параграфами (`p`), горизонтальними лініями (`hr`) та розривами (`br`).
+     - Додано перевірки `if quote.parent is None: continue` для обробки цитат та захищено їхній фінальний `quote.replace_with(...)`.
+     - Підтримано англомовні заголовки цитат `wrote:` поруч із російськими `писал(а):` та прибрано здвоєні двокрапки.
+     - Захищено операції над списками (`li.unwrap()`, `ul.unwrap()`) та `tag.unwrap()` у `sanitize_html_for_telegram`.
+   - [parsers/tracker_parser.py](file:///d:/git/dev/rutracker_bot/parsers/tracker_parser.py):
+     - Ізольовано створення копії поста через `BeautifulSoup(str(post_body_div), 'html.parser')`.
+     - Додано перевірки `if quote.parent is not None:` перед `quote.decompose()` та `if br.parent is not None:` перед `br.replace_with("\n")` і `br.decompose()`.
+3. **Створено модульні тести**:
+   - [test_html_cleaner.py](file:///d:/git/dev/rutracker_bot/test_html_cleaner.py): 6 нових тестів, що покривають багаторівневі вкладені цитати, внутрішні спойлери всередині декомпозованих блоків скриншотів, блоки коду, списки та глибокі вкладені теги `span`.
+4. **Паралельне тестування**:
+   - Усі 88 тестів успішно пройшли в паралельному режимі (`pytest -n auto`).
+5. **Документація та версіонування**:
+   - Оновлено [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md), [README.md](file:///d:/git/dev/rutracker_bot/README.md), [task.md](file:///d:/git/dev/rutracker_bot/task.md) та [plan.md](file:///d:/git/dev/rutracker_bot/plan.md).
 
 ---
 
-## 3. Результати тестування
+## Деталі змін коду
 
-1. **Юніт-тести (`test_homebrew_digest_formatting.py`)**:
-   - Перевірка очищення сирого markdown (посилання, жирний шрифт, заголовки, списки, бектіки).
-   - Перевірка обмеження речень (1-2 речення).
-   - Перевірка санітизації запису-мануалу (на прикладі SysMon).
-   - Перевірка форматування дайджесту у `HomebrewDigest.format_digest_message`.
-   - Перевірка фолбеків при збої перекладу.
-2. **Паралельний запуск тестів**:
-   - Команда: `pytest -n auto`
-   - **Результат: 47 passed у 5.38s**.
-3. **Перевірка форматування реального дайджесту**:
-   - Перевірено генерацію дайджесту за 14 днів — у вихідному тексті повністю відсутні `**` та `###`, а SysMon форматується в 1 речення опису + 1 речення ченджлогу в курсиві.
+### 1. Захист у `clean_description_html` ([utils/html_utils.py](file:///d:/git/dev/rutracker_bot/utils/html_utils.py))
+- Кожен обхід елементів, повернених через `find_all()`, тепер перевіряє `if element.parent is None: continue`.
+- Будь-який виклик `replace_with()`, `unwrap()` чи `decompose()` здійснюється лише тоді, коли `element.parent is not None`.
+
+### 2. Захист у `sanitize_html_for_telegram` ([utils/html_utils.py](file:///d:/git/dev/rutracker_bot/utils/html_utils.py))
+- Додано перевірку наявності батьківського елемента перед видаленням та розгортанням непідтримуваних тегів.
+
+### 3. Ізоляція тіла поста ([parsers/tracker_parser.py](file:///d:/git/dev/rutracker_bot/parsers/tracker_parser.py))
+- Замість shallow copy (`__copy__()`) використовується повна ізоляція через окремий парсинг рядка, захищена перевірками вузлів.
+
+---
+
+## Результати тестування
+```powershell
+pytest -n auto
+# ============================= 88 passed in 14.73s =============================
+```

@@ -6,6 +6,7 @@ Also fetches 3DS/DS apps from Universal-DB API as the primary source.
 import asyncio
 import json
 import os
+import sys
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -67,11 +68,18 @@ BROWSER_HEADERS = {
 class HomebrewUpdatesCollector:
     """Collects homebrew updates from GitHub/GitLab"""
 
-    def __init__(self, list_path: str, state_path: str = None, github_token: Optional[str] = None, gitlab_token: Optional[str] = None):
+    def __init__(self, list_path: str = DEFAULT_LIST_PATH, state_path: str = None, github_token: Optional[str] = None, gitlab_token: Optional[str] = None,
+                 udb_state_path: Optional[str] = None, fortheusers_state_path: Optional[str] = None,
+                 vitadb_state_path: Optional[str] = None, switchports_state_path: Optional[str] = None):
         self.list_path = Path(list_path)
         self.state_path = Path(state_path or DEFAULT_STATE_PATH)
+        self.udb_state_path = Path(udb_state_path or UDB_STATE_PATH)
+        self.fortheusers_state_path = Path(fortheusers_state_path or FORTHEUSERS_STATE_PATH)
+        self.vitadb_state_path = Path(vitadb_state_path or VITADB_STATE_PATH)
+        self.switchports_state_path = Path(switchports_state_path or SWITCHPORTS_STATE_PATH)
         self.github_token = github_token
         self.gitlab_token = gitlab_token
+        self._session = None
 
         # Rate limit tracking
         self.github_requests = 0
@@ -116,9 +124,15 @@ class HomebrewUpdatesCollector:
 
     @property
     def session(self) -> aiohttp.ClientSession:
-        """Use the shared aiohttp session from settings_loader."""
+        """Use the shared aiohttp session from settings_loader or custom session."""
+        if self._session is not None:
+            return self._session
         from core.settings_loader import get_session
         return get_session()
+
+    @session.setter
+    def session(self, s: aiohttp.ClientSession):
+        self._session = s
 
     @staticmethod
     def _load_json(path, label: str) -> Dict:
@@ -155,16 +169,16 @@ class HomebrewUpdatesCollector:
         self._save_json(self.state_path, self._state, "state")
 
     def load_udb_state(self) -> Dict[str, Dict]:
-        return self._load_json(UDB_STATE_PATH, "UDB state")
+        return self._load_json(self.udb_state_path, "UDB state")
 
     def save_udb_state(self):
-        self._save_json(UDB_STATE_PATH, self._udb_state, "UDB state")
+        self._save_json(self.udb_state_path, self._udb_state, "UDB state")
 
     def load_fortheusers_state(self) -> Dict[str, Dict]:
-        return self._load_json(FORTHEUSERS_STATE_PATH, "ForTheUsers state")
+        return self._load_json(self.fortheusers_state_path, "ForTheUsers state")
 
     def save_fortheusers_state(self):
-        self._save_json(FORTHEUSERS_STATE_PATH, self._fortheusers_state, "ForTheUsers state")
+        self._save_json(self.fortheusers_state_path, self._fortheusers_state, "ForTheUsers state")
 
     def load_descriptions_cache(self) -> Dict[str, str]:
         return self._load_json(DESCRIPTIONS_CACHE_PATH, "descriptions cache")
@@ -173,16 +187,16 @@ class HomebrewUpdatesCollector:
         self._save_json(DESCRIPTIONS_CACHE_PATH, self._descriptions, "descriptions cache")
 
     def load_vitadb_state(self) -> Dict[str, Dict]:
-        return self._load_json(VITADB_STATE_PATH, "VitaDB state")
+        return self._load_json(self.vitadb_state_path, "VitaDB state")
 
     def save_vitadb_state(self):
-        self._save_json(VITADB_STATE_PATH, self._vitadb_state, "VitaDB state")
+        self._save_json(self.vitadb_state_path, self._vitadb_state, "VitaDB state")
 
     def load_switchports_state(self) -> Dict[str, Dict]:
-        return self._load_json(SWITCHPORTS_STATE_PATH, "SwitchPorts state")
+        return self._load_json(self.switchports_state_path, "SwitchPorts state")
 
     def save_switchports_state(self):
-        self._save_json(SWITCHPORTS_STATE_PATH, self._switchports_state, "SwitchPorts state")
+        self._save_json(self.switchports_state_path, self._switchports_state, "SwitchPorts state")
 
     def load_homebrew_list(self) -> List[Dict]:
         """Load static registry and merge with dynamic state and processed manual releases"""
@@ -761,6 +775,8 @@ class HomebrewUpdatesCollector:
         updates_from_udb = 0
         udb_checked = 0
 
+        has_baseline = bool(self._udb_state)
+
         for udb_slug, udb_app in udb_data.items():
             systems = [s.upper() for s in udb_app.get('systems', [])]
             if not any(s in ('3DS', 'DS') for s in systems):
@@ -775,39 +791,42 @@ class HomebrewUpdatesCollector:
 
             current_version = udb_app.get('version') or ''
             current_updated = udb_app.get('updated') or ''
+            download_or_gh = udb_app.get('download_page') or github_url or ''
 
-            saved = self._udb_state.get(udb_slug, {})
-            saved_version = saved.get('version', '')
-            saved_updated = saved.get('updated', '')
-
-            # First run for this slug: just save state, don't post
-            if not saved_version and not saved_updated:
-                self._udb_state.setdefault(udb_slug, {})
-                self._udb_state[udb_slug]['version'] = current_version
-                self._udb_state[udb_slug]['updated'] = current_updated
-                self._udb_state[udb_slug]['release_url'] = (
-                    udb_app.get('download_page') or github_url or ''
-                )
-                first_run_initialized += 1
-                continue
-
-            # Check if version or updated timestamp changed
-            version_changed = current_version and current_version != saved_version
-            updated_changed = current_updated and current_updated != saved_updated
-            if not version_changed and not updated_changed:
-                continue
-
-            # Found an update!
-            app_title = udb_app.get('title', udb_slug)
-            if self.is_unprocessed_manual(app_title):
-                logger.info(f"Skipping UDB update for {app_title} — pending manual release. Updating state only.")
+            # First run: seed baseline state without posting
+            if not has_baseline:
                 self._udb_state[udb_slug] = {
                     'version': current_version,
                     'updated': current_updated,
-                    'release_url': udb_app.get('download_page') or github_url or ''
+                    'release_url': download_or_gh,
+                }
+                first_run_initialized += 1
+                continue
+
+            is_new_app = udb_slug not in self._udb_state
+            if not is_new_app:
+                saved = self._udb_state[udb_slug]
+                saved_version = saved.get('version', '')
+                saved_updated = saved.get('updated', '')
+                version_changed = current_version and current_version != saved_version
+                updated_changed = current_updated and current_updated != saved_updated
+                if not version_changed and not updated_changed:
+                    continue
+
+            # Found an update or new app!
+            app_title = udb_app.get('title', udb_slug)
+            if self.is_unprocessed_manual(app_title):
+                action_label = "new app" if is_new_app else "update"
+                logger.info(f"Skipping UDB {action_label} for {app_title} — pending manual release. Updating state only.")
+                self._udb_state[udb_slug] = {
+                    'version': current_version,
+                    'updated': current_updated,
+                    'release_url': download_or_gh,
                 }
                 continue
-            logger.info(f"UDB update: {app_title} {current_version} (was {saved_version})")
+
+            action_desc = "new app" if is_new_app else f"update: {app_title} {current_version} (was {saved.get('version', '')})"
+            logger.info(f"UDB {action_desc}")
 
             # Resolve local entry for this UDB app
             local_entry = local_by_slug.get((gh_slug or '').lower()) if gh_slug else None
@@ -824,7 +843,7 @@ class HomebrewUpdatesCollector:
                 summarized_notes = await self.summarize_and_translate_notes(update_notes_text)
 
             # Determine release URL
-            release_url = udb_app.get('download_page') or github_url or ''
+            release_url = download_or_gh
 
             # Determine release date
             try:
@@ -855,13 +874,15 @@ class HomebrewUpdatesCollector:
                 platform=platform,
                 timestamp=datetime.now(),
                 release_date=release_date,
-                is_new=False,
+                is_new=is_new_app,
             )
 
             # Update UDB state
-            self._udb_state[udb_slug]['version'] = current_version
-            self._udb_state[udb_slug]['updated'] = current_updated
-            self._udb_state[udb_slug]['release_url'] = release_url
+            self._udb_state[udb_slug] = {
+                'version': current_version,
+                'updated': current_updated,
+                'release_url': release_url,
+            }
 
             updates_from_udb += 1
             self.updates_found += 1
@@ -936,6 +957,9 @@ class HomebrewUpdatesCollector:
         updates_found = 0
         ftu_checked = 0
 
+        prefix_filter = f"{key_prefix}:"
+        has_baseline = any(k.startswith(prefix_filter) for k in self._fortheusers_state)
+
         for pkg in packages:
             name = pkg.get('name', '')
             if not name:
@@ -953,12 +977,8 @@ class HomebrewUpdatesCollector:
             current_version = pkg.get('version', '')
             current_updated = pkg.get('updated', '')  # format: DD/MM/YYYY
 
-            saved = self._fortheusers_state.get(state_key, {})
-            saved_version = saved.get('version', '')
-            saved_updated = saved.get('updated', '')
-
-            # First run: save state, don't post
-            if not saved_version and not saved_updated:
+            # First run for this prefix: save state, don't post
+            if not has_baseline:
                 self._fortheusers_state[state_key] = {
                     'version': current_version,
                     'updated': current_updated,
@@ -966,20 +986,27 @@ class HomebrewUpdatesCollector:
                 first_run_initialized += 1
                 continue
 
-            # Check for changes
-            if current_version == saved_version and current_updated == saved_updated:
-                continue
+            is_new_app = state_key not in self._fortheusers_state
+            if not is_new_app:
+                saved = self._fortheusers_state[state_key]
+                saved_version = saved.get('version', '')
+                saved_updated = saved.get('updated', '')
+                if current_version == saved_version and current_updated == saved_updated:
+                    continue
 
-            # Found update!
+            # Found update or new app!
             app_title = pkg.get('title', name)
             if self.is_unprocessed_manual(app_title):
-                logger.info(f"Skipping FTU update for {app_title} — pending manual release. Updating state only.")
+                action_label = "new app" if is_new_app else "update"
+                logger.info(f"Skipping FTU {action_label} for {app_title} — pending manual release. Updating state only.")
                 self._fortheusers_state[state_key] = {
                     'version': current_version,
                     'updated': current_updated,
                 }
                 continue
-            logger.info(f"ForTheUsers [{platform}] update: {app_title} {current_version} (was {saved_version})")
+
+            action_desc = "new app" if is_new_app else f"update: {app_title} {current_version} (was {saved.get('version', '')})"
+            logger.info(f"ForTheUsers [{platform}] {action_desc}")
 
             # Resolve local entry
             local_entry = local_by_gh_slug.get((gh_slug or '').lower()) if gh_slug else None
@@ -1027,7 +1054,7 @@ class HomebrewUpdatesCollector:
                 platform=display_platform,
                 timestamp=datetime.now(),
                 release_date=release_date,
-                is_new=False,
+                is_new=is_new_app,
             )
 
             # Update state
@@ -1101,6 +1128,9 @@ class HomebrewUpdatesCollector:
         updates_found = 0
         vita_checked = 0
 
+        prefix_filter = f"{key_prefix}:"
+        has_baseline = any(k.startswith(prefix_filter) for k in self._vitadb_state)
+
         for pkg in packages:
             pkg_id = str(pkg.get('id', ''))
             if not pkg_id:
@@ -1122,12 +1152,8 @@ class HomebrewUpdatesCollector:
             current_version = pkg.get('version', '')
             current_date = pkg.get('date', '')  # format: YYYY-MM-DD
 
-            saved = self._vitadb_state.get(state_key, {})
-            saved_version = saved.get('version', '')
-            saved_date = saved.get('date', '')
-
-            # First run: save state, don't post
-            if not saved_version and not saved_date:
+            # First run for this prefix: save state, don't post
+            if not has_baseline:
                 self._vitadb_state[state_key] = {
                     'version': current_version,
                     'date': current_date,
@@ -1135,22 +1161,27 @@ class HomebrewUpdatesCollector:
                 first_run_initialized += 1
                 continue
 
-            # Check for changes
-            if current_version == saved_version and current_date == saved_date:
-                continue
+            is_new_app = state_key not in self._vitadb_state
+            if not is_new_app:
+                saved = self._vitadb_state[state_key]
+                saved_version = saved.get('version', '')
+                saved_date = saved.get('date', '')
+                if current_version == saved_version and current_date == saved_date:
+                    continue
 
-            # Found an update!
+            # Found an update or new app!
             app_name = pkg.get('name', f"App {pkg_id}")
             if self.is_unprocessed_manual(app_name):
-                logger.info(f"Skipping VitaForge update for {app_name} — pending manual release. Updating state only.")
+                action_label = "new app" if is_new_app else "update"
+                logger.info(f"Skipping VitaForge {action_label} for {app_name} — pending manual release. Updating state only.")
                 self._vitadb_state[state_key] = {
                     'version': current_version,
                     'date': current_date,
                 }
                 continue
-            logger.info(
-                f"VitaForge [{platform_name}] update: {app_name} {current_version} (was {saved_version})"
-            )
+
+            action_desc = "new app" if is_new_app else f"update: {app_name} {current_version} (was {saved.get('version', '')})"
+            logger.info(f"VitaForge [{platform_name}] {action_desc}")
 
             # Resolve local entry for description priority
             local_entry = local_by_gh_slug.get((gh_slug or '').lower()) if gh_slug else None
@@ -1195,7 +1226,7 @@ class HomebrewUpdatesCollector:
                 platform=platform_name,
                 timestamp=datetime.now(),
                 release_date=release_date,
-                is_new=False,
+                is_new=is_new_app,
             )
 
             # Update state
@@ -1306,7 +1337,7 @@ class HomebrewUpdatesCollector:
         covered_slugs: Set[str] = set()
         first_run_initialized = 0
         updates_found = 0
-        is_first_run = len(self._switchports_state) == 0
+        has_baseline = bool(self._switchports_state)
 
         for item in items:
             game_name = item['game_name']
@@ -1320,28 +1351,32 @@ class HomebrewUpdatesCollector:
             key = (gh_slug or game_name).lower()
             self.source_stats['SwitchPorts']['checked'] += 1
 
-            saved = self._switchports_state.get(key, {})
-            saved_version = saved.get('version', '')
-            saved_updated = saved.get('last_updated', '')
-
-            # Case 1: First time collector sees this entry
-            if not saved:
+            # State initialization (first run): seed state without posting
+            if not has_baseline:
                 self._switchports_state[key] = {
                     'game_name': game_name,
                     'version': version,
                     'last_updated': last_updated,
                     'release_url': release_url,
-                    'gbatemp_url': item['gbatemp_url']
+                    'gbatemp_url': item.get('gbatemp_url', '')
+                }
+                first_run_initialized += 1
+                continue
+
+            # Case 1: First time collector sees this entry after baseline
+            is_new_app = key not in self._switchports_state
+            if is_new_app:
+                self._switchports_state[key] = {
+                    'game_name': game_name,
+                    'version': version,
+                    'last_updated': last_updated,
+                    'release_url': release_url,
+                    'gbatemp_url': item.get('gbatemp_url', '')
                 }
 
                 # Collision check: pending (unprocessed) manual releases
                 if self.is_unprocessed_manual(game_name) or (gh_slug and self.is_unprocessed_manual(gh_slug)):
                     logger.info(f"Skipping initial SwitchPorts entry for {game_name} — pending manual release.")
-                    continue
-
-                # State initialization (first run of switchports_state.json): seed state without posting
-                if is_first_run:
-                    first_run_initialized += 1
                     continue
 
                 # Collision check: already processed in manual releases
@@ -1366,7 +1401,7 @@ class HomebrewUpdatesCollector:
                 homebrew_digest_manager.add_entry(
                     app_name=f"{game_name} (Port)",
                     version=version or "1.0",
-                    release_url=release_url or item['gbatemp_url'] or SWITCHPORTS_REPO_URL,
+                    release_url=release_url or item.get('gbatemp_url') or SWITCHPORTS_REPO_URL,
                     description=description,
                     platform='Switch',
                     timestamp=datetime.now(),
@@ -1378,6 +1413,10 @@ class HomebrewUpdatesCollector:
                 continue
 
             # Case 2: Existing entry — check for updates
+            saved = self._switchports_state[key]
+            saved_version = saved.get('version', '')
+            saved_updated = saved.get('last_updated', '')
+
             version_changed = version and version != saved_version
             updated_changed = last_updated and last_updated != saved_updated
 
@@ -1414,7 +1453,7 @@ class HomebrewUpdatesCollector:
             homebrew_digest_manager.add_entry(
                 app_name=f"{game_name} (Port)",
                 version=version or "Update",
-                release_url=release_url or item['gbatemp_url'] or SWITCHPORTS_REPO_URL,
+                release_url=release_url or item.get('gbatemp_url') or SWITCHPORTS_REPO_URL,
                 description=description,
                 platform='Switch',
                 timestamp=datetime.now(),
@@ -1430,6 +1469,346 @@ class HomebrewUpdatesCollector:
         )
         self.source_stats['SwitchPorts']['found'] = updates_found
         return covered_slugs
+
+    @staticmethod
+    def _commit_snapshot_states(target_states: Dict[Path, Dict]) -> bool:
+        """
+        Commit snapshot states to disk transactionally.
+        If preparing or replacing any destination file fails:
+        - restore every pre-existing state file exactly to its original bytes;
+        - remove any newly created state file that did not exist before;
+        - return False.
+        Returns True only after all destination files are committed successfully.
+        """
+        backups: Dict[Path, Optional[bytes]] = {}
+        for path in target_states:
+            p = Path(path)
+            if p.exists():
+                try:
+                    backups[p] = p.read_bytes()
+                except Exception as e:
+                    logger.error(f"[Snapshot] Failed to read backup for {p}: {e}")
+                    return False
+            else:
+                backups[p] = None
+
+        payloads: Dict[Path, bytes] = {}
+        try:
+            for path, data in target_states.items():
+                p = Path(path)
+                payloads[p] = json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8')
+        except Exception as e:
+            logger.error(f"[Snapshot] Failed to serialize JSON payloads: {e}")
+            return False
+
+        tmp_files_to_clean: List[Path] = []
+        try:
+            for p, payload in payloads.items():
+                os.makedirs(p.parent, exist_ok=True)
+                tmp_file = p.with_name(f"{p.name}.tmp.{os.getpid()}")
+                tmp_files_to_clean.append(tmp_file)
+                with open(tmp_file, "wb") as f:
+                    f.write(payload)
+                os.replace(tmp_file, p)
+            return True
+        except Exception as write_err:
+            logger.error(f"[Snapshot] Transactional persistence failed: {write_err}. Rolling back...")
+            for tmp_file in tmp_files_to_clean:
+                try:
+                    if tmp_file.exists():
+                        tmp_file.unlink()
+                except Exception:
+                    pass
+
+            for p, orig_bytes in backups.items():
+                try:
+                    if orig_bytes is not None:
+                        with open(p, "wb") as f:
+                            f.write(orig_bytes)
+                    else:
+                        if p.exists():
+                            p.unlink()
+                except Exception as rb_err:
+                    logger.error(f"[Snapshot] Rollback failed for {p}: {rb_err}")
+            return False
+
+    async def create_snapshot(self) -> bool:
+        """
+        Fetch and save current state of all eight external catalogue streams:
+        1. Universal-DB (3DS/DS)
+        2. ForTheUsers Switch (switch-hb)
+        3. ForTheUsers Wii U (wiiu-hb)
+        4. VitaDBtoo PSVita apps (vita-hb)
+        5. VitaDBtoo PSVita plugins (vita-plugin)
+        6. VitaDBtoo PSVita PC tools (vita-tool)
+        7. VitaDBtoo PSP apps (vita-psp)
+        8. SwitchPorts
+
+        Safety requirement:
+        - Prepare all states in memory first.
+        - If ANY source fails or returns invalid response, return False and leave
+          all four external state files completely unchanged.
+        - Only after ALL eight sources succeed, save the four state files.
+        """
+        logger.info("=== Starting baseline snapshot of external catalogues ===")
+        mem_udb_state: Dict[str, Dict] = {}
+        mem_fortheusers_state: Dict[str, Dict] = {}
+        mem_vitadb_state: Dict[str, Dict] = {}
+        mem_switchports_state: Dict[str, Dict] = {}
+        counts: Dict[str, int] = {}
+
+        # 1. Universal-DB (3DS/DS)
+        logger.info("[Snapshot] Fetching Universal-DB (3DS/DS)...")
+        try:
+            async with self.session.get(UDB_API_URL, headers=BROWSER_HEADERS, timeout=30) as resp:
+                if resp.status != 200:
+                    logger.error(f"[Snapshot] Universal-DB returned HTTP {resp.status}")
+                    print(f"ERROR: Universal-DB returned HTTP {resp.status}")
+                    return False
+                udb_data = await resp.json()
+        except Exception as e:
+            logger.error(f"[Snapshot] Universal-DB request failed: {e}")
+            print(f"ERROR: Universal-DB request failed: {e}")
+            return False
+
+        if isinstance(udb_data, list):
+            udb_data = {app.get('slug'): app for app in udb_data if isinstance(app, dict) and app.get('slug')}
+
+        if not isinstance(udb_data, dict):
+            logger.error(f"[Snapshot] Universal-DB returned invalid format: {type(udb_data)}")
+            print(f"ERROR: Universal-DB returned invalid format: {type(udb_data)}")
+            return False
+
+        udb_count = 0
+        for udb_slug, udb_app in udb_data.items():
+            if not isinstance(udb_app, dict):
+                continue
+            systems = [s.upper() for s in udb_app.get('systems', []) if isinstance(s, str)]
+            if not any(s in ('3DS', 'DS') for s in systems):
+                continue
+            current_version = udb_app.get('version') or ''
+            current_updated = udb_app.get('updated') or ''
+            release_url = udb_app.get('download_page') or udb_app.get('github') or ''
+            mem_udb_state[udb_slug] = {
+                'version': current_version,
+                'updated': current_updated,
+                'release_url': release_url,
+            }
+            udb_count += 1
+
+        if udb_count == 0:
+            logger.error("[Snapshot] Universal-DB (3DS/DS) yielded 0 usable entries")
+            print("ERROR: Universal-DB (3DS/DS) yielded 0 usable entries")
+            return False
+
+        counts['Universal-DB (3DS/DS)'] = udb_count
+
+        # 2. ForTheUsers Switch
+        logger.info("[Snapshot] Fetching ForTheUsers (Switch)...")
+        try:
+            async with self.session.get(SWITCH_REPO_URL, headers=BROWSER_HEADERS, timeout=30) as resp:
+                if resp.status != 200:
+                    logger.error(f"[Snapshot] ForTheUsers (Switch) returned HTTP {resp.status}")
+                    print(f"ERROR: ForTheUsers (Switch) returned HTTP {resp.status}")
+                    return False
+                switch_repo_data = await resp.json(content_type=None)
+        except Exception as e:
+            logger.error(f"[Snapshot] ForTheUsers (Switch) request failed: {e}")
+            print(f"ERROR: ForTheUsers (Switch) request failed: {e}")
+            return False
+
+        if not isinstance(switch_repo_data, dict) or not isinstance(switch_repo_data.get('packages'), list):
+            logger.error("[Snapshot] ForTheUsers (Switch) returned invalid format")
+            print("ERROR: ForTheUsers (Switch) returned invalid format")
+            return False
+
+        ftu_switch_count = 0
+        for pkg in switch_repo_data.get('packages', []):
+            if not isinstance(pkg, dict):
+                continue
+            name = pkg.get('name', '')
+            if not name:
+                continue
+            state_key = f"switch-hb:{name}"
+            mem_fortheusers_state[state_key] = {
+                'version': pkg.get('version', ''),
+                'updated': pkg.get('updated', ''),
+            }
+            ftu_switch_count += 1
+
+        if ftu_switch_count == 0:
+            logger.error("[Snapshot] ForTheUsers (Switch) yielded 0 usable entries")
+            print("ERROR: ForTheUsers (Switch) yielded 0 usable entries")
+            return False
+
+        counts['ForTheUsers Switch'] = ftu_switch_count
+
+        # 3. ForTheUsers Wii U
+        logger.info("[Snapshot] Fetching ForTheUsers (Wii U)...")
+        try:
+            async with self.session.get(WIIU_REPO_URL, headers=BROWSER_HEADERS, timeout=30) as resp:
+                if resp.status != 200:
+                    logger.error(f"[Snapshot] ForTheUsers (Wii U) returned HTTP {resp.status}")
+                    print(f"ERROR: ForTheUsers (Wii U) returned HTTP {resp.status}")
+                    return False
+                wiiu_repo_data = await resp.json(content_type=None)
+        except Exception as e:
+            logger.error(f"[Snapshot] ForTheUsers (Wii U) request failed: {e}")
+            print(f"ERROR: ForTheUsers (Wii U) request failed: {e}")
+            return False
+
+        if not isinstance(wiiu_repo_data, dict) or not isinstance(wiiu_repo_data.get('packages'), list):
+            logger.error("[Snapshot] ForTheUsers (Wii U) returned invalid format")
+            print("ERROR: ForTheUsers (Wii U) returned invalid format")
+            return False
+
+        ftu_wiiu_count = 0
+        for pkg in wiiu_repo_data.get('packages', []):
+            if not isinstance(pkg, dict):
+                continue
+            name = pkg.get('name', '')
+            if not name:
+                continue
+            state_key = f"wiiu-hb:{name}"
+            mem_fortheusers_state[state_key] = {
+                'version': pkg.get('version', ''),
+                'updated': pkg.get('updated', ''),
+            }
+            ftu_wiiu_count += 1
+
+        if ftu_wiiu_count == 0:
+            logger.error("[Snapshot] ForTheUsers (Wii U) yielded 0 usable entries")
+            print("ERROR: ForTheUsers (Wii U) yielded 0 usable entries")
+            return False
+
+        counts['ForTheUsers Wii U'] = ftu_wiiu_count
+
+        # 4-7. VitaDBtoo endpoints
+        vita_stream_names = {
+            'vita-hb': 'VitaDBtoo PSVita apps (vita-hb)',
+            'vita-plugin': 'VitaDBtoo PSVita plugins (vita-plugin)',
+            'vita-tool': 'VitaDBtoo PSVita PC tools (vita-tool)',
+            'vita-psp': 'VitaDBtoo PSP apps (vita-psp)',
+        }
+        for endpoint_url, key_prefix, platform_name in VITADB_ENDPOINTS:
+            stream_label = vita_stream_names.get(key_prefix, f"VitaDB ({platform_name})")
+            logger.info(f"[Snapshot] Fetching {stream_label}...")
+            try:
+                async with self.session.get(endpoint_url, headers=BROWSER_HEADERS, timeout=30) as resp:
+                    if resp.status != 200:
+                        logger.error(f"[Snapshot] {stream_label} returned HTTP {resp.status}")
+                        print(f"ERROR: {stream_label} returned HTTP {resp.status}")
+                        return False
+                    packages = await resp.json(content_type=None)
+            except Exception as e:
+                logger.error(f"[Snapshot] {stream_label} request failed: {e}")
+                print(f"ERROR: {stream_label} request failed: {e}")
+                return False
+
+            if not isinstance(packages, list):
+                logger.error(f"[Snapshot] {stream_label} returned invalid format: {type(packages)}")
+                print(f"ERROR: {stream_label} returned invalid format: {type(packages)}")
+                return False
+
+            v_count = 0
+            for pkg in packages:
+                if not isinstance(pkg, dict):
+                    continue
+                pkg_id = str(pkg.get('id', ''))
+                if not pkg_id:
+                    continue
+                if str(pkg.get('status', '0')) != '0':
+                    continue
+                state_key = f"{key_prefix}:{pkg_id}"
+                mem_vitadb_state[state_key] = {
+                    'version': pkg.get('version', ''),
+                    'date': pkg.get('date', ''),
+                }
+                v_count += 1
+
+            if v_count == 0:
+                logger.error(f"[Snapshot] {stream_label} yielded 0 usable entries")
+                print(f"ERROR: {stream_label} yielded 0 usable entries")
+                return False
+
+            counts[stream_label] = v_count
+
+        # 8. SwitchPorts
+        logger.info("[Snapshot] Fetching SwitchPorts...")
+        try:
+            async with self.session.get(SWITCHPORTS_REPO_URL, headers=BROWSER_HEADERS, timeout=30) as resp:
+                if resp.status != 200:
+                    logger.error(f"[Snapshot] SwitchPorts returned HTTP {resp.status}")
+                    print(f"ERROR: SwitchPorts returned HTTP {resp.status}")
+                    return False
+                content = await resp.text()
+        except Exception as e:
+            logger.error(f"[Snapshot] SwitchPorts request failed: {e}")
+            print(f"ERROR: SwitchPorts request failed: {e}")
+            return False
+
+        if not isinstance(content, str) or not content.strip():
+            logger.error("[Snapshot] SwitchPorts returned empty response")
+            print("ERROR: SwitchPorts returned empty response")
+            return False
+
+        items = self._parse_switchports_readme(content)
+        if not items:
+            logger.error("[Snapshot] SwitchPorts returned 0 parsed entries (invalid catalogue format)")
+            print("ERROR: SwitchPorts returned 0 parsed entries (invalid catalogue format)")
+            return False
+
+        sp_count = 0
+        for item in items:
+            game_name = item['game_name']
+            version = item['version']
+            last_updated = item['last_updated']
+            release_url = item['release_url']
+            gh_slug = self._extract_github_slug(release_url)
+            key = (gh_slug or game_name).lower()
+            mem_switchports_state[key] = {
+                'game_name': game_name,
+                'version': version,
+                'last_updated': last_updated,
+                'release_url': release_url,
+                'gbatemp_url': item.get('gbatemp_url', ''),
+            }
+            sp_count += 1
+
+        if sp_count == 0:
+            logger.error("[Snapshot] SwitchPorts yielded 0 valid entries")
+            print("ERROR: SwitchPorts yielded 0 valid entries")
+            return False
+
+        counts['SwitchPorts'] = sp_count
+
+        # All 8 streams succeeded! Commit all 4 state files transactionally
+        target_states = {
+            self.udb_state_path: mem_udb_state,
+            self.fortheusers_state_path: mem_fortheusers_state,
+            self.vitadb_state_path: mem_vitadb_state,
+            self.switchports_state_path: mem_switchports_state,
+        }
+        committed = self._commit_snapshot_states(target_states)
+        if not committed:
+            logger.error("[Snapshot] Failed to commit snapshot state files transactionally.")
+            print("ERROR: Failed to commit snapshot state files transactionally.")
+            return False
+
+        self._udb_state = mem_udb_state
+        self._fortheusers_state = mem_fortheusers_state
+        self._vitadb_state = mem_vitadb_state
+        self._switchports_state = mem_switchports_state
+
+        logger.info("=== Baseline snapshot complete ===")
+        print("Baseline snapshot complete:")
+        for source, count in counts.items():
+            logger.info(f"  - {source}: {count} entries")
+            print(f"  - {source}: {count} entries")
+        total_entries = sum(counts.values())
+        logger.info(f"Total: {total_entries} entries saved across 4 state files.")
+        print(f"Total: {total_entries} entries saved across 4 state files.")
+        return True
 
     async def collect_updates(self, translate: bool = True, max_entries: Optional[int] = None):
         """Collect all homebrew updates"""
@@ -1627,16 +2006,18 @@ async def main():
                         help='Translate descriptions to Ukrainian (default: no translation)')
     parser.add_argument('--test', type=int, metavar='N',
                         help='Test mode: process only first N entries')
+    parser.add_argument('--snapshot', action='store_true',
+                        help='Create a safe baseline snapshot of all external catalogues without publishing updates')
     parser.add_argument('--github-token', help='GitHub API token')
     parser.add_argument('--gitlab-token', help='GitLab API token')
 
     args = parser.parse_args()
 
-    # Cooldown check: prevent running more than once every 20 hours unless forced or test mode
+    # Cooldown check: prevent running more than once every 20 hours unless forced, test mode, or snapshot
     LAST_RUN_FILE = os.path.join("data", "last_hb_collect_run.json")
     current_time = datetime.now()
     is_forced = os.environ.get('FORCE_TASK') == 'run_collect_homebrew'
-    if not args.test and not is_forced:
+    if not args.test and not is_forced and not args.snapshot:
         if os.path.exists(LAST_RUN_FILE):
             try:
                 with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
@@ -1672,6 +2053,17 @@ async def main():
         github_token=github_token,
         gitlab_token=gitlab_token
     )
+
+    if args.snapshot:
+        try:
+            success = await collector.create_snapshot()
+        finally:
+            from core.settings_loader import close_clients
+            await close_clients()
+        if not success:
+            sys.exit(1)
+        return
+
     await collector.collect_updates(
         translate=args.translate,
         max_entries=args.test

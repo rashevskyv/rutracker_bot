@@ -30,6 +30,7 @@ The bot runs on a hybrid scheduling model using GitHub Actions and self-managing
 ### 1. Main RuTracker Feed Checker (`main.py`)
 - Pulls from a configured Atom feed every 15 minutes.
 - Parses topic contents using search strategies (phrase search, author changelog patterns) to extract update text.
+- **Robust HTML Parser & Sanitizer**: Cleans descriptions and formats spoilers/quotes into Telegram-supported tags with strict DOM tree safety checks (`parent is not None`) to safely process nested quotes, nested spoilers, and decomposed screenshot blocks without crashing.
 - Translates descriptions and update details from Russian to Ukrainian using GPT-4o-mini (`gpt-5.4-nano` fallback).
 - Validates and searches for game trailers on YouTube using word-overlap and GPT title validation.
 - Downloads screenshots using TitleDB by matching game titles; automatically detects **Homebrew** releases (`Homebrew`, `#Homebrew`, `Хоумбрю`, `Хомбрю`) by genre, description hashtags, and title tags to suppress screenshot lookups and avoid mismatched commercial screenshots.
@@ -148,6 +149,7 @@ These files are synced: `posted_links.json`, `hb_state.json`, `daily_digest_data
 `hb_descriptions.json`, `translations_cache.json`.
 
 - **Selective sync**: You can download or upload specific files instead of the entire state (e.g. `python sync_gist_state.py download manual_releases.json`).
+- **Download & upload merge safety**: Merging logic prevents stale local files from dropping remote Gist additions during `download`, while preserving local drafts and respecting deliberate local deletions during `upload`.
 - **Truncated content handling**: Automatically fetches complete file contents via `raw_url` if files exceed 1MB in Gist.
 - **Resilient auth**: Public Gist downloading and merge state fetching automatically retry without authentication if `GIST_TOKEN` or `GITHUB_TOKEN` returns HTTP 401 Bad credentials.
 If the token lacks Gist write permission or is invalid/expired, `upload` fails with 401/403 and state cannot be pushed to Gist.
@@ -188,4 +190,3 @@ To protect against GitHub Actions schedule delays and prevent duplicate posts:
 - Collectors and Send scripts implement a **20-hour cooldown check** internally.
 - Even if GitHub Actions cron triggers a script multiple times in its scheduled hour, the script runs successfully only once per day.
 - A forced run can be triggered manually from GitHub Actions by choosing the task under `force_task` inputs.
-

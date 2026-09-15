@@ -156,7 +156,7 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
                             with open(filepath, "r", encoding="utf-8") as lf:
                                 local_content = lf.read()
                             if local_content.strip() and content.strip():
-                                merged = merge_json_files(filename, local_content, content)
+                                merged = merge_json_files(filename, local_content, content, is_download=True)
                                 if merged != content:
                                     logger.info(
                                         f"Download merge kept newer/local-preferred state for {filename}"
@@ -184,7 +184,7 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
         logger.error(f"Error downloading state: {e}")
         raise
 
-def merge_json_files(filename: str, local_content: str, gist_content: str) -> str:
+def merge_json_files(filename: str, local_content: str, gist_content: str, is_download: bool = False) -> str:
     """Safely merges local and Gist contents for JSON files to prevent data loss while respecting local edits."""
     try:
         local_data = json.loads(local_content)
@@ -203,6 +203,35 @@ def merge_json_files(filename: str, local_content: str, gist_content: str) -> st
             name = e.get('title') or e.get('app_name') or ""
             version = e.get('version') or ""
             return (url.strip(), name.strip().lower(), version.strip().lower())
+
+        if is_download:
+            # When downloading, Gist content is the authoritative remote state.
+            # We preserve any local modifications (e.g. processed status, descriptions)
+            # and any new entries created locally that are not yet on Gist.
+            local_by_key = {get_release_key(e): e for e in local_data}
+            seen_keys = set()
+            merged_list = []
+            for gist_entry in gist_data:
+                key = get_release_key(gist_entry)
+                seen_keys.add(key)
+                if key in local_by_key:
+                    local_entry = local_by_key[key]
+                    merged_entry = dict(gist_entry)
+                    merged_entry.update(local_entry)
+                    if local_entry.get('processed') or gist_entry.get('processed'):
+                        merged_entry['processed'] = True
+                    merged_list.append(merged_entry)
+                else:
+                    merged_list.append(gist_entry)
+
+            for local_entry in local_data:
+                key = get_release_key(local_entry)
+                if key not in seen_keys:
+                    app_name = (local_entry.get('title') or local_entry.get('app_name') or '').strip().lower()
+                    gist_app_names = {(e.get('title') or e.get('app_name') or '').strip().lower() for e in gist_data}
+                    if not local_entry.get('processed') or app_name not in gist_app_names:
+                        merged_list.append(local_entry)
+            return json.dumps(merged_list, ensure_ascii=False, indent=2)
 
         gist_by_key = {get_release_key(e): e for e in gist_data}
         
