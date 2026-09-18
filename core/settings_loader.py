@@ -113,8 +113,7 @@ FLARESOLVERR_URL = settings.get('FLARESOLVERR_URL', 'http://localhost:8191/v1')
 GROUPS = settings.get('GROUPS', [])
 TEST_GROUPS = settings.get('TEST_GROUPS', [])
 ERROR_TG = settings.get('ERROR_TG', [])
-RUTRACKER_COOKIES: Optional[Dict[str, str]] = settings.get('RUTRACKER_COOKIES', None)
-# Get the test link ONLY if in test mode
+RUTRACKER_COOKIES: Dict[str, str] = settings.get('RUTRACKER_COOKIES') or {}
 TEST_LAST_ENTRY_LINK = settings.get('test_last_entry_link') if IS_TEST_MODE else None
 
 # --- Validate Critical Settings ---

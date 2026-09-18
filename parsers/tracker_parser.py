@@ -53,9 +53,18 @@ def is_homebrew_genre(
 
     return False
 
+FLARESOLVERR_USER_AGENT: Optional[str] = None
+last_flaresolverr_error: Optional[str] = None
+
+def get_last_flaresolverr_error() -> Optional[str]:
+    """Returns the most recent FlareSolverr error message, if any."""
+    return last_flaresolverr_error
+
 async def fetch_via_flaresolverr(url: str, timeout: int = 120) -> Optional[BeautifulSoup]:
     """Fetch page content via FlareSolverr proxy to bypass Cloudflare challenge."""
+    global FLARESOLVERR_USER_AGENT, last_flaresolverr_error
     if not FLARESOLVERR_URL:
+        last_flaresolverr_error = "FLARESOLVERR_URL is not configured"
         return None
 
     session = get_session()
@@ -72,7 +81,8 @@ async def fetch_via_flaresolverr(url: str, timeout: int = 120) -> Optional[Beaut
         logger.info(f"Attempting FlareSolverr bypass for {url} via {FLARESOLVERR_URL}...")
         async with session.post(FLARESOLVERR_URL, json=payload, timeout=timeout + 10) as response:
             if response.status != 200:
-                logger.error(f"FlareSolverr returned HTTP {response.status}")
+                last_flaresolverr_error = f"FlareSolverr returned HTTP {response.status}"
+                logger.error(last_flaresolverr_error)
                 return None
             data = await response.json()
             if data.get("status") == "ok" and "solution" in data:
@@ -82,14 +92,29 @@ async def fetch_via_flaresolverr(url: str, timeout: int = 120) -> Optional[Beaut
                     if isinstance(c, dict) and "name" in c and "value" in c:
                         if RUTRACKER_COOKIES is not None:
                             RUTRACKER_COOKIES[c["name"]] = c["value"]
+                returned_ua = data["solution"].get("userAgent")
+                if returned_ua:
+                    FLARESOLVERR_USER_AGENT = returned_ua
                 soup = BeautifulSoup(html_content, "html.parser")
                 logger.info(f"Successfully fetched {url} via FlareSolverr.")
+                last_flaresolverr_error = None
                 return soup
             else:
-                logger.error(f"FlareSolverr response error: {data.get('message')}")
+                msg = data.get("message", "Unknown FlareSolverr response error")
+                last_flaresolverr_error = f"FlareSolverr response error: {msg}"
+                logger.error(last_flaresolverr_error)
                 return None
+    except aiohttp.ClientConnectorError as e:
+        last_flaresolverr_error = f"Cannot connect to FlareSolverr at {FLARESOLVERR_URL} ({e})"
+        logger.error(f"FlareSolverr connection failed for {url}: {last_flaresolverr_error}")
+        return None
+    except asyncio.TimeoutError:
+        last_flaresolverr_error = f"Timeout after {timeout}s waiting for FlareSolverr at {FLARESOLVERR_URL}"
+        logger.error(f"FlareSolverr request timed out for {url}: {last_flaresolverr_error}")
+        return None
     except Exception as e:
-        logger.error(f"FlareSolverr request failed for {url}: {e}")
+        last_flaresolverr_error = f"FlareSolverr request error ({type(e).__name__}): {e}"
+        logger.error(f"FlareSolverr request failed for {url}: {last_flaresolverr_error}")
         return None
 
 async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Optional[BeautifulSoup]:
@@ -101,9 +126,14 @@ async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Opt
         'Upgrade-Insecure-Requests': '1',
         'Referer': 'https://rutracker.org/forum/index.php'
     }
-    cookies = RUTRACKER_COOKIES or {}
+    cookies = RUTRACKER_COOKIES if RUTRACKER_COOKIES is not None else {}
 
     for attempt in range(retries):
+        if FLARESOLVERR_USER_AGENT:
+            headers['User-Agent'] = FLARESOLVERR_USER_AGENT
+        if RUTRACKER_COOKIES:
+            cookies = RUTRACKER_COOKIES
+
         try:
             async with CurlSession(impersonate="chrome110") as session:
                 response = await session.get(
@@ -112,15 +142,43 @@ async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Opt
                 if response.status_code == 404:
                     return None
                 if response.status_code == 403 or "Just a moment..." in response.text:
+                    # If rutracker.org is challenged, try direct mirror rutracker.net with curl_cffi first
+                    if "rutracker.org" in url:
+                        alt_url = url.replace("rutracker.org", "rutracker.net")
+                        try:
+                            alt_response = await session.get(
+                                alt_url, headers=headers, cookies=cookies, timeout=90
+                            )
+                            if alt_response.status_code == 200 and "Just a moment..." not in alt_response.text:
+                                logger.info(f"Direct fetch succeeded on mirror {alt_url}!")
+                                return BeautifulSoup(alt_response.content, "html.parser")
+                        except Exception as alt_e:
+                            logger.debug(f"Direct mirror fetch failed for {alt_url}: {alt_e}")
+
                     logger.warning(f"Cloudflare challenge detected (HTTP {response.status_code}) fetching {url}. Trying FlareSolverr...")
                     flaresolverr_soup = await fetch_via_flaresolverr(url)
+
+                    # Fail-fast if FlareSolverr is unreachable (Docker container stopped on Ubuntu server)
+                    if not flaresolverr_soup and last_flaresolverr_error and ("Cannot connect to" in last_flaresolverr_error or "Connection refused" in last_flaresolverr_error):
+                        logger.error(
+                            f"FlareSolverr service is unreachable at {FLARESOLVERR_URL}. "
+                            f"Failing fast to avoid repeated failed attempts against Cloudflare."
+                        )
+                        raise ValueError(
+                            f"Cloudflare challenge encountered (HTTP 403), but FlareSolverr is unreachable at {FLARESOLVERR_URL}. "
+                            f"Please start FlareSolverr Docker container on the Ubuntu server: "
+                            f"'docker run -d --name=flaresolverr -p 8191:8191 -e LOG_LEVEL=info --restart=unless-stopped ghcr.io/flaresolverr/flaresolverr:latest'. "
+                            f"Details: {last_flaresolverr_error}"
+                        )
+
                     if not flaresolverr_soup and "rutracker.org" in url:
                         alt_url = url.replace("rutracker.org", "rutracker.net")
                         logger.info(f"Retrying FlareSolverr with alternative mirror: {alt_url}")
                         flaresolverr_soup = await fetch_via_flaresolverr(alt_url)
+
                     if flaresolverr_soup:
                         return flaresolverr_soup
-                    logger.error(f"FlareSolverr fallback failed for {url} (Attempt {attempt + 1}/{retries})")
+                    logger.error(f"FlareSolverr fallback failed for {url} (Attempt {attempt + 1}/{retries}). Reason: {last_flaresolverr_error}")
                 elif response.status_code != 200:
                     logger.error(f"HTTP {response.status_code} fetching {url} (Attempt {attempt + 1}/{retries})")
                 else:
@@ -131,7 +189,9 @@ async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Opt
                     logger.info(f"Retrying in {delay}s... ({attempt + 2}/{retries})")
                     await asyncio.sleep(delay)
                     continue
-                raise ValueError(f"Failed to fetch page content (HTTP error {response.status_code} after {retries} attempts)")
+
+                cf_detail = f" (FlareSolverr: {last_flaresolverr_error})" if last_flaresolverr_error else ""
+                raise ValueError(f"Failed to fetch page content (HTTP error {response.status_code} after {retries} attempts{cf_detail})")
         except ValueError:
             raise
         except Exception as e:
@@ -141,7 +201,8 @@ async def fetch_page_content(url: str, retries: int = 15, delay: int = 1) -> Opt
                 await asyncio.sleep(delay)
             else:
                 logger.error(f"Failed to fetch {url} after {retries} attempts.")
-                raise ValueError(f"Failed to fetch page content (timeout or connection error after {retries} attempts)")
+                cf_detail = f" (FlareSolverr: {last_flaresolverr_error})" if last_flaresolverr_error else ""
+                raise ValueError(f"Failed to fetch page content (timeout or connection error after {retries} attempts{cf_detail})")
 
 # get_last_post_with_phrase remains the same
 async def get_last_post_with_phrase(phrase: str, base_url: str, max_pages_to_check: int = 5) -> Optional[str]:

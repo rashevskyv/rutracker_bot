@@ -176,14 +176,30 @@ Format for a manual homebrew entry:
 ]
 ```
 
-### Cloudflare Bypass via FlareSolverr
-To bypass Cloudflare JavaScript challenges (*Just a moment...*) when fetching topic pages from RuTracker on server environments:
+### Cloudflare Bypass via FlareSolverr (Ubuntu Server)
+To bypass Cloudflare JavaScript/Turnstile challenges (*Just a moment...*) when fetching topic pages from RuTracker on server environments (such as Ubuntu Server):
 - The bot features an automated fallback to FlareSolverr (`FLARESOLVERR_URL`, default `"http://localhost:8191/v1"`).
-- Run FlareSolverr via Docker on your server:
+- Run FlareSolverr via Docker on your Ubuntu Server:
   ```bash
-  docker run -d --name=flaresolverr -p 8191:8191 --restart=always ghcr.io/flaresolverr/flaresolverr:latest
+  docker run -d --name=flaresolverr -p 8191:8191 -e LOG_LEVEL=info --restart=unless-stopped ghcr.io/flaresolverr/flaresolverr:latest
   ```
-- When `tracker_parser.py` encounters a 403 response or Cloudflare challenge, it automatically routes the request through FlareSolverr to solve the challenge, fetch HTML, and cache updated `cf_clearance` cookies in memory.
+- **Diagnostics & Troubleshooting on Ubuntu Server**:
+  - Check container status:
+    ```bash
+    docker ps | grep flaresolverr
+    ```
+  - View FlareSolverr logs:
+    ```bash
+    docker logs --tail 50 flaresolverr
+    ```
+  - Test connectivity from the server:
+    ```bash
+    curl -s -X POST http://localhost:8191/v1 -H "Content-Type: application/json" -d '{"cmd":"request.get","url":"https://rutracker.org"}'
+    ```
+- When `tracker_parser.py` encounters a 403 response or Cloudflare challenge:
+  1. It first attempts a direct fetch on the alternative mirror `rutracker.net`.
+  2. If still blocked, it routes the request through FlareSolverr to solve the challenge, fetch HTML, and dynamically update `cf_clearance` cookies and matching `User-Agent`.
+  3. If the FlareSolverr service is down/unreachable, it **fails fast** with an actionable error message directing the administrator to start the container rather than repeating doomed requests.
 
 ### Scheduling & Cooldowns
 To protect against GitHub Actions schedule delays and prevent duplicate posts:

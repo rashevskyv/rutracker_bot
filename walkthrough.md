@@ -1,47 +1,47 @@
-# Walkthrough: Виправлення помилки парсингу сторінки трекера ("Cannot replace one element with another when the element to be replaced is not part of a tree") (v0.7.50)
+# Walkthrough: Виправлення помилки HTTP 403 RuTracker Cloudflare та фіксація середовища Ubuntu Server (v0.7.52)
 
-## Огляд змін
-У версії `v0.7.50`:
-1. **Діагностовано причину збою парсера**:
-   - Помилка `ValueError: Cannot replace one element with another when the element to be replaced is not part of a tree` виникала при виклику `replace_with()` або `unwrap()` для елементів BeautifulSoup, якщо їхній батьківський вузол був видалений або розгорнутий (`element.parent is None`).
-   - Типові сценарії відтворення:
-     1. **Вкладені цитати (`q-wrap` всередині `q-wrap`)**: список `find_all("div", class_="q-wrap")` знаходить і зовнішній, і внутрішній блоки цитат. При обробці зовнішньої цитати внутрішня розгортається (`sq.unwrap()`). Коли черга доходить до внутрішньої цитати в зовнішньому циклі, вона вже від'єднана (`quote.parent is None`), і виклик `quote.replace_with(...)` призводив до помилки.
-     2. **Вкладені спойлери у видалених блоках**: якщо зовнішній спойлер має назву "Скриншоты", викликається `target_spoiler.decompose()`. Всі внутрішні спойлери, які були заздалегідь зібрані через `find_all("div", class_="sp-wrap")`, втрачають батьківський вузол (`parent is None`), викликаючи збій на наступних ітераціях.
-2. **Впроваджено захист операцій над деревом DOM**:
-   - [utils/html_utils.py](file:///d:/git/dev/rutracker_bot/utils/html_utils.py):
-     - Додано перевірки `if target_spoiler.parent is None: continue` перед обробкою та заміною спойлерів.
-     - Захищено операції над внутрішніми блоками коду (`c_wrap`), цитатами (`q_wrap`), параграфами (`p`), горизонтальними лініями (`hr`) та розривами (`br`).
-     - Додано перевірки `if quote.parent is None: continue` для обробки цитат та захищено їхній фінальний `quote.replace_with(...)`.
-     - Підтримано англомовні заголовки цитат `wrote:` поруч із російськими `писал(а):` та прибрано здвоєні двокрапки.
-     - Захищено операції над списками (`li.unwrap()`, `ul.unwrap()`) та `tag.unwrap()` у `sanitize_html_for_telegram`.
-   - [parsers/tracker_parser.py](file:///d:/git/dev/rutracker_bot/parsers/tracker_parser.py):
-     - Ізольовано створення копії поста через `BeautifulSoup(str(post_body_div), 'html.parser')`.
-     - Додано перевірки `if quote.parent is not None:` перед `quote.decompose()` та `if br.parent is not None:` перед `br.replace_with("\n")` і `br.decompose()`.
-3. **Створено модульні тести**:
-   - [test_html_cleaner.py](file:///d:/git/dev/rutracker_bot/test_html_cleaner.py): 6 нових тестів, що покривають багаторівневі вкладені цитати, внутрішні спойлери всередині декомпозованих блоків скриншотів, блоки коду, списки та глибокі вкладені теги `span`.
-4. **Паралельне тестування**:
-   - Усі 88 тестів успішно пройшли в паралельному режимі (`pytest -n auto`).
-5. **Документація та версіонування**:
-   - Оновлено [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md), [README.md](file:///d:/git/dev/rutracker_bot/README.md), [task.md](file:///d:/git/dev/rutracker_bot/task.md) та [plan.md](file:///d:/git/dev/rutracker_bot/plan.md).
+У версії `v0.7.52`:
+1. **Зафіксовано архітектуру середовища розгортання**:
+   - У `GEMINI.md` та `README.md` чітко задокументовано, що продакшн-сервер бота розгорнуто та запущено на **Ubuntu Server** (Linux).
+   - Описано вимоги до Docker-стеку для обходу Cloudflare (контейнер `flaresolverr` на порту `8191`).
+   - Додано готові команди для діагностики, моніторингу та тестування на сервері.
 
----
+2. **Покращено обробку Cloudflare challenge (HTTP 403) та FlareSolverr у `parsers/tracker_parser.py`**:
+   - **Fail-Fast при відсутності сервісу**: якщо контейнер FlareSolverr не запущений на Ubuntu Server (помилка підключення до `localhost:8191`), бот не витрачає час на 15 повторів, а негайно перериває спроби та надсилає в Telegram конкретну команду для підняття Docker-контейнера.
+   - **Діагностичні повідомлення про помилку**: точна причина відмови FlareSolverr (`last_flaresolverr_error`) тепер фіксується та додається до тексту помилки в Telegram замість сухого "HTTP error 403 after 15 attempts".
+   - **Прямий фолбек на дзеркало**: перед активацією важкого запиту через FlareSolverr парсер намагається виконати прямий запит до дзеркала `rutracker.net`.
+   - **Синхронізація User-Agent**: User-Agent, з яким FlareSolverr успішно розв'язав challenge, зберігається (`FLARESOLVERR_USER_AGENT`) і автоматично передається у наступні запити для підтримки валідності токена `cf_clearance`.
 
-## Деталі змін коду
+3. **Безпека стану куків у `core/settings_loader.py`**:
+   - `RUTRACKER_COOKIES` завжди ініціалізується як змінний словник `dict` (`settings.get('RUTRACKER_COOKIES') or {}`), завдяки чому отримані куки динамічно зберігаються в спільній сесії.
 
-### 1. Захист у `clean_description_html` ([utils/html_utils.py](file:///d:/git/dev/rutracker_bot/utils/html_utils.py))
-- Кожен обхід елементів, повернених через `find_all()`, тепер перевіряє `if element.parent is None: continue`.
-- Будь-який виклик `replace_with()`, `unwrap()` чи `decompose()` здійснюється лише тоді, коли `element.parent is not None`.
-
-### 2. Захист у `sanitize_html_for_telegram` ([utils/html_utils.py](file:///d:/git/dev/rutracker_bot/utils/html_utils.py))
-- Додано перевірку наявності батьківського елемента перед видаленням та розгортанням непідтримуваних тегів.
-
-### 3. Ізоляція тіла поста ([parsers/tracker_parser.py](file:///d:/git/dev/rutracker_bot/parsers/tracker_parser.py))
-- Замість shallow copy (`__copy__()`) використовується повна ізоляція через окремий парсинг рядка, захищена перевірками вузлів.
+4. **Тестування**:
+   - Створено набір юніт-тестів `test_tracker_flaresolverr.py` (5 тестів):
+     - `test_flaresolverr_unconfigured`
+     - `test_flaresolverr_connection_error`
+     - `test_flaresolverr_success_updates_cookies_and_ua`
+     - `test_fetch_page_content_fail_fast_on_unreachable_flaresolverr`
+     - `test_fetch_page_content_mirror_success`
+   - Усі 93 тести проєкту виконано паралельно (`pytest -n auto`) — 100% успішно.
 
 ---
 
-## Результати тестування
-```powershell
-pytest -n auto
-# ============================= 88 passed in 14.73s =============================
-```
+## Що потрібно виконати на вашому Ubuntu Server зараз:
+Помилка `HTTP error 403 after 15 attempts` виникає через те, що на сервері RuTracker видає перевірку Cloudflare, а сервіс FlareSolverr зупинений або не запущений.
+
+1. **Перевірте стан контейнера FlareSolverr**:
+   ```bash
+   docker ps -a | grep flaresolverr
+   ```
+2. **Якщо контейнер зупинений, запустіть його**:
+   ```bash
+   docker start flaresolverr
+   ```
+3. **Якщо контейнер відсутній, створіть і запустіть його з автоперезапуском**:
+   ```bash
+   docker run -d --name=flaresolverr -p 8191:8191 -e LOG_LEVEL=info --restart=unless-stopped ghcr.io/flaresolverr/flaresolverr:latest
+   ```
+4. **Перевірте працездатність**:
+   ```bash
+   curl -s -X POST http://localhost:8191/v1 -H "Content-Type: application/json" -d '{"cmd":"request.get","url":"https://rutracker.org"}'
+   ```

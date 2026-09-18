@@ -1,44 +1,28 @@
-# План: Виправлення помилки парсингу сторінки трекера ("Cannot replace one element with another when the element to be replaced is not part of a tree")
+# План: Виправлення помилки HTTP 403 RuTracker Cloudflare та документування середовища Ubuntu Server (v0.7.52)
 
-## Мета
-Усунути критичну помилку `ValueError: Cannot replace one element with another when the element to be replaced is not part of a tree` при парсингу роздач з RuTracker (як-от топік 6908816). Помилка виникає в бібліотеці BeautifulSoup, коли метод `replace_with()` або `unwrap()` викликається для елемента, який вже був від'єднаний від дерева DOM (наприклад, через декомпозицію батьківського спойлера "Скриншоты" або через розгортання вкладеної цитати).
+## Опис проблеми
+Бот на продакшн Ubuntu Server натрапив на Cloudflare challenge (HTTP 403 "Just a moment...") під час завантаження роздачі `https://rutracker.org/forum/viewtopic.php?t=5734418`. 
+Через те, що фолбек FlareSolverr або був недоступний (контейнер не запущений), або не зміг пройти перевірку, бот здійснив 15 повторних спроб без зміни стану та надіслав загальну неінформативну помилку в Telegram: `Failed to fetch page content (HTTP error 403 after 15 attempts)`.
 
-## Етапи виконання
+Користувач нагадав: **запуск сервера виконується на Ubuntu Server**. Це середовище має бути чітко зафіксовано в системній документації (`GEMINI.md` та `README.md`).
 
-1. **Діагностика та точне відтворення**
-   - [x] Дослідити помилку в `utils/html_utils.py` та `parsers/tracker_parser.py`.
-   - [x] Створити репродуктивний тест для вкладених цитат (`q-wrap` всередині `q-wrap`) та видалених спойлерів ("Скриншоты" з внутрішніми `sp-wrap`).
+## Етапи реалізації
 
-2. **Модифікація `utils/html_utils.py`**
-   - [x] У циклі обробки спойлерів (`div.sp-wrap`):
-     - Додати перевірку `if target_spoiler.parent is None: continue`.
-     - Додати перевірку `if target_spoiler.parent is not None:` перед `target_spoiler.replace_with(...)`.
-     - Захистити внутрішні операції над `c_wrap`, `q_wrap`, `p`, `hr`, `br`.
-   - [x] У циклі обробки блоків коду (`div.c-wrap`):
-     - Додати перевірку `if c_wrap.parent is None: continue`.
-     - Перевіряти `if c_wrap.parent is not None:` перед `c_wrap.replace_with(...)`.
-   - [x] У циклі обробки цитат (`div.q-wrap`):
-     - Додати перевірку `if quote.parent is None: continue`.
-     - Захистити декомпозицію `q_head` та внутрішніх `sq` (`if sq.parent is not None: sq.unwrap()`).
-     - Перевіряти `if quote.parent is not None:` перед `quote.replace_with(...)`.
-     - Підтримати англомовні заголовки цитат `wrote:` та запобігти здвоєним двокрапкам.
-   - [x] У спискових операціях та заміні `hr`/`br`:
-     - Додати перевірку `if tag.parent is not None` перед `replace_with` або `unwrap`.
-   - [x] У функції `sanitize_html_for_telegram`:
-     - Захистити `tag.unwrap()` перевіркою `if tag.parent is not None:`.
+1. **Документування архітектури середовища Ubuntu Server**
+   - [x] Додати розділ `Server Deployment Environment (Ubuntu Server)` у `GEMINI.md`.
+   - [x] Оновити інструкції в `README.md` щодо запуску, моніторингу та автоперезапуску Docker-контейнера FlareSolverr на Ubuntu Server.
 
-3. **Модифікація `parsers/tracker_parser.py`**
-   - [x] У функції `get_last_post_with_phrase`: перевіряти `if quote.parent is not None:` перед `quote.decompose()` та `if br.parent is not None:` перед `br.replace_with(...)`.
-   - [x] Ізолювати копіювання поста через `BeautifulSoup(str(post_body_div), 'html.parser')`.
-   - [x] У блоці заголовка: перевіряти `if br.parent is not None:` перед `br.decompose()`.
+2. **Покращення діагностики та обробки помилок у `parsers/tracker_parser.py`**
+   - [x] Зберігати та повертати точну причину невдачі FlareSolverr (наприклад, `ConnectionRefusedError`, таймаут Turnstile, або помилка статусу).
+   - [x] Впровадити режим **Fail-Fast**: якщо FlareSolverr недоступний (порт 8191 не відповідає), негайно переривати 15 безглуздих повторів і генерувати зрозумілу помилку з точною командою для запуску Docker на Ubuntu Server.
+   - [x] Синхронізувати `User-Agent` із рішення FlareSolverr, щоб майбутні запити з `cf_clearance` не відхилялися Cloudflare.
+   - [x] Додати пряму перевірку дзеркала `rutracker.net` через `curl_cffi` перед викликом FlareSolverr.
+   - [x] Додати додаткову діагностичну інформацію у повідомлення Telegram про помилку.
 
-4. **Тестування та валідація**
-   - [x] Додати постійні тести в тестовий набір (`test_html_cleaner.py`).
-   - [x] Запустити всі тести паралельно (`pytest -n auto`).
-   - [x] Переконатися, що всі тестові сценарії (вкладені цитати, вкладені спойлери, від'єднані вузли) проходять успішно (88/88 passed).
+3. **Тестування**
+   - [x] Додати юніт-тести для перевірки fail-fast поведінки, збереження причини помилки FlareSolverr та User-Agent синхронізації (`test_tracker_flaresolverr.py`).
+   - [x] Запустити повний набір тестів паралельно (`pytest -n auto` — 93 passed).
 
-5. **Оновлення документації та реліз**
-   - [x] Оновити `CHANGELOG.md` для версії `v0.7.50`.
-   - [x] Оновити `README.md` з описом виправлення та захищеного парсингу HTML.
-   - [x] Заповнити `walkthrough.md`.
-   - [x] Оновити `plan.md` та `task.md`.
+4. **Оновлення документації та версіонування**
+   - [x] Ітерувати версію до `v0.7.52`.
+   - [x] Оновити `CHANGELOG.md`, `task.md` та `walkthrough.md`.

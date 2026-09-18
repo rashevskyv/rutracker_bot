@@ -2,6 +2,35 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.52] - 2026-09-18
+
+### Fixed
+- **Cloudflare Challenge Diagnostic & FlareSolverr Fail-Fast**:
+  - `parsers/tracker_parser.py`: Fixed silent FlareSolverr failures during Cloudflare challenges (HTTP 403) where previous versions repeated 15 identical failed attempts and threw an uninformative `HTTP error 403 after 15 attempts` error.
+  - Implemented **Fail-Fast** error handling: if FlareSolverr is unreachable (connection refused on port 8191, e.g. Docker container stopped on Ubuntu Server), `fetch_page_content()` terminates immediately and raises an actionable `ValueError` providing the exact Docker run command to start FlareSolverr.
+  - Tracked and surfaced the exact FlareSolverr error (`last_flaresolverr_error`) in the final exception so Telegram error notifications provide full diagnostic clarity.
+  - Added direct fallback to mirror `rutracker.net` with `curl_cffi` before triggering FlareSolverr when `rutracker.org` is challenged.
+  - Synchronized `User-Agent` returned by FlareSolverr (`FLARESOLVERR_USER_AGENT`) into subsequent HTTP request headers to ensure Cloudflare `cf_clearance` tokens remain valid.
+- **Settings Loader Cookie Safety**:
+  - `core/settings_loader.py`: Initialized `RUTRACKER_COOKIES` as an empty dictionary if unset (`settings.get('RUTRACKER_COOKIES') or {}`) so dynamically obtained cookies from FlareSolverr are reliably retained across the application session.
+
+### Added
+- **Ubuntu Server Deployment Documentation**:
+  - `GEMINI.md`: Documented production host environment as **Ubuntu Server**, detailing Docker requirements for FlareSolverr and anti-bot challenge architecture.
+  - `README.md`: Added dedicated Ubuntu Server section with commands to run, monitor (`docker ps`, `docker logs`), and test (`curl http://localhost:8191/v1`) the FlareSolverr container.
+- **Unit Tests**:
+  - `test_tracker_flaresolverr.py`: Added automated test suite covering unconfigured FlareSolverr, connection refusal, successful cookie/User-Agent extraction, fail-fast on unreachable service, and direct mirror bypass.
+
+## [v0.7.51] - 2026-09-17
+
+### Added
+- **Manual Releases Addition**: Added 4 new Nintendo Switch homebrew and port releases to `data/manual_releases.json` with detailed Ukrainian descriptions, `Switch` platform grouping, and `processed: false` status for upcoming digest announcements:
+  - `Jazz² Resurrection (deathkiller)` v3.8.0 (`https://github.com/deathkiller/jazz2/releases/tag/3.8.0`) — Open-source reimplementation of Jazz Jackrabbit 2 for Nintendo Switch with RAM and tilemap optimizations, split-screen local multiplayer, and performance improvements.
+  - `OpenJazzNX (KranKRival)` v1.2.1 (`https://github.com/KranKRival/OpenJazzNX/releases/tag/1.2.1`) — Port of OpenJazz (reimplementation of classic platformer Jazz Jackrabbit 1) for Nintendo Switch with SDL2 support and native controls.
+  - `D.Smile (1timewire1)` v1.0.1 (`https://github.com/1timewire1/D.Smile_nx/releases/tag/1.0.1`) — Full-featured VTech V.Smile educational console emulator for Nintendo Switch featuring ZIP game loading, 11 new shaders, and updated UI.
+  - `Wine-NX (danfromtico)` test-build-2 (`https://github.com/danfromtico/wine-nx/releases/tag/test-build-2`) — Wine compatibility layer for Nintendo Switch to run Windows x86 (via Box64) and ARM64 applications natively in Horizon OS, featuring DXVK (Vulkan) support for DirectX titles and a new launcher.
+- **Gist State Synchronization**: Downloaded current state from GitHub Gist (`python sync_gist_state.py download manual_releases.json`), merged with local state, appended the 4 new releases (expanding database to 251 entries), and uploaded the updated state to Gist (`python sync_gist_state.py upload manual_releases.json`).
+
 ## [v0.7.50] - 2026-09-15
 
 ### Fixed

@@ -6,10 +6,22 @@
 main.py                  — Main bot loop (feed → parse → post → digest)
 send_daily_digest.py     — Daily digest sender (cron 08:00)
 send_homebrew_digest.py  — Homebrew digest sender (cron 08:00)
-send_homebrew_digest.py  — Homebrew digest sender (cron 08:00)
 send_swuk_digest.py      — Switch UA localizations digest sender (cron 08:00)
 collect_homebrew_updates.py — Multi-source homebrew collector (cron 07:00)
 collect_swuk_updates.py  — swuk.com.ua RSS collector (cron 07:00)
+
+## Server Deployment Environment (Ubuntu Server)
+
+- **Operating System:** Production bot runs on an **Ubuntu Server** (Linux environment).
+- **Execution:** Periodic execution handled via cron/systemd or runner script (`run_checker.sh`).
+- **Cloudflare & FlareSolverr Architecture:**
+  - RuTracker frequently enforces Cloudflare challenge checks (HTTP 403 "Just a moment...") on datacenter IPs.
+  - FlareSolverr runs as a Docker container on the Ubuntu server:
+    ```bash
+    docker run -d --name=flaresolverr -p 8191:8191 -e LOG_LEVEL=info --restart=unless-stopped ghcr.io/flaresolverr/flaresolverr:latest
+    ```
+  - The bot connects to FlareSolverr at `http://localhost:8191/v1` (configured via `FLARESOLVERR_URL` in `config/settings.json` or `config/local_settings.json`).
+  - If the FlareSolverr container is down or unreachable, `fetch_page_content()` triggers a fail-fast ValueError explicitly alerting the administrator on Telegram to start the Docker container rather than retrying blindly 15 times.
 
 core/
   settings_loader.py     — Settings, session, bot init
