@@ -195,6 +195,58 @@ def test_merge_manual_releases_download_and_upload():
     assert "App B (Remote CI)" not in names_ul  # deleted locally, respected on upload
 
 
+def test_catalog_states_in_files_to_sync():
+    import sync_gist_state
+    for filename in (
+        "udb_state.json",
+        "fortheusers_state.json",
+        "vitadb_state.json",
+        "switchports_state.json",
+    ):
+        assert filename in sync_gist_state.FILES_TO_SYNC
+
+
+def test_merge_catalog_states():
+    import json
+    import sync_gist_state
+
+    # 1. udb_state.json: local newer timestamp wins, disjoint keys unioned
+    local_udb = {
+        "app1": {"version": "1.1", "updated": "2026-08-30T00:00:00Z", "release_url": "https://example.com/1"},
+        "local_only": {"version": "1.0", "updated": "2026-08-01T00:00:00Z"},
+    }
+    gist_udb = {
+        "app1": {"version": "1.0", "updated": "2026-08-20T00:00:00Z", "release_url": "https://example.com/1"},
+        "gist_only": {"version": "2.0", "updated": "2026-08-15T00:00:00Z"},
+    }
+    merged_udb = json.loads(sync_gist_state.merge_json_files("udb_state.json", json.dumps(local_udb), json.dumps(gist_udb)))
+    assert merged_udb["app1"]["version"] == "1.1"
+    assert "local_only" in merged_udb
+    assert "gist_only" in merged_udb
+
+    # 2. fortheusers_state.json: parsed DD/MM/YYYY date comparison across month boundary
+    # 01/02/2026 is chronologically newer than 31/01/2026, even though "31/01/2026" > "01/02/2026" lexicographically
+    local_ftu_newer = {"switch-hb:app": {"version": "1.1", "updated": "01/02/2026"}}
+    gist_ftu_older = {"switch-hb:app": {"version": "1.0", "updated": "31/01/2026"}}
+    merged_ftu = json.loads(sync_gist_state.merge_json_files("fortheusers_state.json", json.dumps(local_ftu_newer), json.dumps(gist_ftu_older)))
+    assert merged_ftu["switch-hb:app"]["version"] == "1.1"
+
+    merged_ftu_b = json.loads(sync_gist_state.merge_json_files("fortheusers_state.json", json.dumps(gist_ftu_older), json.dumps(local_ftu_newer)))
+    assert merged_ftu_b["switch-hb:app"]["version"] == "1.1"
+
+    # 3. vitadb_state.json: equal dates, higher version wins
+    local_vita = {"vita-hb:10": {"version": "1.5", "date": "2026-05-01"}}
+    gist_vita = {"vita-hb:10": {"version": "1.0", "date": "2026-05-01"}}
+    merged_vita = json.loads(sync_gist_state.merge_json_files("vitadb_state.json", json.dumps(local_vita), json.dumps(gist_vita)))
+    assert merged_vita["vita-hb:10"]["version"] == "1.5"
+
+    # 4. switchports_state.json: preserves newer last_updated
+    local_sp = {"test/game": {"game_name": "Game", "version": "1.0", "last_updated": "2026-01-01"}}
+    gist_sp = {"test/game": {"game_name": "Game", "version": "1.1", "last_updated": "2026-02-01"}}
+    merged_sp = json.loads(sync_gist_state.merge_json_files("switchports_state.json", json.dumps(local_sp), json.dumps(gist_sp)))
+    assert merged_sp["test/game"]["version"] == "1.1"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

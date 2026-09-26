@@ -8,7 +8,7 @@ import json
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Optional, Set
 import aiohttp
@@ -70,13 +70,15 @@ class HomebrewUpdatesCollector:
 
     def __init__(self, list_path: str = DEFAULT_LIST_PATH, state_path: str = None, github_token: Optional[str] = None, gitlab_token: Optional[str] = None,
                  udb_state_path: Optional[str] = None, fortheusers_state_path: Optional[str] = None,
-                 vitadb_state_path: Optional[str] = None, switchports_state_path: Optional[str] = None):
+                 vitadb_state_path: Optional[str] = None, switchports_state_path: Optional[str] = None,
+                 last_run_path: Optional[str] = None):
         self.list_path = Path(list_path)
         self.state_path = Path(state_path or DEFAULT_STATE_PATH)
         self.udb_state_path = Path(udb_state_path or UDB_STATE_PATH)
         self.fortheusers_state_path = Path(fortheusers_state_path or FORTHEUSERS_STATE_PATH)
         self.vitadb_state_path = Path(vitadb_state_path or VITADB_STATE_PATH)
         self.switchports_state_path = Path(switchports_state_path or SWITCHPORTS_STATE_PATH)
+        self.last_run_path = Path(last_run_path) if last_run_path else (self.state_path.parent / 'last_homebrew_digest_run.json')
         self.github_token = github_token
         self.gitlab_token = gitlab_token
         self._session = None
@@ -173,6 +175,26 @@ class HomebrewUpdatesCollector:
 
     def save_udb_state(self):
         self._save_json(self.udb_state_path, self._udb_state, "UDB state")
+
+    def get_persisted_time_boundary(self) -> Optional[datetime]:
+        """
+        Load the persisted time boundary (last homebrew digest send timestamp).
+        Returns None if missing or unparseable.
+        """
+        if not self.last_run_path.exists():
+            return None
+        try:
+            with open(self.last_run_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                raw_time = data.get('last_digest_time')
+                if raw_time:
+                    dt = datetime.fromisoformat(raw_time)
+                    if dt.tzinfo is None:
+                        dt = dt.astimezone()
+                    return dt
+        except Exception as e:
+            logger.debug(f"Could not read persisted time boundary from {self.last_run_path}: {e}")
+        return None
 
     def load_fortheusers_state(self) -> Dict[str, Dict]:
         return self._load_json(self.fortheusers_state_path, "ForTheUsers state")
@@ -739,7 +761,7 @@ class HomebrewUpdatesCollector:
             if entry.get('platform', '') in UDB_CATEGORIES:
                 slug = self._extract_github_slug(entry.get('api_url', ''))
                 if slug:
-                    local_by_slug[slug] = entry
+                    local_by_slug[slug.lower()] = entry
 
         # Fetch all UDB apps
         try:
@@ -812,6 +834,41 @@ class HomebrewUpdatesCollector:
                 updated_changed = current_updated and current_updated != saved_updated
                 if not version_changed and not updated_changed:
                     continue
+            else:
+                saved = {}
+
+            # Resolve local entry for this UDB app
+            local_entry = local_by_slug.get((gh_slug or '').lower()) if gh_slug else None
+
+            # Determine release date
+            has_valid_updated = False
+            if current_updated:
+                try:
+                    release_date = datetime.fromisoformat(
+                        current_updated.replace('Z', '+00:00')
+                    )
+                    has_valid_updated = True
+                except Exception:
+                    release_date = datetime.now()
+            else:
+                release_date = datetime.now()
+
+            # If the app is already known in local registry or hb_state, it's not a new app
+            if is_new_app:
+                is_known_local = bool(local_entry) or bool(gh_slug and any(
+                    (self._extract_github_slug(k) or '').lower() == gh_slug.lower() for k in self._state
+                ))
+                if is_known_local:
+                    is_new_app = False
+                elif not has_valid_updated:
+                    # Do not treat missing updated date as evidence of a new app; classify conservatively as ordinary
+                    is_new_app = False
+                else:
+                    boundary = self.get_persisted_time_boundary()
+                    if boundary is not None:
+                        norm_release = release_date if release_date.tzinfo else release_date.replace(tzinfo=timezone.utc)
+                        if norm_release < boundary:
+                            is_new_app = False
 
             # Found an update or new app!
             app_title = udb_app.get('title', udb_slug)
@@ -825,11 +882,11 @@ class HomebrewUpdatesCollector:
                 }
                 continue
 
-            action_desc = "new app" if is_new_app else f"update: {app_title} {current_version} (was {saved.get('version', '')})"
+            action_desc = "new app" if is_new_app else (
+                f"update: {app_title} {current_version} (was {saved.get('version', '')})"
+                if saved.get('version') else f"update: {app_title} {current_version}"
+            )
             logger.info(f"UDB {action_desc}")
-
-            # Resolve local entry for this UDB app
-            local_entry = local_by_slug.get((gh_slug or '').lower()) if gh_slug else None
 
             # Get description (priority chain)
             description = await self._get_description_for_udb_app(
@@ -844,14 +901,6 @@ class HomebrewUpdatesCollector:
 
             # Determine release URL
             release_url = download_or_gh
-
-            # Determine release date
-            try:
-                release_date = datetime.fromisoformat(
-                    current_updated.replace('Z', '+00:00')
-                ) if current_updated else datetime.now()
-            except Exception:
-                release_date = datetime.now()
 
             # Determine category for digest
             # Use local entry category if available, otherwise derive from UDB systems

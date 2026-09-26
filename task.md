@@ -1,20 +1,17 @@
-# Завдання: Виправлення помилки HTTP 403 RuTracker Cloudflare та документування Ubuntu Server (v0.7.52)
+# Завдання: Синхронізація та додавання Autorun (danfromtico) у manual_releases.json (v0.7.53)
 
 ## Виконані завдання
-- [x] **Документування архітектури середовища Ubuntu Server**:
-  - [x] Додано розділ `Server Deployment Environment (Ubuntu Server)` у `GEMINI.md`.
-  - [x] Оновлено `README.md` із командами запуску, моніторингу та перевірки працездатності FlareSolverr через Docker на Ubuntu Server.
-- [x] **Покращення обробки та діагностики Cloudflare/FlareSolverr у `parsers/tracker_parser.py`**:
-  - [x] Додано фіксацію та збереження детальної причини відмови FlareSolverr (`last_flaresolverr_error` / `get_last_flaresolverr_error()`).
-  - [x] Реалізовано Fail-Fast переривання: при недоступності сервісу FlareSolverr (connection refused) бот негайно зупиняє циклічні запити та викидає інформативне повідомлення з готовою Docker-командою для Ubuntu Server.
-  - [x] Впроваджено прямий фолбек на дзеркало `rutracker.net` через `curl_cffi` перед зверненням до FlareSolverr.
-  - [x] Синхронізація повернутого `userAgent` від FlareSolverr (`FLARESOLVERR_USER_AGENT`) у подальші HTTP-запити для збереження валідності `cf_clearance`.
-  - [x] Увімкнено виведення детальної причини FlareSolverr у фінальний виняток `ValueError` для сповіщень Telegram.
-- [x] **Безпека збереження куків**:
-  - [x] `core/settings_loader.py`: ініціалізація `RUTRACKER_COOKIES` як mutable dict (`{}` за замовчуванням), що гарантує збереження динамічних куків у спільній сесії.
+- [x] **Синхронізація бази релізів з Gist**:
+  - [x] Виконано завантаження актуального стану `manual_releases.json` з GitHub Gist через `python sync_gist_state.py download manual_releases.json` зі збереженням нових релізів від серверних колекторів.
+- [x] **Аналіз та додавання релізу `danfromtico/autorun`**:
+  - [x] Перевірено репозиторій та випуск `test-build-3` (ребрендинг з Wine-NX на Autorun, новий інтерфейс, індивідуальний мапінг клавіш, 32-бітний автофорвардер).
+  - [x] Складено інформативний опис українською мовою без надлишкових слів.
+  - [x] Додано запис у `data/manual_releases.json` зі статусом `processed: false` та платформою `Switch` (загальна кількість записів зросла до 259).
+- [x] **Синхронізація оновленої бази з Gist**:
+  - [x] Успішно вивантажено оновлений `manual_releases.json` на GitHub Gist (`python sync_gist_state.py upload manual_releases.json`).
+  - [x] Проведено верифікаційне завантаження з Gist для підтвердження наявності всіх 259 записів.
 - [x] **Тестування**:
-  - [x] Створено новий файл юніт-тестів `test_tracker_flaresolverr.py` (5 тестів для перевірки unconfigured, connection error, cookie/UA sync, fail-fast та direct mirror).
   - [x] Усі 93 тести проєкту успішно виконані у паралельному режимі (`pytest -n auto`).
-- [x] **Оновлення релізу та документації**:
-  - [x] Ітеровано версію програми до `v0.7.52`.
+- [x] **Документація та версіонування**:
+  - [x] Ітеровано версію програми до `v0.7.53`.
   - [x] Оновлено `CHANGELOG.md`, `plan.md`, `task.md` та `walkthrough.md`.

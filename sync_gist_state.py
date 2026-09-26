@@ -22,6 +22,10 @@ ESHOP_STATE_FILES = [
 FILES_TO_SYNC = [
     "posted_links.json",
     "hb_state.json",
+    "udb_state.json",
+    "fortheusers_state.json",
+    "vitadb_state.json",
+    "switchports_state.json",
     "daily_digest_data.json",
     "homebrew_digest_data.json",
     "last_entry.txt",
@@ -336,7 +340,7 @@ def merge_json_files(filename: str, local_content: str, gist_content: str, is_do
                     merged_showcase[k] = gist_items
         return json.dumps(merged_showcase, ensure_ascii=False, indent=2)
 
-    elif filename == "hb_state.json":
+    elif filename in ("hb_state.json", "udb_state.json", "fortheusers_state.json", "vitadb_state.json", "switchports_state.json"):
         if not isinstance(local_data, dict): local_data = {}
         if not isinstance(gist_data, dict): gist_data = {}
         merged_state = dict(gist_data)
@@ -345,11 +349,23 @@ def merge_json_files(filename: str, local_content: str, gist_content: str, is_do
                 merged_state[k] = v
             else:
                 gist_v = merged_state[k]
-                local_ver = v.get("version", "")
-                gist_ver = gist_v.get("version", "")
-                local_upd = v.get("updated") or v.get("date", "")
-                gist_upd = gist_v.get("updated") or gist_v.get("date", "")
-                if local_upd > gist_upd or local_ver > gist_ver:
+                if isinstance(v, dict) and isinstance(gist_v, dict):
+                    local_ver = str(v.get("version") or v.get("tag_name") or "")
+                    gist_ver = str(gist_v.get("version") or gist_v.get("tag_name") or "")
+                    local_upd = str(v.get("updated") or v.get("date") or v.get("last_updated") or v.get("comm_date") or "")
+                    gist_upd = str(gist_v.get("updated") or gist_v.get("date") or gist_v.get("last_updated") or gist_v.get("comm_date") or "")
+                    if filename == "fortheusers_state.json":
+                        def _parse_ftu_date(s: str) -> str:
+                            p = s.split("/")
+                            return f"{p[2]}-{p[1].zfill(2)}-{p[0].zfill(2)}" if len(p) == 3 else s
+                        norm_local_upd = _parse_ftu_date(local_upd)
+                        norm_gist_upd = _parse_ftu_date(gist_upd)
+                    else:
+                        norm_local_upd = local_upd
+                        norm_gist_upd = gist_upd
+                    if norm_local_upd > norm_gist_upd or (norm_local_upd == norm_gist_upd and local_ver > gist_ver):
+                        merged_state[k] = v
+                else:
                     merged_state[k] = v
         return json.dumps(merged_state, ensure_ascii=False, indent=2)
 

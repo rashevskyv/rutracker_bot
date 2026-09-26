@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.53] - 2026-09-20
+
+### Added
+- **Manual Release Addition (`Autorun`)**: Added Nintendo Switch Windows PC game and app runner `Autorun (danfromtico)` v`test-build-3` (formerly Wine-NX, `https://github.com/danfromtico/autorun/releases/tag/test-build-3`) with Ukrainian description, `Switch` platform grouping, and `processed: false` status to `data/manual_releases.json`.
+- **Gist State Synchronization**: Downloaded authoritative state from GitHub Gist, merged recent automated collector discoveries (`Total Party Kill`, `Duke Dashington Remastered`, `Heart Star`, `Wine (NaGaa95)`), appended `Autorun (danfromtico)`, and uploaded the updated 259-entry registry back to Gist.
+- **Homebrew State Sync**: Added UDB, ForTheUsers, VitaDB, and SwitchPorts state files to Gist synchronization and merged their entries using update dates.
+- **UDB Release Classification**: Used the persisted digest time and exact repository identity to distinguish new apps from updates, with regression coverage.
+
 ## [v0.7.52] - 2026-09-18
 
 ### Fixed

@@ -1,47 +1,39 @@
-# Walkthrough: Виправлення помилки HTTP 403 RuTracker Cloudflare та фіксація середовища Ubuntu Server (v0.7.52)
+# Walkthrough: Синхронізація та додавання Autorun (danfromtico) у manual_releases.json (v0.7.53)
 
-У версії `v0.7.52`:
-1. **Зафіксовано архітектуру середовища розгортання**:
-   - У `GEMINI.md` та `README.md` чітко задокументовано, що продакшн-сервер бота розгорнуто та запущено на **Ubuntu Server** (Linux).
-   - Описано вимоги до Docker-стеку для обходу Cloudflare (контейнер `flaresolverr` на порту `8191`).
-   - Додано готові команди для діагностики, моніторингу та тестування на сервері.
-
-2. **Покращено обробку Cloudflare challenge (HTTP 403) та FlareSolverr у `parsers/tracker_parser.py`**:
-   - **Fail-Fast при відсутності сервісу**: якщо контейнер FlareSolverr не запущений на Ubuntu Server (помилка підключення до `localhost:8191`), бот не витрачає час на 15 повторів, а негайно перериває спроби та надсилає в Telegram конкретну команду для підняття Docker-контейнера.
-   - **Діагностичні повідомлення про помилку**: точна причина відмови FlareSolverr (`last_flaresolverr_error`) тепер фіксується та додається до тексту помилки в Telegram замість сухого "HTTP error 403 after 15 attempts".
-   - **Прямий фолбек на дзеркало**: перед активацією важкого запиту через FlareSolverr парсер намагається виконати прямий запит до дзеркала `rutracker.net`.
-   - **Синхронізація User-Agent**: User-Agent, з яким FlareSolverr успішно розв'язав challenge, зберігається (`FLARESOLVERR_USER_AGENT`) і автоматично передається у наступні запити для підтримки валідності токена `cf_clearance`.
-
-3. **Безпека стану куків у `core/settings_loader.py`**:
-   - `RUTRACKER_COOKIES` завжди ініціалізується як змінний словник `dict` (`settings.get('RUTRACKER_COOKIES') or {}`), завдяки чому отримані куки динамічно зберігаються в спільній сесії.
-
-4. **Тестування**:
-   - Створено набір юніт-тестів `test_tracker_flaresolverr.py` (5 тестів):
-     - `test_flaresolverr_unconfigured`
-     - `test_flaresolverr_connection_error`
-     - `test_flaresolverr_success_updates_cookies_and_ua`
-     - `test_fetch_page_content_fail_fast_on_unreachable_flaresolverr`
-     - `test_fetch_page_content_mirror_success`
-   - Усі 93 тести проєкту виконано паралельно (`pytest -n auto`) — 100% успішно.
+## Огляд змін
+У версії `v0.7.53`:
+1. **Синхронізація бази релізів з GitHub Gist**:
+   - Виконано завантаження актуального стану `manual_releases.json` із віддаленого Gist-сховища за допомогою [sync_gist_state.py](file:///d:/git/dev/rutracker_bot/sync_gist_state.py) (`python sync_gist_state.py download manual_releases.json`).
+   - Механізм злиття автоматично інтегрував нові релізи від серверних колекторів (як-от `Total Party Kill`, `Duke Dashington Remastered`, `Heart Star` від `ChanseyIsTheBest`) та зберіг усі локальні несинхронізовані записи.
+2. **Додавання релізу `danfromtico/autorun`**:
+   - У файл `data/manual_releases.json` додано новий випуск застосунку `Autorun (danfromtico)` (раніше відомого як Wine-NX):
+     - **Версія**: `test-build-3`
+     - **Платформа**: `Switch`
+     - **Посилання**: [https://github.com/danfromtico/autorun/releases/tag/test-build-3](https://github.com/danfromtico/autorun/releases/tag/test-build-3)
+     - **Опис**: *«Додаток для запуску ПК-ігор та програм Windows на Nintendo Switch на базі Wine та транслятора Box64 (раніше Wine-NX). Тестова збірка 3 містить оновлений інтерфейс і брендинг, індивідуальне призначення кнопок для кожної гри, автофорвардер для 32-бітних проєктів та розширену сумісність.»*
+     - **Статус**: `processed: false`, очікує включення у найближчий дайджест хоумбрю.
+   - Загальна кількість записів у базі зросла до **259**.
+3. **Вивантаження оновленої бази на Gist**:
+   - Виконано команду `python sync_gist_state.py upload manual_releases.json`.
+   - Проведено верифікаційне завантаження, що підтвердило наявність та цілісність усіх 259 записів.
+4. **Паралельне тестування**:
+   - Усі 93 тести проєкту успішно виконані у паралельному режимі (`pytest -n auto`).
+5. **Документація та версіонування**:
+   - Ітеровано версію програми до `v0.7.53`.
+   - Оновлено [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md), [task.md](file:///d:/git/dev/rutracker_bot/task.md) та [plan.md](file:///d:/git/dev/rutracker_bot/plan.md).
 
 ---
 
-## Що потрібно виконати на вашому Ubuntu Server зараз:
-Помилка `HTTP error 403 after 15 attempts` виникає через те, що на сервері RuTracker видає перевірку Cloudflare, а сервіс FlareSolverr зупинений або не запущений.
+## Доданий запис у `data/manual_releases.json`
 
-1. **Перевірте стан контейнера FlareSolverr**:
-   ```bash
-   docker ps -a | grep flaresolverr
-   ```
-2. **Якщо контейнер зупинений, запустіть його**:
-   ```bash
-   docker start flaresolverr
-   ```
-3. **Якщо контейнер відсутній, створіть і запустіть його з автоперезапуском**:
-   ```bash
-   docker run -d --name=flaresolverr -p 8191:8191 -e LOG_LEVEL=info --restart=unless-stopped ghcr.io/flaresolverr/flaresolverr:latest
-   ```
-4. **Перевірте працездатність**:
-   ```bash
-   curl -s -X POST http://localhost:8191/v1 -H "Content-Type: application/json" -d '{"cmd":"request.get","url":"https://rutracker.org"}'
-   ```
+| Додаток / Гра | Версія | Платформа | Посилання на реліз | Статус |
+| :--- | :--- | :--- | :--- | :--- |
+| **Autorun (danfromtico)** | `test-build-3` | Switch | [GitHub Release](https://github.com/danfromtico/autorun/releases/tag/test-build-3) | `processed: false` |
+
+---
+
+## Результати тестування
+```powershell
+pytest -n auto
+# ============================= 93 passed in 16.51s =============================
+```
