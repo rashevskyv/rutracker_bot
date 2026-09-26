@@ -2,7 +2,33 @@
 
 from typing import List
 
+NINTENDO_FIRST_PARTY_GAMES: List[str] = [
+    "The Legend of Zelda: Breath of the Wild",
+    "The Legend of Zelda: Tears of the Kingdom",
+    "Super Mario Maker 2",
+    "Super Mario Odyssey",
+    "Super Mario Bros. Wonder",
+    "Mario Kart 8 Deluxe",
+    "Super Smash Bros. Ultimate",
+    "Animal Crossing: New Horizons",
+    "The Legend of Zelda: Link's Awakening",
+    "The Legend of Zelda: Echoes of Wisdom",
+    "Luigi's Mansion 3",
+    "Metroid Dread",
+    "Metroid Prime Remastered",
+    "Super Mario 3D World + Bowser's Fury",
+    "Kirby and the Forgotten Land",
+    "Pikmin 4",
+    "Splatoon 3",
+    "Xenoblade Chronicles 3",
+    "Super Mario RPG",
+    "Paper Mario: The Thousand-Year Door",
+]
+
 POPULAR_SWITCH_GAMES: List[str] = [
+    # --- Nintendo First-Party Exclusives ---
+    *NINTENDO_FIRST_PARTY_GAMES,
+
     # --- AAA & Major Franchises ---
     "Persona 5 Royal",
     "Persona 4 Golden",

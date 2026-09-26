@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.54] - 2026-09-26
+
+### Fixed
+- **US-only Nintendo eShop deals**: Discover curated first-party games through Nintendo's US catalog, confirm discounts with the live US Price API, and retain USD cards while the US sale remains active.
+- **Deal cards**: Show US prices with the correct region label and direct US store link. Added focused regression tests for US price validation and showcase rotation.
+
 ## [v0.7.53] - 2026-09-20
 
 ### Added

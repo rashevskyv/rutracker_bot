@@ -535,12 +535,35 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                     game_check = None
 
                     try:
-                        if fs_id:
-                            game_check = await eshop_service.get_game_by_fs_id(str(fs_id))
-                        if not game_check and item_title:
-                            results = await eshop_service.search_games(query=item_title, rows=1)
-                            if results:
-                                game_check = results[0]
+                        is_us_card = (item.get("currency") == "USD" or item.get("country") == "US")
+                        if is_us_card:
+                            item_nsuid = item.get("nsuid")
+                            if not item_nsuid and item_title:
+                                sess = await eshop_service._get_session()
+                                item_nsuid = await region_price_service.get_us_nsuid_by_title(item_title, sess)
+                            if item_nsuid:
+                                us_check_deal = GameDeal(
+                                    fs_id=str(fs_id) if fs_id else f"us_{item_nsuid}",
+                                    title=item_title,
+                                    regular_price=float(item.get("regular_price") or 0.0),
+                                    discount_price=float(item.get("discount_price") or 0.0),
+                                    discount_percent=float(item.get("discount_percent") or 0.0),
+                                    currency="USD",
+                                    nsuid=str(item_nsuid),
+                                    downloads_rank=item.get("downloads_rank"),
+                                )
+                                validated_us = await eshop_service.validate_live_prices(
+                                    [us_check_deal], country="US", require_discount=False
+                                )
+                                if validated_us:
+                                    game_check = validated_us[0]
+                        else:
+                            if fs_id:
+                                game_check = await eshop_service.get_game_by_fs_id(str(fs_id))
+                            if not game_check and item_title:
+                                results = await eshop_service.search_games(query=item_title, rows=1)
+                                if results:
+                                    game_check = results[0]
 
                         if game_check:
                             has_discount = (
@@ -600,7 +623,17 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             raw_general = await eshop_service.fetch_discounted_games(
                 rows=150, sort="popularity desc", min_discount_percent=criteria.min_discount_percent
             )
-            raw_deals = raw_popular + raw_general
+            raw_us: List[GameDeal] = []
+            if hasattr(eshop_service, "fetch_us_curated_deals"):
+                try:
+                    res_us = await eshop_service.fetch_us_curated_deals(
+                        min_discount_percent=criteria.min_discount_percent
+                    )
+                    if isinstance(res_us, list):
+                        raw_us = res_us
+                except Exception as e_us:
+                    logger.debug(f"Could not fetch US curated deals: {e_us}")
+            raw_deals = raw_popular + raw_general + raw_us
 
             # Step D: Filter out existing surviving deals, cooldown deals, and duplicates
             existing_titles = {_normalize_title_key(it.get("title", "")) for it in surviving_items}
@@ -615,6 +648,9 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                 d_norm = _normalize_title_key(d.title)
                 d_fsid = str(d.fs_id) if d.fs_id else ""
                 d_nsuid = str(d.nsuid) if d.nsuid else ""
+
+                if d.discount_percent <= 0 or (criteria.min_discount_percent > 0 and d.discount_percent < criteria.min_discount_percent):
+                    continue
 
                 if not d_norm or d_norm in existing_titles or d_norm in seen_batch_titles:
                     continue
@@ -780,6 +816,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         "discount_price": enriched.discount_price,
                         "regular_price": enriched.regular_price,
                         "currency": enriched.currency,
+                        "country": "US" if (enriched.currency == "USD") else "DE",
                         "downloads_rank": deal_rank,
                     }
 
@@ -870,6 +907,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                             "discount_price": enriched.discount_price,
                             "regular_price": enriched.regular_price,
                             "currency": enriched.currency,
+                            "country": "US" if (enriched.currency == "USD") else "DE",
                             "downloads_rank": deal_rank,
                         }
                         surviving_items.append(new_item)

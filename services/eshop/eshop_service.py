@@ -2,8 +2,10 @@
 
 import asyncio
 import logging
+import re
 import ssl
 from typing import Any, Dict, List, Optional
+import urllib.parse
 import aiohttp
 
 from services.eshop.models import GameDeal
@@ -255,6 +257,119 @@ class EShopService:
         # Strictly validate all deals against live Nintendo Price API to eliminate ghost/expired discounts
         return await self.validate_live_prices(unique_deals, require_discount=True)
 
+    async def fetch_us_curated_deals(
+        self,
+        min_discount_percent: float = 0.0,
+        titles: Optional[List[str]] = None,
+        concurrency: int = 5,
+    ) -> List[GameDeal]:
+        """
+        Fetch US eShop deals specifically for curated Nintendo first-party titles.
+        Uses Algolia US to resolve metadata/NSUID, queries European catalog for real
+        popularity rank (downloads_rank_i), and confirms deals strictly via live US Price API.
+        """
+        from services.eshop.popular_catalog import NINTENDO_FIRST_PARTY_GAMES
+        from services.eshop.region_price_service import RegionPriceService, _is_title_match
+
+        target_titles = titles or NINTENDO_FIRST_PARTY_GAMES
+        session = await self._get_session()
+        rps = RegionPriceService(session=session)
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def _resolve_candidate(title: str) -> Optional[GameDeal]:
+            async with semaphore:
+                try:
+                    hit = await rps.get_us_data_by_title(title, session)
+                    if not hit or not hit.get("nsuid"):
+                        return None
+
+                    nsuid = str(hit["nsuid"])
+                    slug = hit.get("slug")
+                    url_val = hit.get("url") or ""
+                    if slug:
+                        store_url = f"https://www.nintendo.com/us/store/products/{slug}/"
+                    elif url_val.startswith("/"):
+                        store_url = f"https://www.nintendo.com{url_val}"
+                    elif url_val.startswith("http"):
+                        store_url = url_val
+                    else:
+                        store_url = f"https://www.nintendo.com/us/search/#q={urllib.parse.quote_plus(title)}"
+
+                    image_url = (
+                        hit.get("boxart")
+                        or hit.get("boxArt")
+                        or hit.get("image")
+                        or (f"https://assets.nintendo.com/image/upload/{hit.get('productImage')}" if hit.get("productImage") else None)
+                    )
+                    banner_url = hit.get("horizontalHeaderImage") or hit.get("bannerImage") or image_url
+
+                    # Query European catalog for real downloads_rank_i (do not invent rank)
+                    rank = None
+                    eu_fs_id = None
+                    eu_categories = []
+                    try:
+                        clean_q = re.sub(r"[^\w\s]", " ", title).strip()
+                        params = {
+                            "q": clean_q,
+                            "q.op": "AND",
+                            "rows": 5,
+                            "fq": "type:GAME AND system_type:nintendoswitch*",
+                            "wt": "json",
+                        }
+                        async with session.get(
+                            self.BASE_URL.format(locale=self.locale),
+                            params=params,
+                            timeout=aiohttp.ClientTimeout(total=6),
+                        ) as r_solr:
+                            if r_solr.status == 200:
+                                d_json = await r_solr.json(content_type=None)
+                                for doc in d_json.get("response", {}).get("docs", []):
+                                    if _is_title_match(title, doc.get("title", "")):
+                                        rank = doc.get("downloads_rank_i")
+                                        eu_fs_id = str(doc.get("fs_id", ""))
+                                        eu_categories = doc.get("pretty_game_categories_txt") or doc.get("game_categories_txt") or []
+                                        break
+                    except Exception as solr_err:
+                        logger.debug(f"Could not fetch EU rank for '{title}': {solr_err}")
+
+                    clean_title = re.sub(r"[\u2122\u00ae]", "", hit.get("title", title)).strip()
+                    categories = hit.get("genres") or eu_categories or []
+
+                    return GameDeal(
+                        fs_id=eu_fs_id or f"us_{nsuid}",
+                        title=clean_title,
+                        regular_price=0.0,
+                        discount_price=0.0,
+                        discount_percent=0.0,
+                        currency="USD",
+                        nsuid=nsuid,
+                        url=store_url,
+                        image_url=image_url,
+                        banner_url=banner_url,
+                        excerpt=hit.get("description"),
+                        categories=categories,
+                        publishers=hit.get("publishers") or ["Nintendo"],
+                        downloads_rank=rank,
+                    )
+                except Exception as err:
+                    logger.debug(f"Error resolving US candidate for '{title}': {err}")
+                    return None
+
+        tasks = [_resolve_candidate(t) for t in target_titles]
+        candidate_deals = [c for c in await asyncio.gather(*tasks) if isinstance(c, GameDeal)]
+
+        if not candidate_deals:
+            return []
+
+        # Validate strictly against live US Price API (Algolia salePrice is NOT trusted)
+        validated = await self.validate_live_prices(candidate_deals, country="US", require_discount=True)
+        return [
+            d for d in validated
+            if (min_discount_percent == 0 or d.discount_percent >= min_discount_percent)
+        ]
+
+    fetch_us_exclusive_deals = fetch_us_curated_deals
+
     async def validate_live_prices(
         self, deals: List[GameDeal], country: str = "DE", require_discount: bool = True
     ) -> List[GameDeal]:
@@ -284,6 +399,9 @@ class EShopService:
                     if resp.status == 200:
                         data = await resp.json(content_type=None)
                         for price_obj in data.get("prices", []):
+                            if price_obj.get("sales_status") == "not_found":
+                                continue
+
                             t_id = str(price_obj.get("title_id"))
                             deal = nsuid_map.get(t_id)
                             if not deal:
@@ -300,6 +418,10 @@ class EShopService:
                                     deal.regular_price = float(reg_raw)
                                 except ValueError:
                                     pass
+
+                            curr = (disc_info or reg_info).get("currency")
+                            if curr:
+                                deal.currency = curr
 
                             if disc_raw is not None:
                                 try:
@@ -318,7 +440,7 @@ class EShopService:
                                 validated.append(deal)
                             else:
                                 logger.debug(
-                                    f"Rejecting ghost discount for '{deal.title}': Solr had discount, but live Price API shows regular price ({deal.regular_price} EUR)."
+                                    f"Rejecting ghost discount for '{deal.title}': Solr had discount, but live Price API shows regular price ({deal.regular_price} {deal.currency})."
                                 )
                     else:
                         if not require_discount:

@@ -106,6 +106,7 @@ class RegionPriceService:
 
     # Nintendo of America Algolia Search API
     ALGOLIA_US_URL = "https://u3b6gr4ua3-dsn.algolia.net/1/indexes/ncom_game_en_us/query"
+    ALGOLIA_STORE_URL = "https://u3b6gr4ua3-dsn.algolia.net/1/indexes/store_game_en_us/query"
     ALGOLIA_HEADERS = {
         "x-algolia-api-key": "a29c6927638bfd8cee23993e51e721c9",
         "x-algolia-application-id": "U3B6GR4UA3",
@@ -151,23 +152,32 @@ class RegionPriceService:
         if not title:
             return None
         clean_title = re.sub(r"\[.*?\]|\(.*?\)", "", title).strip()
-        try:
-            payload = {"query": clean_title, "hitsPerPage": 5}
-            async with session.post(
-                self.ALGOLIA_US_URL,
-                json=payload,
-                headers=self.ALGOLIA_HEADERS,
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    hits = data.get("hits", [])
-                    for hit in hits:
-                        hit_title = hit.get("title", "")
-                        if _is_title_match(clean_title, hit_title):
-                            return hit
-        except Exception as e:
-            logger.debug(f"Could not query Algolia for '{title}': {e}")
+        indices = [self.ALGOLIA_US_URL, self.ALGOLIA_STORE_URL]
+        for url in indices:
+            try:
+                payload = {"query": clean_title, "hitsPerPage": 10}
+                async with session.post(
+                    url,
+                    json=payload,
+                    headers=self.ALGOLIA_HEADERS,
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        hits = data.get("hits", [])
+                        for hit in hits:
+                            hit_title = hit.get("title", "")
+                            if hit.get("nsuid") and _is_title_match(clean_title, hit_title):
+                                t_lower = hit_title.lower()
+                                c_lower = clean_title.lower()
+                                if any(x in t_lower for x in ["upgrade", "expansion pass", "dlc bundle"]):
+                                    if not any(x in c_lower for x in ["upgrade", "expansion", "bundle"]):
+                                        continue
+                                if "switch 2" in t_lower and "switch 2" not in c_lower:
+                                    continue
+                                return hit
+            except Exception as e:
+                logger.debug(f"Could not query Algolia ({url}) for '{title}': {e}")
         return None
 
     async def get_us_nsuid_by_title(self, title: str, session: aiohttp.ClientSession) -> Optional[str]:
