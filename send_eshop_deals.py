@@ -59,6 +59,7 @@ from services.eshop import (
     format_eshop_deal_message,
     download_and_badge_cover,
 )
+from services.eshop.popular_catalog import NINTENDO_FIRST_PARTY_GAMES
 from services.telegram_sender import send_message_to_admin
 
 logger = logging.getLogger("send_eshop_deals")
@@ -190,8 +191,12 @@ def format_showcase_update_notification(
             except (ValueError, TypeError):
                 pass
 
+    reg_cards = [c for c in active_cards if not c.get("is_nintendo")]
+    nin_cards = [c for c in active_cards if c.get("is_nintendo")]
+    header = f"🔄 <b>Вітрина знижок оновлена!</b> ({len(reg_cards)} звичайних + {len(nin_cards)} Nintendo)"
+
     lines = [
-        "🔄 <b>Вітрина знижок оновлена!</b>",
+        header,
         "🆕 — нова або замінена картка\n",
     ]
     for card in active_cards:
@@ -212,16 +217,46 @@ def format_showcase_update_notification(
         except (ValueError, TypeError):
             disc_val = 0.0
 
+        nin_label = " [Nintendo]" if card.get("is_nintendo") else ""
         if disc_val > 0:
-            lines.append(f"{prefix}<a href=\"{link}\">{escaped_title}</a> (-{disc_val:.0f}%)")
+            lines.append(f"{prefix}<a href=\"{link}\">{escaped_title}</a>{nin_label} (-{disc_val:.0f}%)")
         else:
-            lines.append(f"{prefix}<a href=\"{link}\">{escaped_title}</a>")
+            lines.append(f"{prefix}<a href=\"{link}\">{escaped_title}</a>{nin_label}")
 
     return "\n".join(lines)
 
 
 def _normalize_title_key(title: str) -> str:
     return re.sub(r"[^a-z0-9]", "", title.lower()) if title else ""
+
+
+NINTENDO_FIRST_PARTY_KEYS: Set[str] = {
+    _normalize_title_key(t) for t in NINTENDO_FIRST_PARTY_GAMES if t
+}
+
+
+def is_nintendo_first_party(title: str) -> bool:
+    """Check if a game title belongs to curated Nintendo first-party games via exact normalized match."""
+    if not title:
+        return False
+    norm = _normalize_title_key(title)
+    return bool(norm and norm in NINTENDO_FIRST_PARTY_KEYS)
+
+
+def _release_deal_from_history(posted_history: dict, fresh_history: dict, item: dict) -> None:
+    """Remove deal identifiers from posted history dictionaries to release cooldown."""
+    target_fsid = item.get("fs_id")
+    if target_fsid:
+        posted_history.pop(str(target_fsid), None)
+        fresh_history.pop(str(target_fsid), None)
+    target_nsuid = item.get("nsuid")
+    if target_nsuid:
+        posted_history.pop(f"nsuid_{target_nsuid}", None)
+        fresh_history.pop(f"nsuid_{target_nsuid}", None)
+    target_norm = _normalize_title_key(item.get("title", ""))
+    if target_norm:
+        posted_history.pop(f"title_{target_norm}", None)
+        fresh_history.pop(f"title_{target_norm}", None)
 
 
 def _get_entry_timestamp(val: Any) -> float:
@@ -502,6 +537,16 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             surviving_items = []
             expired_targets: List[Dict[str, Any]] = []
             updated_cards: List[Dict[str, Any]] = []
+            cards_deleted_count = 0
+
+            # Step 0: Recognize and promote existing untagged Nintendo first-party cards without duplicate messages
+            for it in current_showcase_items:
+                if not it.get("is_nintendo") and is_nintendo_first_party(it.get("title", "")):
+                    it["is_nintendo"] = True
+                    logger.info(
+                        f"🌟 Recognized and promoted existing card '{it.get('title')}' "
+                        f"(msg_id={it.get('message_id')}) to Nintendo first-party showcase card."
+                    )
 
             # Step A: Reset or check expired deals
             if reset:
@@ -531,16 +576,49 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                     item_title = item.get("title", "")
                     msg_id = item.get("message_id")
                     fs_id = item.get("fs_id")
+                    is_nintendo_card = bool(item.get("is_nintendo") or is_nintendo_first_party(item_title))
+                    if is_nintendo_card:
+                        item["is_nintendo"] = True
+
                     is_still_discounted = False
+                    has_discount = False
                     game_check = None
 
                     try:
                         is_us_card = (item.get("currency") == "USD" or item.get("country") == "US")
                         if is_us_card:
                             item_nsuid = item.get("nsuid")
-                            if not item_nsuid and item_title:
+                            item_url = item.get("url")
+                            item_banner = item.get("banner_url")
+                            item_image = item.get("image_url")
+                            item_cats = item.get("categories") or []
+                            item_pubs = item.get("publishers") or []
+
+                            # If NSUID or direct URL is missing, query Algolia for complete metadata
+                            if (not item_nsuid or not item_url or not item_banner) and item_title:
                                 sess = await eshop_service._get_session()
-                                item_nsuid = await region_price_service.get_us_nsuid_by_title(item_title, sess)
+                                hit = await region_price_service.get_us_data_by_title(item_title, sess)
+                                if hit:
+                                    if not item_nsuid and hit.get("nsuid"):
+                                        item_nsuid = str(hit["nsuid"])
+                                    if not item_url:
+                                        slug = hit.get("slug")
+                                        url_val = hit.get("url") or ""
+                                        if slug:
+                                            item_url = f"https://www.nintendo.com/us/store/products/{slug}/"
+                                        elif url_val.startswith("/"):
+                                            item_url = f"https://www.nintendo.com{url_val}"
+                                        elif url_val.startswith("http"):
+                                            item_url = url_val
+                                    if not item_banner:
+                                        item_banner = hit.get("horizontalHeaderImage") or hit.get("bannerImage") or hit.get("boxart")
+                                    if not item_image:
+                                        item_image = hit.get("boxart") or hit.get("boxArt") or hit.get("image")
+                                    if not item_cats:
+                                        item_cats = hit.get("genres") or []
+                                    if not item_pubs:
+                                        item_pubs = hit.get("publishers") or []
+
                             if item_nsuid:
                                 us_check_deal = GameDeal(
                                     fs_id=str(fs_id) if fs_id else f"us_{item_nsuid}",
@@ -551,12 +629,27 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                                     currency="USD",
                                     nsuid=str(item_nsuid),
                                     downloads_rank=item.get("downloads_rank"),
+                                    url=item_url,
+                                    banner_url=item_banner,
+                                    image_url=item_image,
+                                    categories=item_cats,
+                                    publishers=item_pubs,
                                 )
                                 validated_us = await eshop_service.validate_live_prices(
                                     [us_check_deal], country="US", require_discount=False
                                 )
                                 if validated_us:
                                     game_check = validated_us[0]
+                                    if not getattr(game_check, "url", None) and item_url:
+                                        game_check.url = item_url
+                                    if not getattr(game_check, "banner_url", None) and item_banner:
+                                        game_check.banner_url = item_banner
+                                    if not getattr(game_check, "image_url", None) and item_image:
+                                        game_check.image_url = item_image
+                                    if not getattr(game_check, "categories", None) and item_cats:
+                                        game_check.categories = item_cats
+                                    if not getattr(game_check, "publishers", None) and item_pubs:
+                                        game_check.publishers = item_pubs
                         else:
                             if fs_id:
                                 game_check = await eshop_service.get_game_by_fs_id(str(fs_id))
@@ -564,6 +657,13 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                                 results = await eshop_service.search_games(query=item_title, rows=1)
                                 if results:
                                     game_check = results[0]
+                            if game_check:
+                                if not getattr(game_check, "url", None) and item.get("url"):
+                                    game_check.url = item.get("url")
+                                if not getattr(game_check, "banner_url", None) and item.get("banner_url"):
+                                    game_check.banner_url = item.get("banner_url")
+                                if not getattr(game_check, "image_url", None) and item.get("image_url"):
+                                    game_check.image_url = item.get("image_url")
 
                         if game_check:
                             has_discount = (
@@ -597,9 +697,139 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                                 kept["currency"] = game_check.currency
                             if getattr(game_check, "downloads_rank", None) is not None:
                                 kept["downloads_rank"] = game_check.downloads_rank
+                            if getattr(game_check, "url", None):
+                                kept["url"] = game_check.url
                         surviving_items.append(kept)
+                    elif is_nintendo_card and game_check is not None and has_discount:
+                        # Price changed, but live API confirms discount is still active!
+                        # Update price in Telegram message in-place and update state if edit succeeds;
+                        # on error, preserve card for next attempt.
+                        direct_link = getattr(game_check, "url", None) or item.get("url")
+                        if not direct_link or "search/#q=" in direct_link:
+                            logger.warning(
+                                f"🛑 [NINTENDO EDIT SKIPPED] Missing direct store link for '{item_title}' (msg_id={msg_id}); "
+                                f"keeping existing card in state to prevent partial/degraded content."
+                            )
+                            surviving_items.append(dict(item))
+                            continue
+
+                        logger.info(
+                            f"🔄 [NINTENDO PRICE UPDATE] '{item_title}' (msg_id={msg_id}) price changed: "
+                            f"{item.get('discount_price')} -> {game_check.discount_price} ({game_check.discount_percent}%). Updating in-place..."
+                        )
+                        edit_success = False
+                        if msg_id:
+                            try:
+                                game_check.url = direct_link
+                                enriched_nin = await filter_engine.enrich_deal(game_check, fetch_regions=True)
+                                if direct_link:
+                                    enriched_nin.url = direct_link
+                                nin_msg_text = format_eshop_deal_message(
+                                    enriched_nin, language=lang, currency_service=currency_service
+                                )
+                                # Ensure direct link is actually present in the formatted message
+                                if direct_link not in nin_msg_text:
+                                    logger.warning(
+                                        f"Direct store link missing from formatted text for '{item_title}', skipping edit."
+                                    )
+                                    surviving_items.append(dict(item))
+                                    continue
+
+                                edited_msg = None
+                                try:
+                                    edited_msg = await bot.edit_message_caption(
+                                        chat_id=chat_id_int,
+                                        message_id=int(msg_id),
+                                        caption=nin_msg_text,
+                                        parse_mode="HTML",
+                                    )
+                                    if edited_msg:
+                                        edit_success = True
+                                except Exception as ce:
+                                    logger.debug(f"edit_message_caption failed for Nintendo card {msg_id} ({ce}), trying edit_message_text...")
+                                    try:
+                                        edited_msg = await bot.edit_message_text(
+                                            chat_id=chat_id_int,
+                                            message_id=int(msg_id),
+                                            text=nin_msg_text,
+                                            parse_mode="HTML",
+                                            disable_web_page_preview=False,
+                                        )
+                                        if edited_msg:
+                                            edit_success = True
+                                    except Exception as te:
+                                        logger.error(f"edit_message_text failed for Nintendo card {msg_id}: {te}")
+                            except Exception as edit_err:
+                                logger.error(f"Failed to format/edit price update for Nintendo card '{item_title}': {edit_err}")
+
+                        if edit_success:
+                            kept = dict(item)
+                            kept["discount_price"] = game_check.discount_price
+                            kept["discount_percent"] = game_check.discount_percent
+                            if game_check.regular_price is not None:
+                                kept["regular_price"] = game_check.regular_price
+                            if game_check.currency:
+                                kept["currency"] = game_check.currency
+                            if direct_link:
+                                kept["url"] = direct_link
+                            if getattr(game_check, "banner_url", None):
+                                kept["banner_url"] = game_check.banner_url
+                            if getattr(game_check, "image_url", None):
+                                kept["image_url"] = game_check.image_url
+                            surviving_items.append(kept)
+                            updated_cards.append({
+                                "title": item_title,
+                                "message_id": int(msg_id),
+                                "discount_percent": game_check.discount_percent,
+                                "is_nintendo": True,
+                            })
+                            print(
+                                f"  🔄 [Оновлено ціну Nintendo] {item_title} (ID: {msg_id}) — "
+                                f"{game_check.discount_price} {game_check.currency} (-{game_check.discount_percent:.0f}%)"
+                            )
+                        else:
+                            logger.warning(
+                                f"🛑 [NINTENDO EDIT FAILED] Could not edit message {msg_id} for '{item_title}'; "
+                                f"keeping in state for retry next cycle."
+                            )
+                            print(f"  ⚠️ [Помилка редагування] {item_title} (ID: {msg_id}) — збережено без змін для повторної спроби")
+                            surviving_items.append(dict(item))
+                    elif is_nintendo_card and game_check is not None and not has_discount:
+                        # Out-of-order Nintendo card: delete message safely only when sale has confirmed ended
+                        logger.info(f"⚠️ [EXPIRED NINTENDO DEAL] '{item_title}' (msg_id={msg_id}) discount ended; deleting card...")
+                        del_success = False
+                        if msg_id:
+                            try:
+                                del_success = await safe_delete_showcase_message(
+                                    chat_id=chat_id_int,
+                                    topic_id=topic_id_int,
+                                    message_id=int(msg_id),
+                                    title=item_title,
+                                )
+                            except Exception as del_err:
+                                logger.warning(f"Error calling safe_delete_showcase_message for '{item_title}': {del_err}")
+                                del_success = False
+                        if del_success:
+                            cards_deleted_count += 1
+                            logger.info(f"🗑 [NINTENDO CARD DELETED] Safely deleted expired Nintendo card '{item_title}' (msg_id={msg_id}).")
+                            print(f"  🗑 [Видалено Nintendo картку] {item_title} (ID: {msg_id}) — знижка завершилась")
+                            _release_deal_from_history(posted_history, fresh_history, item)
+                        else:
+                            logger.warning(
+                                f"🛑 [NINTENDO DELETE FAILED] Could not delete expired message {msg_id} for '{item_title}'; "
+                                f"keeping in state for retry next cycle."
+                            )
+                            print(f"  ⚠️ [Помилка видалення] {item_title} (ID: {msg_id}) — збережено для повторної спроби")
+                            surviving_items.append(dict(item))
+                    elif is_nintendo_card and game_check is None:
+                        # Live price API returned empty or no response -> preserve card in state for retry
+                        logger.info(
+                            f"⏳ [NINTENDO CARD PRESERVED] Live price check for '{item_title}' (msg_id={msg_id}) "
+                            f"returned empty/no response; keeping card in state for next cycle."
+                        )
+                        surviving_items.append(dict(item))
                     else:
-                        # Do NOT delete message; keep in surviving_items and mark as priority target for in-place edit
+                        # Standard regular card: keep in surviving_items and mark as priority target for in-place edit
                         surviving_items.append(dict(item))
                         expired_targets.append(dict(item))
                         logger.info(f"⚠️ [EXPIRED DEAL] '{item_title}' (msg_id={msg_id}) discount ended/changed; queued for in-place edit.")
@@ -610,10 +840,18 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                 save_active_showcase(showcase_data)
                 save_posted_deals(fresh_history)
 
-            # Step B: Calculate free slots
-            available_slots = max(0, max_active_showcase - len(surviving_items))
-            logger.info(f"Showcase {showcase_key}: {len(surviving_items)} active, {available_slots} slot(s) available (cap: {max_active_showcase}).")
-            print(f"\n📊 [{showcase_key}] Оновлення вітрини: {len(surviving_items)} залишається, {available_slots} вільних слотів...")
+            # Step B: Calculate free slots for regular cards
+            regular_surviving = [it for it in surviving_items if not it.get("is_nintendo")]
+            nintendo_surviving = [it for it in surviving_items if it.get("is_nintendo")]
+            available_slots = max(0, max_active_showcase - len(regular_surviving))
+            logger.info(
+                f"Showcase {showcase_key}: {len(regular_surviving)} regular ({available_slots} slot(s) free, cap: {max_active_showcase}) "
+                f"+ {len(nintendo_surviving)} Nintendo active."
+            )
+            print(
+                f"\n📊 [{showcase_key}] Оновлення вітрини: {len(regular_surviving)} звичайних + {len(nintendo_surviving)} Nintendo, "
+                f"{available_slots} вільних слотів для звичайних карток..."
+            )
 
             # Step C: Fetch candidate deals
             logger.info(f"🔍 Fetching candidates for {showcase_key}...")
@@ -627,7 +865,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             if hasattr(eshop_service, "fetch_us_curated_deals"):
                 try:
                     res_us = await eshop_service.fetch_us_curated_deals(
-                        min_discount_percent=criteria.min_discount_percent
+                        min_discount_percent=0.0
                     )
                     if isinstance(res_us, list):
                         raw_us = res_us
@@ -635,12 +873,13 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                     logger.debug(f"Could not fetch US curated deals: {e_us}")
             raw_deals = raw_popular + raw_general + raw_us
 
-            # Step D: Filter out existing surviving deals, cooldown deals, and duplicates
+            # Step D: Segregate candidates into Nintendo first-party and standard deals
             existing_titles = {_normalize_title_key(it.get("title", "")) for it in surviving_items}
             existing_fsids = {str(it.get("fs_id")) for it in surviving_items if it.get("fs_id")}
             existing_nsuids = {str(it.get("nsuid")) for it in surviving_items if it.get("nsuid")}
 
-            candidate_deals: List[GameDeal] = []
+            nintendo_candidates: List[GameDeal] = []
+            regular_candidates: List[GameDeal] = []
             seen_batch_titles = set()
             seen_batch_ids = set()
 
@@ -649,40 +888,131 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                 d_fsid = str(d.fs_id) if d.fs_id else ""
                 d_nsuid = str(d.nsuid) if d.nsuid else ""
 
-                if d.discount_percent <= 0 or (criteria.min_discount_percent > 0 and d.discount_percent < criteria.min_discount_percent):
+                if not d_norm or d_norm in seen_batch_titles:
+                    continue
+                if d_fsid and d_fsid in seen_batch_ids:
+                    continue
+                if d_nsuid and d_nsuid in seen_batch_ids:
                     continue
 
-                if not d_norm or d_norm in existing_titles or d_norm in seen_batch_titles:
-                    continue
-                if (d_fsid and d_fsid in existing_fsids) or (d_fsid and d_fsid in seen_batch_ids):
-                    continue
-                if (d_nsuid and d_nsuid in existing_nsuids) or (d_nsuid and d_nsuid in seen_batch_ids):
+                # Live price confirmation required for all deals
+                if d.discount_percent <= 0:
                     continue
 
-                if _is_deal_already_posted(d, fresh_history, cooldown_seconds, now_ts):
+                # Deduplicate against active showcase items
+                if d_norm in existing_titles or (d_fsid and d_fsid in existing_fsids) or (d_nsuid and d_nsuid in existing_nsuids):
                     continue
 
-                seen_batch_titles.add(d_norm)
-                if d_fsid:
-                    seen_batch_ids.add(d_fsid)
-                if d_nsuid:
-                    seen_batch_ids.add(d_nsuid)
+                is_nin = is_nintendo_first_party(d.title)
+                if is_nin:
+                    # Nintendo first-party deals bypass cooldown and quality discount threshold
+                    seen_batch_titles.add(d_norm)
+                    if d_fsid:
+                        seen_batch_ids.add(d_fsid)
+                    if d_nsuid:
+                        seen_batch_ids.add(d_nsuid)
+                    nintendo_candidates.append(d)
+                else:
+                    if criteria.min_discount_percent > 0 and d.discount_percent < criteria.min_discount_percent:
+                        continue
+                    if _is_deal_already_posted(d, fresh_history, cooldown_seconds, now_ts):
+                        continue
+                    seen_batch_titles.add(d_norm)
+                    if d_fsid:
+                        seen_batch_ids.add(d_fsid)
+                    if d_nsuid:
+                        seen_batch_ids.add(d_nsuid)
+                    regular_candidates.append(d)
 
-                candidate_deals.append(d)
+            # Step E1: Process Nintendo first-party candidates out-of-order (beyond 30 cards)
+            for deal in nintendo_candidates:
+                enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
+                msg_text = format_eshop_deal_message(enriched, language=lang, currency_service=currency_service)
+                badged_img = await download_and_badge_cover(enriched)
+                cover_bytes = badged_img.getvalue() if badged_img else None
+                photo_payload = cover_bytes or (enriched.banner_url or enriched.image_url)
 
-            # Sort candidates by downloads_rank ascending (lower number = higher popularity).
-            # Deals without rank are sorted to the end and cannot replace active cards.
-            candidate_deals.sort(
+                sent_msg = None
+                if photo_payload:
+                    try:
+                        sent_msg = await bot.send_photo(
+                            chat_id=chat_id_int,
+                            message_thread_id=topic_id_int,
+                            photo=photo_payload,
+                            caption=msg_text,
+                            parse_mode="HTML",
+                            allow_sending_without_reply=True,
+                        )
+                    except Exception as pe:
+                        logger.debug(f"send_photo failed for Nintendo card ({pe}), falling back to text...")
+
+                if not sent_msg:
+                    try:
+                        sent_msg = await bot.send_message(
+                            chat_id=chat_id_int,
+                            message_thread_id=topic_id_int,
+                            text=msg_text,
+                            parse_mode="HTML",
+                            disable_web_page_preview=False,
+                            allow_sending_without_reply=True,
+                        )
+                    except Exception as me:
+                        logger.error(f"send_message failed for Nintendo card '{deal.title}': {me}")
+
+                if sent_msg:
+                    deal_rank = getattr(enriched, "downloads_rank", None)
+                    if deal_rank is None or isinstance(deal_rank, bool):
+                        deal_rank = getattr(deal, "downloads_rank", None)
+                    if isinstance(deal_rank, bool):
+                        deal_rank = None
+
+                    new_item = {
+                        "fs_id": str(deal.fs_id) if deal.fs_id else None,
+                        "nsuid": str(deal.nsuid) if deal.nsuid else None,
+                        "title": deal.title,
+                        "url": getattr(deal, "url", None) or getattr(enriched, "url", None),
+                        "banner_url": getattr(deal, "banner_url", None) or getattr(enriched, "banner_url", None),
+                        "image_url": getattr(deal, "image_url", None) or getattr(enriched, "image_url", None),
+                        "message_id": sent_msg.message_id,
+                        "posted_at": now_ts,
+                        "discount_percent": enriched.discount_percent,
+                        "discount_price": enriched.discount_price,
+                        "regular_price": enriched.regular_price,
+                        "currency": enriched.currency,
+                        "country": "US" if (enriched.currency == "USD") else "DE",
+                        "downloads_rank": deal_rank,
+                        "is_nintendo": True,
+                    }
+                    surviving_items.append(new_item)
+                    _record_deal_in_history(fresh_history, enriched, now_ts)
+                    showcase_data[showcase_key] = list(surviving_items)
+                    save_active_showcase(showcase_data)
+                    save_posted_deals(fresh_history)
+                    total_posted_this_run += 1
+
+                    updated_cards.append({
+                        "title": deal.title,
+                        "message_id": int(sent_msg.message_id),
+                        "discount_percent": enriched.discount_percent,
+                        "cover_bytes": cover_bytes,
+                        "is_nintendo": True,
+                    })
+                    print(f"  🌟 [Nintendo картка] Опубліковано позачергово: {deal.title} (ID: {sent_msg.message_id})")
+
+                await asyncio.sleep(1)
+
+            # Step E2: Rotate standard cards and fill free slots (up to max_active_showcase = 30)
+            regular_candidates.sort(
                 key=lambda d: (0, d.downloads_rank) if (d.downloads_rank is not None and not isinstance(d.downloads_rank, bool)) else (1, 0)
             )
 
-            logger.info(f"Selected {len(candidate_deals)} candidate deal(s) for {showcase_key}.")
+            logger.info(f"Selected {len(regular_candidates)} regular candidate deal(s) for {showcase_key}.")
 
-            # Step E: Fill free slots and rotate cards in-place
             expired_msg_ids = {it.get("message_id") for it in expired_targets}
             displaceable_items = [
                 it for it in surviving_items
-                if it.get("message_id") not in expired_msg_ids
+                if not it.get("is_nintendo")
+                and it.get("message_id") not in expired_msg_ids
                 and it.get("downloads_rank") is not None
                 and isinstance(it.get("downloads_rank"), (int, float))
                 and not isinstance(it.get("downloads_rank"), bool)
@@ -690,16 +1020,17 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
             # Worst popularity first (highest downloads_rank number)
             displaceable_items.sort(key=lambda it: it["downloads_rank"], reverse=True)
 
-            for deal in candidate_deals:
+            for deal in regular_candidates:
                 target_item = None
                 is_replacing_expired = False
+                regular_active_count = len([it for it in surviving_items if not it.get("is_nintendo")])
 
                 # Priority 1: Replace expired cards
                 if expired_targets:
                     target_item = expired_targets[0]
                     is_replacing_expired = True
-                # Priority 2: If showcase is at capacity, replace less popular active card
-                elif len(surviving_items) >= max_active_showcase:
+                # Priority 2: If showcase regular cards at capacity, replace less popular active regular card
+                elif regular_active_count >= max_active_showcase:
                     if deal.downloads_rank is None or isinstance(deal.downloads_rank, bool):
                         break
                     if not displaceable_items:
@@ -787,18 +1118,7 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         continue
 
                     # Successful edit: release cooldown for displaced target in history
-                    target_fsid = target_item.get("fs_id")
-                    if target_fsid and str(target_fsid) in posted_history:
-                        posted_history.pop(str(target_fsid), None)
-                        fresh_history.pop(str(target_fsid), None)
-                    target_nsuid = target_item.get("nsuid")
-                    if target_nsuid and f"nsuid_{target_nsuid}" in posted_history:
-                        posted_history.pop(f"nsuid_{target_nsuid}", None)
-                        fresh_history.pop(f"nsuid_{target_nsuid}", None)
-                    target_norm = _normalize_title_key(target_title)
-                    if target_norm and f"title_{target_norm}" in posted_history:
-                        posted_history.pop(f"title_{target_norm}", None)
-                        fresh_history.pop(f"title_{target_norm}", None)
+                    _release_deal_from_history(posted_history, fresh_history, target_item)
 
                     deal_rank = getattr(enriched, "downloads_rank", None)
                     if deal_rank is None or isinstance(deal_rank, bool):
@@ -810,6 +1130,9 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         "fs_id": str(deal.fs_id) if deal.fs_id else None,
                         "nsuid": str(deal.nsuid) if deal.nsuid else None,
                         "title": deal.title,
+                        "url": getattr(deal, "url", None) or getattr(enriched, "url", None),
+                        "banner_url": getattr(deal, "banner_url", None) or getattr(enriched, "banner_url", None),
+                        "image_url": getattr(deal, "image_url", None) or getattr(enriched, "image_url", None),
                         "message_id": int(target_msg_id),
                         "posted_at": now_ts,
                         "discount_percent": enriched.discount_percent,
@@ -853,8 +1176,9 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                     await asyncio.sleep(1)
 
                 else:
-                    # Free slot in showcase (< max_active_showcase) and no expired targets
-                    if len(surviving_items) >= max_active_showcase:
+                    # Free slot in showcase (< max_active_showcase for regular cards) and no expired targets
+                    regular_active_count = len([it for it in surviving_items if not it.get("is_nintendo")])
+                    if regular_active_count >= max_active_showcase:
                         break
 
                     enriched = await filter_engine.enrich_deal(deal, fetch_regions=True)
@@ -901,6 +1225,9 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                             "fs_id": str(deal.fs_id) if deal.fs_id else None,
                             "nsuid": str(deal.nsuid) if deal.nsuid else None,
                             "title": deal.title,
+                            "url": getattr(deal, "url", None) or getattr(enriched, "url", None),
+                            "banner_url": getattr(deal, "banner_url", None) or getattr(enriched, "banner_url", None),
+                            "image_url": getattr(deal, "image_url", None) or getattr(enriched, "image_url", None),
                             "message_id": sent_msg.message_id,
                             "posted_at": now_ts,
                             "discount_percent": enriched.discount_percent,
@@ -916,20 +1243,25 @@ async def send_eshop_deals(force: bool = False, reset: bool = False):
                         save_active_showcase(showcase_data)
                         save_posted_deals(fresh_history)
                         total_posted_this_run += 1
-                        print(f"  📤 [{len(surviving_items)}/{max_active_showcase}] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
+                        print(f"  📤 [{regular_active_count + 1}/{max_active_showcase}] Опубліковано: {deal.title} (ID: {sent_msg.message_id})")
 
                     await asyncio.sleep(1)
 
             showcase_data[showcase_key] = list(surviving_items)
             save_active_showcase(showcase_data)
-            print(f"✅ Вітрину {showcase_key} оновлено: {len(surviving_items)}/{max_active_showcase} активних карток.\n")
+            regular_surviving = [it for it in surviving_items if not it.get("is_nintendo")]
+            nintendo_surviving = [it for it in surviving_items if it.get("is_nintendo")]
+            print(
+                f"✅ Вітрину {showcase_key} оновлено: {len(regular_surviving)}/{max_active_showcase} звичайних "
+                f"+ {len(nintendo_surviving)} Nintendo активних карток.\n"
+            )
 
-            # Notification for main showcase if any cards were updated
+            # Notification for main showcase if any cards were updated or expired cards deleted
             is_main_showcase = (
                 IS_TEST_MODE
                 or (chat_id_int == AUTHORIZED_SHOWCASE_CHAT_ID and (topic_id_int is None or topic_id_int in [AUTHORIZED_SHOWCASE_TOPIC_ID, 0]))
             )
-            if is_main_showcase and updated_cards:
+            if is_main_showcase and (updated_cards or cards_deleted_count > 0):
                 prev_notif_id = last_run_info.get("last_notification_message_id")
                 prev_notif_ts = float(last_run_info.get("last_notification_timestamp") or 0.0)
 
@@ -1180,14 +1512,9 @@ async def remove_showcase_deals(remove_arg: str):
         save_active_showcase(showcase_data)
 
         posted_history = load_posted_deals()
+        fresh_history = {}
         for it in to_delete:
-            fs_id = it.get("fs_id")
-            title = it.get("title")
-            if fs_id and str(fs_id) in posted_history:
-                posted_history.pop(str(fs_id), None)
-            norm = _normalize_title_key(title)
-            if norm and f"title_{norm}" in posted_history:
-                posted_history.pop(f"title_{norm}", None)
+            _release_deal_from_history(posted_history, fresh_history, it)
         save_posted_deals(posted_history)
         sync_eshop_state_after_change(f"remove arg={clean_arg} deleted={total_deleted}")
 
@@ -1274,17 +1601,9 @@ async def delete_orphan_showcase_messages(target_arg: str):
             print(f"💾 Оновлено базу активної вітрини: залишилось {len(surviving)} карток.")
 
             posted_history = load_posted_deals()
+            fresh_history = {}
             for it in deleted_items:
-                fs_id = it.get("fs_id")
-                title = it.get("title")
-                nsuid = it.get("nsuid")
-                if fs_id and str(fs_id) in posted_history:
-                    posted_history.pop(str(fs_id), None)
-                if nsuid and f"nsuid_{nsuid}" in posted_history:
-                    posted_history.pop(f"nsuid_{nsuid}", None)
-                norm = _normalize_title_key(title)
-                if norm and f"title_{norm}" in posted_history:
-                    posted_history.pop(f"title_{norm}", None)
+                _release_deal_from_history(posted_history, fresh_history, it)
             save_posted_deals(posted_history)
             sync_eshop_state_after_change(f"delete-messages surviving={len(surviving)}")
 
@@ -1316,8 +1635,11 @@ def list_showcase_deals():
                 items = v
                 break
 
+    regular_items = [it for it in items if not it.get("is_nintendo")]
+    nintendo_items = [it for it in items if it.get("is_nintendo")]
+
     print(f"\n📊 [Активна вітрина eShop] Топік: {target_topic} (Чат: {target_chat})")
-    print(f"Всього ігор у базі вітрини: {len(items)}/30\n" + "=" * 60)
+    print(f"Всього ігор у базі вітрини: {len(items)}/30 ({len(regular_items)} звичайних + {len(nintendo_items)} Nintendo)\n" + "=" * 60)
     if not items:
         print("ℹ️ База даних вітрини наразі порожня (0 ігор).")
         print("Щоб заповнити вітрину 30 актуальними хітами, виконайте: python send_eshop_deals.py --force")
@@ -1330,7 +1652,8 @@ def list_showcase_deals():
         curr = it.get("currency", "EUR")
         msg_id = it.get("message_id")
         fs_id = it.get("fs_id")
-        print(f"{i:2d}. {title} | -{disc:.0f}% ({price} {curr}) | msg_id: {msg_id} | fs_id: {fs_id}")
+        nin_badge = " [Nintendo]" if it.get("is_nintendo") else ""
+        print(f"{i:2d}. {title}{nin_badge} | -{disc:.0f}% ({price} {curr}) | msg_id: {msg_id} | fs_id: {fs_id}")
     print("=" * 60 + "\n")
 
 

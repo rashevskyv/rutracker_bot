@@ -2,6 +2,20 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.56] - 2026-09-28
+
+### Added
+- **Nintendo First-Party Priority Deals Showcase (`send_eshop_deals.py`)**:
+  - Published discounted titles from `NINTENDO_FIRST_PARTY_GAMES` out-of-order, beyond the standard 30-card capacity limit and popularity displacement checks in the active deals showcase topic (`561344`).
+  - Active Nintendo first-party cards do not consume standard showcase slots; capacity limits (default 30) and popularity displacement apply strictly to standard cards.
+  - Strict exact title matching against `NINTENDO_FIRST_PARTY_GAMES`: normalized exact comparison prevents DLC, Expansion Passes, or non-base packages (such as *Super Mario Odyssey DLC* or *The Legend of Zelda: Breath of the Wild Expansion Pass*) from being classified as Nintendo first-party base games.
+  - Distinguished discount expiration from price updates: if the live API confirms a discount is still active but price or percentage changed, the card message is updated in-place via Telegram API without deleting the card; on Telegram error, state is preserved for subsequent retry.
+  - Expired cards are safely deleted via `safe_delete_showcase_message()` only when the sale has confirmed ended; after successful deletion, the showcase update notification is sent/refreshed so it immediately drops links to deleted cards.
+  - Nintendo first-party candidates bypass cooldown checks while strictly confirming live discounts via the Nintendo Price API and deduplicating against active showcase cards.
+  - Automatically recognizes existing untagged Nintendo first-party cards at cycle start and promotes them to the priority category without sending duplicate messages.
+  - Updated showcase notification formatting and CLI `--list` summary to explicitly display regular vs. Nintendo card breakdowns (`«30 regular + N Nintendo»`).
+  - Added focused regression tests in `test_eshop_us_deals.py` covering exact title classification, active discount in-place price edits, full 30-card showcase retention with Nintendo deals, safe deletion on sale expiration, and state preservation on deletion failure.
+
 ## [v0.7.55] - 2026-09-28
 
 ### Added
