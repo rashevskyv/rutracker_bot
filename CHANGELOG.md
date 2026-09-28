@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.55] - 2026-09-28
+
+### Added
+- **Manual Release Addition (`Need for Speed: Most Wanted`)**: Added native Nintendo Switch port `Need for Speed: Most Wanted (StevensND)` v`v1.0.0` (Xbox 360 edition port, `https://github.com/StevensND/nfsmw-nx/releases/tag/v1.0.0`) with Ukrainian description, `Switch` platform grouping, and `processed: false` status to `data/manual_releases.json`.
+- **Gist State Synchronization**: Pulled authoritative manual releases state from GitHub Gist, added `Need for Speed: Most Wanted (StevensND)` bringing the total registry count to 273 entries, and pushed the updated state back to Gist.
+
 ## [v0.7.54] - 2026-09-26
 
 ### Fixed

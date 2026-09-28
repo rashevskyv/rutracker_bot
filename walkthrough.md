@@ -1,30 +1,28 @@
-# Walkthrough: знижки Nintendo у США (v0.7.54)
+# Walkthrough: додавання ручного релізу Need for Speed: Most Wanted (v0.7.55)
 
-Бот тепер шукає кураторські ексклюзиви Nintendo в американському каталозі та підтверджує знижки через живий Price API для `US`. Картки з ціною в USD повторно перевіряються для США, а повідомлення містить американську ціну й посилання на US eShop. Для BotW, TotK і Super Mario Maker 2 отримано чинні US знижки та справжній рейтинг популярності. Пов'язані тести: `54 passed` у Windows Python. Публікація на сервері й перевірка Telegram ще потрібні.
-
-## Попереднє завдання: Autorun і синхронізація Gist (v0.7.53)
-
-## Огляд змін
-У версії `v0.7.53`:
+У версії `v0.7.55`:
 1. **Синхронізація бази релізів з GitHub Gist**:
-   - Виконано завантаження актуального стану `manual_releases.json` із віддаленого Gist-сховища за допомогою [sync_gist_state.py](file:///d:/git/dev/rutracker_bot/sync_gist_state.py) (`python sync_gist_state.py download manual_releases.json`).
-   - Механізм злиття автоматично інтегрував нові релізи від серверних колекторів (як-от `Total Party Kill`, `Duke Dashington Remastered`, `Heart Star` від `ChanseyIsTheBest`) та зберіг усі локальні несинхронізовані записи.
-2. **Додавання релізу `danfromtico/autorun`**:
-   - У файл `data/manual_releases.json` додано новий випуск застосунку `Autorun (danfromtico)` (раніше відомого як Wine-NX):
-     - **Версія**: `test-build-3`
+   - Завантажено актуальний стан `manual_releases.json` із віддаленого сховища GitHub Gist за допомогою [sync_gist_state.py](file:///d:/git/dev/rutracker_bot/sync_gist_state.py) (`python sync_gist_state.py download manual_releases.json`).
+   - Автоматичний механізм злиття зберіг усі локальні та віддалені модифікації, довівши базу до 272 записів.
+
+2. **Додавання релізу `StevensND/nfsmw-nx`**:
+   - Отримано метадані першого публічного релізу порту культової гри **Need for Speed: Most Wanted (2005)** версії Xbox 360 для Nintendo Switch.
+   - Сформовано структурований запис у `data/manual_releases.json`:
+     - **Назва**: `Need for Speed: Most Wanted (StevensND)`
+     - **Версія**: `v1.0.0`
      - **Платформа**: `Switch`
-     - **Посилання**: [https://github.com/danfromtico/autorun/releases/tag/test-build-3](https://github.com/danfromtico/autorun/releases/tag/test-build-3)
-     - **Опис**: *«Додаток для запуску ПК-ігор та програм Windows на Nintendo Switch на базі Wine та транслятора Box64 (раніше Wine-NX). Тестова збірка 3 містить оновлений інтерфейс і брендинг, індивідуальне призначення кнопок для кожної гри, автофорвардер для 32-бітних проєктів та розширену сумісність.»*
-     - **Статус**: `processed: false`, очікує включення у найближчий дайджест хоумбрю.
-   - Загальна кількість записів у базі зросла до **259**.
-3. **Вивантаження оновленої бази на Gist**:
-   - Виконано команду `python sync_gist_state.py upload manual_releases.json`.
-   - Проведено верифікаційне завантаження, що підтвердило наявність та цілісність усіх 259 записів.
+     - **Тип**: `homebrew`
+     - **Посилання**: [https://github.com/StevensND/nfsmw-nx/releases/tag/v1.0.0](https://github.com/StevensND/nfsmw-nx/releases/tag/v1.0.0)
+     - **Опис**: *«Перший публічний реліз NFSMW-NX — нативного порту культової перегонової гри Need for Speed: Most Wanted (2005) версії Xbox 360 для Nintendo Switch. Підтримує роздільну здатність 720p у портативі та 1080p у доці, різні регіональні видання гри, нативне керування геймпадами консолі та вебінсталятор для підготовки файлів і шейдерів.»*
+     - **Статус**: `processed: false`, `is_new: true` (очікує на відправку в хоумбрю-дайджест).
+   - Загальна кількість записів у базі досягла **273**.
+
+3. **Вивантаження оновленої бази на GitHub Gist**:
+   - Виконано вивантаження оновленого реєстру через команду `python sync_gist_state.py upload manual_releases.json`.
+   - Проведено контрольне завантаження (`python sync_gist_state.py download manual_releases.json`), яке підтвердило наявність та цілісність усіх 273 записів на віддаленому Gist.
+
 4. **Паралельне тестування**:
-   - Усі 93 тести проєкту успішно виконані у паралельному режимі (`pytest -n auto`).
-5. **Документація та версіонування**:
-   - Ітеровано версію програми до `v0.7.53`.
-   - Оновлено [CHANGELOG.md](file:///d:/git/dev/rutracker_bot/CHANGELOG.md), [task.md](file:///d:/git/dev/rutracker_bot/task.md) та [plan.md](file:///d:/git/dev/rutracker_bot/plan.md).
+   - Проведено повний прогін тестів у паралельному режимі (`pytest -n auto`): `106 passed`.
 
 ---
 
@@ -32,12 +30,12 @@
 
 | Додаток / Гра | Версія | Платформа | Посилання на реліз | Статус |
 | :--- | :--- | :--- | :--- | :--- |
-| **Autorun (danfromtico)** | `test-build-3` | Switch | [GitHub Release](https://github.com/danfromtico/autorun/releases/tag/test-build-3) | `processed: false` |
+| **Need for Speed: Most Wanted (StevensND)** | `v1.0.0` | Switch | [GitHub Release](https://github.com/StevensND/nfsmw-nx/releases/tag/v1.0.0) | `processed: false` |
 
 ---
 
 ## Результати тестування
 ```powershell
 pytest -n auto
-# ============================= 93 passed in 16.51s =============================
+# ============================ 106 passed in 20.82s ============================
 ```
