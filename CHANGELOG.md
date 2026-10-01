@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.57] - 2026-10-01
+
+### Added
+- **Manual Release Addition (`Far Cry / NearChuckle`)**: Added Nintendo Switch port `Far Cry (NearChuckle NX) (artslay)` v`1.0.1` (`https://github.com/artslay/NearChuckle_nx/releases/tag/1.0.1`) with Ukrainian description, `Switch` platform grouping, and `processed: false` status to `data/manual_releases.json`.
+- **Gist State Synchronization**: Pulled authoritative manual releases state from GitHub Gist, added `Far Cry (NearChuckle NX) (artslay)` bringing the total registry count to 278 entries, and pushed the updated state back to Gist.
+
 ## [v0.7.56] - 2026-09-28
 
 ### Added

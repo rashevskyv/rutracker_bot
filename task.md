@@ -1,9 +1,9 @@
-# Завдання: ексклюзиви Nintendo поза 30 картками (v0.7.56)
+# Завдання: додавання ручного релізу Far Cry (NearChuckle NX) (v0.7.57)
 
-- [x] Підтверджено, що 28 вересня US Price API не має активних знижок на перевірені BotW, TotK і Super Mario Maker 2.
-- [x] Акційні Nintendo картки не займають 30 звичайних місць.
-- [x] Вони публікуються першими й не блокуються кулдауном.
-- [x] Повторний запуск не створює дублікатів.
-- [x] Завершені акції прибираються без втрати стану при помилці Telegram.
-- [x] Оновлено список карток, сповіщення, тести та документацію.
-- [x] Рев'ю, версія `v0.7.56` і коміт.
+- [x] Оновити `data/manual_releases.json` із віддаленого Gist-сховища (`python sync_gist_state.py download manual_releases.json`).
+- [x] Отримати метадані релізу `https://github.com/artslay/NearChuckle_nx/releases` (`1.0.1`).
+- [x] Додати реліз `Far Cry (NearChuckle NX) (artslay)` у `data/manual_releases.json` з описом українською мовою та статусом `processed: false`.
+- [x] Вивантажити оновлену базу (278 записів) назад у GitHub Gist через `sync_gist_state.py upload manual_releases.json`.
+- [x] Верифікувати успішність збереження та злиття на Gist повторним завантаженням.
+- [x] Прогнати повний набір тестів у паралельному режимі (`pytest -n auto`: 109 passed).
+- [x] Оновити документацію (CHANGELOG.md, plan.md, task.md, walkthrough.md) та зафіксувати версію `v0.7.57`.
