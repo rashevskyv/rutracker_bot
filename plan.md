@@ -1,3 +1,13 @@
+# План: виключити інфраструктурні репозиторії aks796 (v0.7.61)
+
+- [x] Сухий прогін першого обходу `aks796` (лише читання): 17 із 22 репозиторіїв проходять відбір, 5 із них — бібліотеки та рантайми.
+- [x] Додати `SKIP_REPOS` і перевірку на початку циклу репозиторіїв у `collect_custom_releases.py`.
+- [x] Додати `test_custom_releases_collector.py`: `libnx32` не потрапляє в чергу, `sonic_allstars_nx` потрапляє.
+- [x] Оновити списки авторів та опис збирача в `README.md`, `GEMINI.md`, `run_custom_collector.bat`, `run_custom_collector.sh`.
+- [x] `pytest -n auto`: 110 passed. Зміни не закомічено.
+
+## Попередній план
+
 # План: ручний реліз NFS Underground 2 (v0.7.60)
 
 - [x] Download `manual_releases.json` перед змінами.

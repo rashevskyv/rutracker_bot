@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.61] - 2026-10-02
+
+### Changed
+- **Custom Releases Collector (`SKIP_REPOS`)**: The collector no longer queues the build-infrastructure repositories of `aks796` (`android32`, `libnx32`, `mesa-switch32`, `mesa32`, `ffmpeg32`), so only end-user releases reach `data/manual_releases.json`. Covered by `test_custom_releases_collector.py`.
+
+### Fixed
+- **Documentation & Scripts**: Added `aks796` to the tracked-author lists in `README.md`, `GEMINI.md`, `run_custom_collector.bat`, and `run_custom_collector.sh`.
+
 ## [v0.7.60] - 2026-10-02
 
 ### Added

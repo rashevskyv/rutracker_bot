@@ -1,3 +1,11 @@
+# Завдання: виключити інфраструктурні репозиторії aks796 (v0.7.61)
+
+- [x] Збирач не ставить у чергу `android32`, `libnx32`, `mesa-switch32`, `mesa32`, `ffmpeg32` (`SKIP_REPOS` у `collect_custom_releases.py`).
+- [x] Додати `aks796` до списків авторів у `README.md`, `GEMINI.md`, `run_custom_collector.bat`, `run_custom_collector.sh`.
+- [x] Не змінювати LLM-фільтр і маркери назв, не чіпати `data/` та Gist; перевірити новим тестом і `pytest -n auto`.
+
+## Попереднє завдання
+
 # Завдання: ручний реліз NFS Underground 2 (v0.7.60)
 
 - [x] Download → додавання NFS Underground 2 v0.3.5 → upload.

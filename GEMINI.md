@@ -147,12 +147,13 @@ All sources: `_extract_latest_changelog()` extracts the top block, then GPT summ
 
 ## Custom Switch Repositories Collector (`collect_custom_releases.py`)
 
-- **Tracked Authors:** `NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`.
+- **Tracked Authors:** `NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`, `aks796`.
 - **State File:** `data/custom_releases_state.json` (synced via Gist `sync_gist_state.py`).
 - **Time Windows:**
   - **New authors** (not in state): Collect releases from the last 3 weeks (21 days).
   - **Existing authors** (in state): Collect all releases published since `last_run` timestamp.
 - **LLM Verification:** Evaluates repository descriptions/topics via LLM (`"is_switch_homebrew": true/false`) to ensure only Nintendo Switch homebrew applications, games, ports, or tools are added to `data/manual_releases.json` with `"processed": false`.
+- **Skipped Repositories:** `SKIP_REPOS` lists build infrastructure (`aks796/android32`, `libnx32`, `mesa-switch32`, `mesa32`, `ffmpeg32`) that is never queued, regardless of name markers or the LLM verdict. When adding an author, check their repositories for libraries/runtimes and list them there.
 
 ### First Run Behavior
 

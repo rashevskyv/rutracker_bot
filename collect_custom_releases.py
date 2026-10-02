@@ -13,6 +13,9 @@ MANUAL_RELEASES_FILE = os.path.join(DATA_DIR, "manual_releases.json")
 CUSTOM_RELEASES_STATE_FILE = os.path.join(DATA_DIR, "custom_releases_state.json")
 
 TARGET_USERS = ["NaGaa95", "ChanseyIsTheBest", "delsonazevedo", "boraeskicioglu", "PalindromicBreadLoaf", "aks796"]
+# Build infrastructure (libraries/runtimes), not end-user releases: never queued. Keys are lowercase "owner/repo".
+# ponytail: explicit list, new infra repos must be added by hand; move to a naming rule if it keeps growing.
+SKIP_REPOS = {"aks796/android32", "aks796/libnx32", "aks796/mesa-switch32", "aks796/mesa32", "aks796/ffmpeg32"}
 NEW_AUTHOR_AGE_DAYS = 21  # Collect releases from last 3 weeks for new authors
 
 def run_gist_sync(action: str) -> bool:
@@ -292,7 +295,10 @@ def main():
             repo_url = repo["html_url"]
             repo_desc = repo["description"]
             topics = repo.get("topics", [])
-            
+
+            if f"{username}/{repo_name}".lower() in SKIP_REPOS:
+                continue
+
             if is_already_added(manual_releases, repo_url, repo_name):
                 continue
 

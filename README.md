@@ -53,10 +53,11 @@ Checks various platforms for homebrew updates:
 - Queues localization entries into `data/swuk_digest_data.json`.
 
 ### 4. Custom Switch Repositories Collector (`collect_custom_releases.py`)
-- Tracks custom GitHub authors (`NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`) for Nintendo Switch homebrew applications, ports, and games.
+- Tracks custom GitHub authors (`NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`, `aks796`) for Nintendo Switch homebrew applications, ports, and games.
 - State is persisted in `data/custom_releases_state.json` (synced with Gist), tracking `last_run` timestamp and author history.
 - Evaluates releases over the last 3 weeks (21 days) for newly added authors, and since `last_run` for existing authors.
 - Uses LLM verification to confirm that repositories are valid Nintendo Switch homebrew software before queueing them to `data/manual_releases.json`.
+- Never queues build-infrastructure repositories listed in `SKIP_REPOS` (libraries/runtimes such as `aks796/libnx32`), so only end-user releases reach the digest.
 - **Execution Scripts**:
   - Linux / Server: `./run_custom_collector.sh` (or `bash run_custom_collector.sh`, or via universal runner `./config/run_checker.sh.example custom`)
   - Windows: `run_custom_collector.bat`
