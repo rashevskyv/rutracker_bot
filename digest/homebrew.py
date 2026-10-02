@@ -51,7 +51,9 @@ def limit_to_sentences(text: str, max_sentences: int = 2, max_chars: int = 220) 
         text = " ".join(sentences[:max_sentences])
     if len(text) > max_chars:
         truncated = text[:max_chars]
-        last_punct = max(truncated.rfind('.'), truncated.rfind('!'), truncated.rfind('?'))
+        # A sentence ends at punctuation followed by whitespace; a dot inside "v0.3.5" or "file.pak" does not.
+        ends = [m.start() for m in re.finditer(r'[.!?](?=\s)', text[:max_chars + 1])]
+        last_punct = ends[-1] if ends else -1
         if last_punct > 50:
             text = truncated[:last_punct + 1]
         else:

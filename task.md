@@ -1,3 +1,12 @@
+# Завдання: ізоляція тестів від Gist і коректне обрізання описів (v0.7.62)
+
+- [x] `pytest` не звертається до продакшн-Gist і не пише в живі `data/` та `config/` (`conftest.py`, `test_gist_config.py`).
+- [x] `limit_to_sentences` обрізає опис на кінці речення, а не на крапці всередині версії (`digest/homebrew.py`).
+- [x] Не змінювати логіку злиття в `sync_gist_state.py`, не писати в `data/` та Gist; перевірити повним прогоном і порівнянням ревізій Gist до та після.
+- [x] Повернути в Gist записи noJMe та NFS Underground 2 (опис NFS Underground 2 скорочено до 211 символів) і стан eShop, затертий тестами.
+
+## Попереднє завдання
+
 # Завдання: виключити інфраструктурні репозиторії aks796 (v0.7.61)
 
 - [x] Збирач не ставить у чергу `android32`, `libnx32`, `mesa-switch32`, `mesa32`, `ffmpeg32` (`SKIP_REPOS` у `collect_custom_releases.py`).

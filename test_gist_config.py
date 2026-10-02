@@ -21,31 +21,25 @@ def test_missing_gist_id_is_fatal():
         "SYSTEMROOT": __import__("os").environ.get("SYSTEMROOT", ""),
         # deliberately no GIST_ID / GIST_TOKEN
     }
-    local_cfg = SRC.parent / "config" / "local_settings.json"
-    original_content = None
-    if local_cfg.exists():
-        original_content = local_cfg.read_text(encoding="utf-8")
-        try:
-            cfg_dict = __import__("json").loads(original_content)
-            if "GIST_ID" in cfg_dict:
-                del cfg_dict["GIST_ID"]
-                local_cfg.write_text(__import__("json").dumps(cfg_dict), encoding="utf-8")
-        except Exception:
-            pass
-
-    try:
-        r = subprocess.run(
-            [sys.executable, str(SRC), "upload"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=str(SRC.parent), env=env,
-        )
-        assert r.returncode == 1, f"expected exit 1, got {r.returncode}"
-        combined = (r.stdout + r.stderr).lower()
-        assert "gist_id" in combined, combined[-400:]
-        assert "46128fc489e0fd60e226ff26dc638e97" not in combined
-    finally:
-        if original_content is not None:
-            local_cfg.write_text(original_content, encoding="utf-8")
+    # Run the script with an empty stand-in for the settings module, so the real config is never
+    # read or rewritten and the upload can never resolve credentials for the production Gist.
+    launcher = (
+        "import runpy, sys, types\n"
+        "stub = types.ModuleType('core.settings_loader')\n"
+        "stub.settings = {}\n"
+        "sys.modules['core.settings_loader'] = stub\n"
+        "sys.argv = [sys.argv[1], 'upload']\n"
+        "runpy.run_path(sys.argv[0], run_name='__main__')\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-c", launcher, str(SRC)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=str(SRC.parent), env=env,
+    )
+    assert r.returncode == 1, f"expected exit 1, got {r.returncode}"
+    combined = (r.stdout + r.stderr).lower()
+    assert "gist_id" in combined, combined[-400:]
+    assert not re.search(r"\b[0-9a-f]{32}\b", combined), "a gist id leaked into the output"
 
 
 def test_normalize_target_files():

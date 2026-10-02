@@ -1,6 +1,8 @@
 """Repositories listed in SKIP_REPOS (build infrastructure) must never be queued, even when
 their name carries a Switch marker that would otherwise override the LLM verdict."""
 import json
+import sys
+import types
 from datetime import datetime, timezone
 
 import collect_custom_releases as ccr
@@ -10,6 +12,8 @@ def test_skip_repos_are_never_queued(monkeypatch, tmp_path):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     manual_path = tmp_path / "manual_releases.json"
 
+    # main() reads its GitHub token from the settings module; give it an empty one instead of the real config.
+    monkeypatch.setitem(sys.modules, "core.settings_loader", types.SimpleNamespace(settings={}))
     monkeypatch.setattr(ccr, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(ccr, "MANUAL_RELEASES_FILE", str(manual_path))
     monkeypatch.setattr(ccr, "CUSTOM_RELEASES_STATE_FILE", str(tmp_path / "custom_releases_state.json"))

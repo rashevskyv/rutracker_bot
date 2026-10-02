@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.62] - 2026-10-02
+
+### Fixed
+- **Test Isolation (`conftest.py`)**: The test suite no longer reaches the production Gist or writes into the live `data/` and `config/` directories. Every eShop rotation test used to force-upload the local `data/eshop_*` state files, so each `pytest` run replaced the Live Showcase state in the Gist with a stale local copy. An autouse fixture now blocks `sync_gist_state.upload_state` / `download_state` and redirects the eShop state and region-price cache paths to a temp dir; `test_missing_gist_id_is_fatal` no longer rewrites `config/local_settings.json`.
+- **Homebrew Digest Truncation (`limit_to_sentences`)**: A description over the character limit is cut at a sentence end instead of at the last dot, so a version such as `v0.3.5` or a file name no longer ends the post mid-token.
+- **Gist State Restore**: Re-added `noJMe (corax89)` and `Need for Speed: Underground 2 (antoxa2584x)` to `manual_releases.json` after a server upload dropped them, with the NFS Underground 2 description shortened to 211 characters. Restored the three eShop state files from the last revision before the test runs (30 showcase cards, 134 history entries). Written as one Gist revision and verified by re-reading every file.
+
 ## [v0.7.61] - 2026-10-02
 
 ### Changed

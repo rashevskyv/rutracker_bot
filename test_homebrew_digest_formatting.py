@@ -44,6 +44,11 @@ def test_limit_to_sentences():
     # Empty text
     assert limit_to_sentences("", max_sentences=2) == ""
 
+    # Over the character limit: cut at a sentence end, never at a dot inside a version number
+    first = "Порт гри для Nintendo Switch на основі рекомпіляції оригінальної Xbox-версії."
+    long_text = f"{first} Оновлення v0.3.5 виправляє {'дуже ' * 40}довгий список проблем."
+    assert limit_to_sentences(long_text, max_sentences=2, max_chars=220) == first
+
 
 def test_sanitize_digest_description_clean_input():
     desc = "Порт класичного шутера для Nintendo Switch.\n<i>Виправлено баг зі збереженням та оновлено керування.</i>"
