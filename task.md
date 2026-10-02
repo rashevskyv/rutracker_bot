@@ -1,3 +1,10 @@
+# Завдання: моніторинг репозиторіїв aks796 (v0.7.58)
+
+- [x] Додати автора `aks796` до автоматичного обходу репозиторіїв.
+- [x] Перевірити зміну у WSL та `git diff --check`, підготувати коміт `v0.7.58`.
+
+## Попереднє завдання
+
 # Завдання: додавання ручного релізу Far Cry (NearChuckle NX) (v0.7.57)
 
 - [x] Оновити `data/manual_releases.json` із віддаленого Gist-сховища (`python sync_gist_state.py download manual_releases.json`).

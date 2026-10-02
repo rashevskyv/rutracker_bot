@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.58] - 2026-10-02
+
+### Added
+- **Custom Releases Collector (`aks796`)**: Added `aks796` to the monitored GitHub authors. The existing collector discovers their repositories automatically and applies its Nintendo Switch and recency filters.
+
 ## [v0.7.57] - 2026-10-01
 
 ### Added
