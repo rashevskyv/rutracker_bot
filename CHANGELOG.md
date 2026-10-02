@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.59] - 2026-10-02
+
+### Added
+- **Manual Entry (`noJMe`)**: Added `noJMe (corax89)` for Switch as `dev (6da353a)`, with a Ukrainian description and `processed: false`. No tagged releases are published. Downloaded manual releases before editing, uploaded the merged list, and verified the new entry directly in Gist (279 total entries).
+
 ## [v0.7.58] - 2026-10-02
 
 ### Added
