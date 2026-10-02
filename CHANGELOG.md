@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.60] - 2026-10-02
+
+### Added
+- **Manual Release (`Need for Speed: Underground 2`)**: Added `antoxa2584x/nfsu2-sw` v0.3.5 for Switch with a Ukrainian description and `processed: false`. Downloaded before editing, uploaded, and verified the entry directly in Gist (280 entries, noJMe preserved).
+
 ## [v0.7.59] - 2026-10-02
 
 ### Added

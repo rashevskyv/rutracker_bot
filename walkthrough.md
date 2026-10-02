@@ -1,3 +1,9 @@
+# v0.7.60 — ручний реліз NFS Underground 2 (2026-10-02)
+
+Після download із Gist додано `Need for Speed: Underground 2 (antoxa2584x)` v0.3.5 для Switch: `https://github.com/antoxa2584x/nfsu2-sw/releases/tag/v0.3.5`, дата релізу `2026-10-01T20:48:37Z`, `processed: false`. Український опис охоплює Xbox-рекомпіляцію та виправлення split-screen, завантаження й відео.
+
+Upload успішний. Пряме читання Gist підтвердило єдиний запис, відповідність локальним даним, 280 записів загалом і збереження noJMe. Дайджест не запускався.
+
 # v0.7.59 — ручний запис noJMe (2026-10-02)
 
 Виконано `python sync_gist_state.py download manual_releases.json`, додано `noJMe (corax89)` для Switch та виконано `python sync_gist_state.py upload manual_releases.json`. Версія `dev (6da353a)` відповідає актуальному коміту від 2026-10-01; тегованих релізів немає. README вказує Switch-версію `switchui`.

@@ -1,3 +1,11 @@
+# Завдання: ручний реліз NFS Underground 2 (v0.7.60)
+
+- [x] Download → додавання NFS Underground 2 v0.3.5 → upload.
+- [x] Перевірити запис у віддаленому Gist і збереження noJMe.
+- [x] Оновити CHANGELOG і документи для `v0.7.60`.
+
+## Попереднє завдання
+
 # Завдання: ручний запис noJMe (v0.7.59)
 
 - [x] Download → додавання noJMe → upload для `manual_releases.json`.
