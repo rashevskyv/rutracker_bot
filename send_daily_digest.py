@@ -13,7 +13,7 @@ from core.settings_loader import IS_TEST_MODE, TEST_GROUPS
 from digest import runner
 from digest.daily import digest_manager
 from services.telegram_sender import send_message_to_admin
-from services.manual_releases import process_manual_releases
+from services.manual_releases import process_manual_releases, mark_manual_releases_published
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,8 @@ async def send_digest():
         # Clear old entries AFTER all groups have been sent
         if sent_count > 0:
             runner.save_last_run_time(LAST_RUN_FILE)
+            manual_count = mark_manual_releases_published(
+                'game', {e.get('url') for e in digest_manager._load_data()['entries']})
             cleanup_time = datetime.now() - timedelta(days=7)
             digest_manager.clear_old_entries(cleanup_time)
             logger.info(f"Cleared digest entries older than {cleanup_time}")

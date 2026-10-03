@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # Custom Switch Repositories Collector Runner for Linux / Server
-# Tracks target authors (NaGaa95, ChanseyIsTheBest, delsonazevedo, boraeskicioglu, PalindromicBreadLoaf, aks796)
+# Tracks the authors in TARGET_USERS (collect_custom_releases.py)
 # ==============================================================================
 
 set -e
@@ -13,7 +13,6 @@ cd "$SCRIPT_DIR"
 
 echo "=================================================="
 echo "Running Custom Switch Repositories Collector..."
-echo "(NaGaa95, ChanseyIsTheBest, delsonazevedo, boraeskicioglu, PalindromicBreadLoaf, aks796)"
 echo "=================================================="
 
 # Activate Python virtual environment if present

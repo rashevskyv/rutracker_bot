@@ -48,6 +48,97 @@ FILES_TO_SYNC = [
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+# Gist content of manual_releases.json at this machine's last sync: lets the merge tell a deletion from an addition.
+BASE_DIR = os.path.join(DATA_DIR, ".gist_base")
+
+
+def load_base(filename: str):
+    """Parsed Gist content of filename at the last sync, or None."""
+    try:
+        with open(os.path.join(BASE_DIR, filename), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def save_base(filename: str, content: str):
+    if filename != "manual_releases.json":  # the only three-way merge
+        return
+    os.makedirs(BASE_DIR, exist_ok=True)
+    with open(os.path.join(BASE_DIR, filename), "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def _release_name(e: dict) -> str:
+    return (e.get('title') or e.get('app_name') or "").strip().lower()
+
+
+def _release_key(e: dict) -> tuple:
+    url = e.get('url') or e.get('release_url') or ""
+    return (url.strip(), _release_name(e), (e.get('version') or "").strip().lower())
+
+
+def merge_manual_releases(local_rows: list, gist_rows: list, base_rows: list = None) -> list:
+    """Three-way merge of manual releases against base_rows, the Gist content at the last sync.
+
+    A row only one side has was added there, unless base has it unchanged: then the other side
+    deleted it. A row both sides have takes the local version only if it was edited since base;
+    its processed flag comes from the side that changed it since base. Without a base nothing
+    counts as deleted and a row processed on either side stays processed.
+    """
+    base = {_release_key(e): e for e in base_rows or []}
+    local = {_release_key(e): e for e in local_rows}
+    gist_keys = {_release_key(e) for e in gist_rows}
+    gist_names = {_release_name(e) for e in gist_rows}
+    merged = []
+    for g in gist_rows:
+        k = _release_key(g)
+        l = local.get(k)
+        if l is None:
+            if base.get(k) != g:  # added in the Gist, or changed there after a local delete
+                merged.append(g)
+            continue
+        b = base.get(k)
+        row = dict(g) if l == b else {**g, **l}
+        if b is None:
+            if l.get('processed') or g.get('processed'):
+                row['processed'] = True
+        else:  # a stale copy cannot re-queue a published row, but a deliberate re-queue goes through
+            row['processed'] = bool(l.get('processed') if bool(l.get('processed')) != bool(b.get('processed')) else g.get('processed'))
+        merged.append(row)
+    for l in local_rows:
+        k = _release_key(l)
+        if k in gist_keys or base.get(k) == l:  # merged above, or deleted in the Gist
+            continue
+        if base_rows is None and l.get('processed') and _release_name(l) in gist_names:
+            continue  # no base: a processed row the Gist re-versioned, not a new one
+        merged.append(l)
+    return merged
+
+# Written only by add_release.py on the dev machine; servers read it and never upload it, so a row
+# queued there cannot be dropped by another machine's upload.
+INBOX_FILE = "manual_inbox.json"
+
+
+def absorb_inbox(manual_rows: list, inbox_rows: list) -> list:
+    """manual_rows plus every inbox row not in it yet (matched by inbox_id or release key)."""
+    ids = {r.get("inbox_id") for r in manual_rows if r.get("inbox_id")}
+    keys = {_release_key(r) for r in manual_rows}
+    new = [dict(r, processed=False) for r in inbox_rows
+           if isinstance(r, dict) and r.get("inbox_id") and r["inbox_id"] not in ids and _release_key(r) not in keys]
+    for r in new:
+        logger.info(f"Queued inbox release {r.get('app_name')} {r.get('version')}")
+    return manual_rows + new
+
+
+def gist_file_text(file_info: dict, token: str) -> str:
+    """Content of a Gist file entry, fetched from raw_url when the API truncated it."""
+    if file_info.get("truncated") and file_info.get("raw_url"):
+        raw_req = urllib.request.Request(file_info["raw_url"], headers=get_gist_headers(token))
+        with urllib.request.urlopen(raw_req) as raw_resp:
+            return raw_resp.read().decode("utf-8")
+    return file_info.get("content", "")
+
 
 def get_gist_headers(token: str = None) -> Dict[str, str]:
     headers = {
@@ -145,13 +236,8 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
             files = gist_data.get("files", {})
             for filename in sync_list:
                 if filename in files:
-                    file_info = files[filename]
-                    if file_info.get("truncated") and file_info.get("raw_url"):
-                        raw_req = urllib.request.Request(file_info["raw_url"], headers=get_gist_headers(token))
-                        with urllib.request.urlopen(raw_req) as raw_resp:
-                            content = raw_resp.read().decode("utf-8")
-                    else:
-                        content = file_info.get("content", "")
+                    content = gist_file_text(files[filename], token)
+                    gist_text = content
                     filepath = os.path.join(DATA_DIR, filename)
 
                     # Never blindly overwrite newer local JSON (especially eshop showcase).
@@ -160,7 +246,7 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
                             with open(filepath, "r", encoding="utf-8") as lf:
                                 local_content = lf.read()
                             if local_content.strip() and content.strip():
-                                merged = merge_json_files(filename, local_content, content, is_download=True)
+                                merged = merge_json_files(filename, local_content, content, base=load_base(filename))
                                 if merged != content:
                                     logger.info(
                                         f"Download merge kept newer/local-preferred state for {filename}"
@@ -174,8 +260,19 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
                                 f"Download merge failed for {filename}, using Gist content: {merge_err}"
                             )
 
+                    if filename == "manual_releases.json" and INBOX_FILE in files:
+                        try:
+                            inbox = json.loads(gist_file_text(files[INBOX_FILE], token) or "[]")
+                            rows = json.loads(content)
+                            merged_rows = absorb_inbox(rows, inbox if isinstance(inbox, list) else [])
+                            if len(merged_rows) != len(rows):
+                                content = json.dumps(merged_rows, ensure_ascii=False, indent=2)
+                        except ValueError as e:
+                            logger.warning(f"Ignoring unreadable {INBOX_FILE}: {e}")
+
                     with open(filepath, "w", encoding="utf-8") as f:
                         f.write(content)
+                    save_base(filename, gist_text)
                     logger.info(f"Downloaded {filename}")
                 else:
                     logger.warning(f"{filename} not found in Gist, will be created locally if needed.")
@@ -188,8 +285,11 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
         logger.error(f"Error downloading state: {e}")
         raise
 
-def merge_json_files(filename: str, local_content: str, gist_content: str, is_download: bool = False) -> str:
-    """Safely merges local and Gist contents for JSON files to prevent data loss while respecting local edits."""
+def merge_json_files(filename: str, local_content: str, gist_content: str, base=None) -> str:
+    """Safely merges local and Gist contents for JSON files to prevent data loss while respecting local edits.
+
+    base is the parsed Gist content at the last sync (see load_base); only manual_releases.json uses it.
+    """
     try:
         local_data = json.loads(local_content)
         gist_data = json.loads(gist_content)
@@ -198,61 +298,11 @@ def merge_json_files(filename: str, local_content: str, gist_content: str, is_do
         return local_content
 
     if filename == "manual_releases.json":
-        if not isinstance(local_data, list): local_data = []
-        if not isinstance(gist_data, list): gist_data = []
-        
-        # Helper to get a unique key for manual release
-        def get_release_key(e):
-            url = e.get('url') or e.get('release_url') or ""
-            name = e.get('title') or e.get('app_name') or ""
-            version = e.get('version') or ""
-            return (url.strip(), name.strip().lower(), version.strip().lower())
-
-        if is_download:
-            # When downloading, Gist content is the authoritative remote state.
-            # We preserve any local modifications (e.g. processed status, descriptions)
-            # and any new entries created locally that are not yet on Gist.
-            local_by_key = {get_release_key(e): e for e in local_data}
-            seen_keys = set()
-            merged_list = []
-            for gist_entry in gist_data:
-                key = get_release_key(gist_entry)
-                seen_keys.add(key)
-                if key in local_by_key:
-                    local_entry = local_by_key[key]
-                    merged_entry = dict(gist_entry)
-                    merged_entry.update(local_entry)
-                    if local_entry.get('processed') or gist_entry.get('processed'):
-                        merged_entry['processed'] = True
-                    merged_list.append(merged_entry)
-                else:
-                    merged_list.append(gist_entry)
-
-            for local_entry in local_data:
-                key = get_release_key(local_entry)
-                if key not in seen_keys:
-                    app_name = (local_entry.get('title') or local_entry.get('app_name') or '').strip().lower()
-                    gist_app_names = {(e.get('title') or e.get('app_name') or '').strip().lower() for e in gist_data}
-                    if not local_entry.get('processed') or app_name not in gist_app_names:
-                        merged_list.append(local_entry)
-            return json.dumps(merged_list, ensure_ascii=False, indent=2)
-
-        gist_by_key = {get_release_key(e): e for e in gist_data}
-        
-        # Base merged list on local_data so local deletions and edits are respected!
-        merged_list = []
-        for local_entry in local_data:
-            key = get_release_key(local_entry)
-            if key in gist_by_key:
-                gist_entry = gist_by_key[key]
-                merged_entry = dict(gist_entry)
-                merged_entry.update(local_entry)
-                if local_entry.get('processed') or gist_entry.get('processed'):
-                    merged_entry['processed'] = True
-                merged_list.append(merged_entry)
-            else:
-                merged_list.append(local_entry)
-                
+        merged_list = merge_manual_releases(
+            local_data if isinstance(local_data, list) else [],
+            gist_data if isinstance(gist_data, list) else [],
+            base if isinstance(base, list) else None,
+        )
         return json.dumps(merged_list, ensure_ascii=False, indent=2)
 
     elif filename == "posted_links.json":
@@ -418,7 +468,9 @@ def upload_state(gist_id: str, token: str, force: bool = False, target_files: li
                 gist_files = gist_data.get("files", {})
             logger.info("Successfully fetched current Gist state for merging.")
         except Exception as e:
-            logger.warning(f"Could not download Gist content before upload, skipping merge: {e}")
+            # An unmerged upload would overwrite whatever other writers added since our download.
+            logger.error(f"Could not fetch Gist content before upload, nothing uploaded: {e}")
+            raise
     else:
         logger.info("Force flag enabled: bypassing merge, uploading local files directly.")
     
@@ -426,25 +478,22 @@ def upload_state(gist_id: str, token: str, force: bool = False, target_files: li
     for filename in sync_list:
         filepath = os.path.join(DATA_DIR, filename)
         if os.path.exists(filepath):
+            gist_file = gist_files.get(filename, {})
+            try:
+                gist_content = gist_file_text(gist_file, token)
+            except Exception as e:
+                logger.warning(f"Failed to fetch raw truncated content for {filename}: {e}")
+                gist_content = gist_file.get("content", "")
+
+            # Read local only after the network fetch: the runners share data/, and a local read taken
+            # before a slow raw fetch wrote stale content back over another process's fresh writes.
             with open(filepath, "r", encoding="utf-8") as f:
                 local_content = f.read()
-                
-            gist_file = gist_files.get(filename, {})
-            if gist_file.get("truncated") and gist_file.get("raw_url"):
-                try:
-                    raw_req = urllib.request.Request(gist_file["raw_url"], headers=get_gist_headers(token))
-                    with urllib.request.urlopen(raw_req) as raw_resp:
-                        gist_content = raw_resp.read().decode("utf-8")
-                except Exception as e:
-                    logger.warning(f"Failed to fetch raw truncated content for {filename}: {e}")
-                    gist_content = gist_file.get("content", "")
-            else:
-                gist_content = gist_file.get("content", "")
             
             # Merge logic if both Gist and local have content and force is False
             if not force and gist_content.strip() and gist_content.strip() not in ("empty", "{}") and local_content.strip():
                 if filename.endswith('.json'):
-                    final_content = merge_json_files(filename, local_content, gist_content)
+                    final_content = merge_json_files(filename, local_content, gist_content, base=load_base(filename))
                 else:
                     final_content = local_content
                 
@@ -475,6 +524,8 @@ def upload_state(gist_id: str, token: str, force: bool = False, target_files: li
         with urllib.request.urlopen(req) as response:
             if response.status == 200:
                 logger.info("Upload successful.")
+                for filename, file_data in files_payload.items():
+                    save_base(filename, file_data["content"])
             else:
                 logger.error(f"Upload returned status {response.status}")
     except urllib.error.HTTPError as e:

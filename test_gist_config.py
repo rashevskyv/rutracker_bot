@@ -146,47 +146,57 @@ def test_prune_showcase_to_keys():
     assert pruned["-1001790782971_561344"][0]["message_id"] == 1
 
 
-def test_merge_manual_releases_download_and_upload():
+def test_merge_manual_releases_three_way():
     import json
     import sync_gist_state
+    merge = sync_gist_state.merge_manual_releases
 
-    # 1. Download merge: Gist items must NOT be discarded, local additions preserved
-    local_releases = [
-        {"app_name": "App A", "version": "1.0", "release_url": "https://example.com/a", "processed": True},
-        {"app_name": "App C (Local Draft)", "version": "0.9", "release_url": "https://example.com/c", "processed": False},
-    ]
-    gist_releases = [
-        {"app_name": "App A", "version": "1.0", "release_url": "https://example.com/a", "processed": False},
-        {"app_name": "App B (Remote CI)", "version": "1.2", "release_url": "https://example.com/b", "processed": True},
-    ]
+    def row(name, processed=False, **extra):
+        return {"app_name": name, "version": "1.0", "release_url": f"https://example.com/{name}", "processed": processed, **extra}
 
-    download_merged = sync_gist_state.merge_json_files(
-        "manual_releases.json",
-        json.dumps(local_releases),
-        json.dumps(gist_releases),
-        is_download=True,
-    )
-    parsed_dl = json.loads(download_merged)
-    names_dl = [r["app_name"] for r in parsed_dl]
-    assert "App A" in names_dl
-    assert "App B (Remote CI)" in names_dl
-    assert "App C (Local Draft)" in names_dl
-    # Processed status preserved if either is True
-    app_a = next(r for r in parsed_dl if r["app_name"] == "App A")
-    assert app_a["processed"] is True
+    a, b, c = row("A"), row("B", processed=True), row("C")
+    base = [a, b]  # the Gist content at this machine's last sync
 
-    # 2. Upload merge: Local deletions are respected
-    upload_merged = sync_gist_state.merge_json_files(
-        "manual_releases.json",
-        json.dumps(local_releases),
-        json.dumps(gist_releases),
-        is_download=False,
-    )
-    parsed_ul = json.loads(upload_merged)
-    names_ul = [r["app_name"] for r in parsed_ul]
-    assert "App A" in names_ul
-    assert "App C (Local Draft)" in names_ul
-    assert "App B (Remote CI)" not in names_ul  # deleted locally, respected on upload
+    # C was queued by another machine after our sync: an upload from our older copy keeps it (lost on 2026-10-02).
+    assert merge([a, b], [a, b, c], base) == [a, b, c]
+    assert json.loads(sync_gist_state.merge_json_files(
+        "manual_releases.json", json.dumps([a, b]), json.dumps([a, b, c]), base=base)) == [a, b, c]
+    # Deleted locally and unchanged in the Gist: stays deleted.
+    assert merge([a], [a, b], base) == [a]
+    # Removed from the Gist (re-versioned by the server) and unchanged locally: not resurrected.
+    assert merge([a, b], [a], base) == [a]
+    # Unchanged locally and newer in the Gist: the Gist values win; a local edit wins over the Gist.
+    b_newer = dict(b, date="2026-10-02")
+    assert merge([a, b], [a, b_newer], base) == [a, b_newer]
+    a_edited = dict(a, description="edited")
+    assert merge([a_edited, b], [a, b], base)[0] == a_edited
+    # Processed on either side stays processed.
+    assert merge([dict(a, processed=True), b], [a, b], base)[0]["processed"] is True
+    # A stale copy with a local edit does not re-queue a row the Gist processed...
+    assert merge([dict(a, description="x"), b], [dict(a, processed=True), b], base)[0]["processed"] is True
+    # ...but a row re-queued in the Gist is not flipped back by an unchanged local copy.
+    assert merge([a, b], [a, dict(b, processed=False)], base)[1]["processed"] is False
+    # Without a base nothing counts as deleted, but a processed row the Gist re-versioned is not brought back.
+    assert merge([a, c], [a, b], None) == [a, b, c]
+    assert merge([a, dict(b, version="0.9")], [a, b], None) == [a, b]
+
+
+def test_absorb_inbox():
+    import sync_gist_state
+    absorb = sync_gist_state.absorb_inbox
+
+    def row(name, inbox_id=None, **extra):
+        r = {"app_name": name, "version": "1.0", "release_url": f"https://example.com/{name}", "processed": False, **extra}
+        return dict(r, inbox_id=inbox_id) if inbox_id else r
+
+    queued, new = row("A", "id-a"), row("B", "id-b")
+    # A is already taken (and later re-versioned by the collector, which keeps inbox_id); only B is queued.
+    manual = [dict(queued, version="2.0", processed=True)]
+    assert absorb(manual, [queued, new]) == manual + [new]
+    # Same release as a collector row without inbox_id, or an inbox row without an id: not queued twice.
+    assert absorb([row("C")], [row("C", "id-c"), row("D")]) == [row("C")]
+    # Inbox rows are always queued as pending.
+    assert absorb([], [dict(new, processed=True)])[0]["processed"] is False
 
 
 def test_catalog_states_in_files_to_sync():

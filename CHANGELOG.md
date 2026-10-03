@@ -2,6 +2,27 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.64] - 2026-10-03
+
+### Added
+- **Manual Release Inbox (`add_release.py`)**: `python add_release.py <GitHub URL>` reads the version, link and date from GitHub, generates the name and Ukrainian description with the LLM (or takes `--name` / `--description`), and adds the row to `manual_inbox.json` in the Gist. Only this script writes the inbox; every server download copies new inbox rows into `manual_releases.json` (`absorb_inbox`, matched by `inbox_id`), and an inbox row stays until the digest has published it, so a row lost to an upload is queued again. `--status` shows what is waiting, queued and published; `--dry-run` previews. Replaces the download → edit → upload routine.
+
+### Fixed
+- **Lost Manual Releases (2026-10-03)**: noJMe, NFS Underground 2 and MarathonRecomp were marked `processed` at 07:00Z but never reached `homebrew_digest_data.json` or the post. The server runners share `data/`, and `upload_state` read the local file before fetching the truncated Gist copy, then wrote the merge back over the digest entries another runner had just added. Upload now reads the local file after the network fetch.
+- **Manual Releases Marked Before Sending**: `process_manual_releases()` no longer sets `processed`. The homebrew and daily digests mark a manual release processed after a successful send, and only if its URL is in the digest data; otherwise it stays pending for the next digest. The stats message counts the published rows.
+- **Re-queueing a Manual Release**: The `manual_releases.json` merge takes `processed` from the side that changed it since the last sync, so un-processing a row in the Gist is no longer reverted by a server's unchanged copy. A stale copy still cannot re-queue a published row; without a sync base a row processed on either side stays processed.
+
+## [v0.7.63] - 2026-10-02
+
+### Fixed
+- **Gist Sync (`manual_releases.json`)**: `sync_gist_state.py` merges the registry three-way against the Gist content of this machine's last sync (`data/.gist_base/`). A row queued from another machine during a server cycle is no longer deleted by the server's upload; this dropped noJMe and NFS Underground 2 on 2026-10-02. A stale copy no longer brings back a row the server has re-versioned; this re-queued Wine-NX `test-build-2` on 2026-10-01. An upload whose pre-merge fetch fails is aborted instead of uploading unmerged files.
+- **Custom Releases Collector**: A failed repository listing or release lookup no longer marks the author as checked: a new author keeps the 21-day window, and an existing author is retried from their own last complete check. A failed release lookup no longer queues a placeholder `v1.0.0` row, and an unreadable `manual_releases.json` aborts the run instead of rewriting the registry with only the new rows. Null or non-string fields in the LLM reply no longer reach the queue. Repositories are matched by `owner/repo`, so `FPSLocker-Warehouse` is no longer hidden behind `FPSLocker`, and an entry without a URL no longer hides every repository.
+- **Collector Gist Sync Scope**: The collector syncs only `manual_releases.json` and `custom_releases_state.json`. Its full sync reset `last_entry.txt` after `main.py` had advanced it and bypassed the runner's eShop exclusion.
+- **Test Isolation**: Tests also point `GIST_ID` at a Gist that does not exist, so a `sync_gist_state.py` subprocess started by a test cannot reach the production Gist.
+
+### Changed
+- **Collector Launchers**: `run_custom_collector.bat` and `run_custom_collector.sh` no longer print a hand-copied author list.
+
 ## [v0.7.62] - 2026-10-02
 
 ### Fixed

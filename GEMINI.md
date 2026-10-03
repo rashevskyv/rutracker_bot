@@ -9,6 +9,7 @@ send_homebrew_digest.py  — Homebrew digest sender (cron 08:00)
 send_swuk_digest.py      — Switch UA localizations digest sender (cron 08:00)
 collect_homebrew_updates.py — Multi-source homebrew collector (cron 07:00)
 collect_swuk_updates.py  — swuk.com.ua RSS collector (cron 07:00)
+add_release.py           — Queue a manual release via the Gist inbox (manual_inbox.json)
 
 ## Server Deployment Environment (Ubuntu Server)
 
@@ -151,7 +152,9 @@ All sources: `_extract_latest_changelog()` extracts the top block, then GPT summ
 - **State File:** `data/custom_releases_state.json` (synced via Gist `sync_gist_state.py`).
 - **Time Windows:**
   - **New authors** (not in state): Collect releases from the last 3 weeks (21 days).
-  - **Existing authors** (in state): Collect all releases published since `last_run` timestamp.
+  - **Existing authors** (in state): Collect all releases published since the author's own last complete check (`last_checked`).
+- **Failures:** A failed repository listing or release lookup leaves the author's state unchanged, so the next run retries it (a new author stays new and keeps the 21-day window). An unreadable `manual_releases.json` aborts the run.
+- **Gist Sync:** The collector syncs only `manual_releases.json` and `custom_releases_state.json`; the runners sync the other state files.
 - **LLM Verification:** Evaluates repository descriptions/topics via LLM (`"is_switch_homebrew": true/false`) to ensure only Nintendo Switch homebrew applications, games, ports, or tools are added to `data/manual_releases.json` with `"processed": false`.
 - **Skipped Repositories:** `SKIP_REPOS` lists build infrastructure (`aks796/android32`, `libnx32`, `mesa-switch32`, `mesa32`, `ffmpeg32`) that is never queued, regardless of name markers or the LLM verdict. When adding an author, check their repositories for libraries/runtimes and list them there.
 
@@ -195,6 +198,9 @@ This ensures the digest window is between two successful **sends** (posts to Tel
 - **Unclosed session warning**: May appear from `telebot` internal session — safe to ignore.
 
 ## Manual Releases
+
+### Gist Sync (three-way merge)
+`sync_gist_state.py` merges `manual_releases.json` against `data/.gist_base/manual_releases.json`, the Gist content at this machine's last download or upload. A row that only one side has was added there, unless the base has it unchanged; then the other side deleted it. A row both sides have keeps the local version only if it was edited since the base, and stays processed if either side processed it. This is what keeps a row queued from another machine during a server cycle, and what stops a stale copy from bringing back a row the server re-versioned. An upload whose pre-merge fetch fails is aborted instead of uploading unmerged files.
 
 ### Processing Limit
 To prevent flooding channels with too many new releases at once when a bulk set of links is added, processing of new manual releases is limited to at most **5 unprocessed releases** per execution (which runs daily). The remaining releases are kept with `"processed": false` in `data/manual_releases.json` and are processed on subsequent runs.

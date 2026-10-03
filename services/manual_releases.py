@@ -1,7 +1,7 @@
 """
 Manual Releases Processor
 Reads manual_releases.json and adds entries to the appropriate digests.
-Entries are processed once and then removed from the file.
+An entry is marked processed only after a digest containing it was sent.
 """
 import json
 import os
@@ -104,7 +104,6 @@ def process_manual_releases(release_type: str = None) -> int:
                     timestamp=None  # Default to now so it is included in the next digest
                 )
                 logger.info(f"Manual release added to daily digest: {title}")
-                entry['processed'] = True
                 processed += 1
 
             elif entry_type == 'homebrew':
@@ -119,7 +118,6 @@ def process_manual_releases(release_type: str = None) -> int:
                     release_date=timestamp
                 )
                 logger.info(f"Manual release added to homebrew digest: {entry.get('app_name')} with release date {timestamp}")
-                entry['processed'] = True
                 processed += 1
 
             else:
@@ -128,12 +126,24 @@ def process_manual_releases(release_type: str = None) -> int:
         except Exception as e:
             logger.error(f"Error processing manual release: {e}")
 
-    if processed > 0:
-        try:
-            with open(MANUAL_RELEASES_FILE, 'w', encoding='utf-8') as f:
-                json.dump(entries, f, indent=2, ensure_ascii=False)
-            logger.info(f"Successfully updated manual_releases.json and marked {processed} entries as processed")
-        except Exception as e:
-            logger.error(f"FATAL: Error updating manual_releases.json: {e}")
-
     return processed
+
+
+def mark_manual_releases_published(release_type: str, digest_urls: set) -> int:
+    """Mark pending manual releases of release_type processed if their URL is in the digest data.
+
+    Called after the digest was sent. A row whose digest entry was lost before sending (another
+    runner rewrote the shared data file) stays pending and goes into the next digest.
+    """
+    entries = load_manual_releases()  # fresh read: other runners may have changed the file
+    marked = 0
+    for entry in entries:
+        url = entry.get('url') or entry.get('release_url')
+        if not entry.get('processed') and entry.get('type', '').lower() == release_type and url in digest_urls:
+            entry['processed'] = True
+            marked += 1
+    if marked:
+        with open(MANUAL_RELEASES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(entries, f, indent=2, ensure_ascii=False)
+        logger.info(f"Marked {marked} manual {release_type} releases as processed")
+    return marked

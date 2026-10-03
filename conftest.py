@@ -19,5 +19,7 @@ def _isolate_live_state(monkeypatch, tmp_path):
     # sync_gist_state is the only module that talks to the Gist API, so blocking it here covers every caller.
     monkeypatch.setattr("sync_gist_state.upload_state", _blocked)
     monkeypatch.setattr("sync_gist_state.download_state", _blocked)
+    # A sync_gist_state.py subprocess inherits this and targets a Gist that does not exist.
+    monkeypatch.setenv("GIST_ID", "pytest-no-such-gist")
     for target, filename in LIVE_STATE_PATHS.items():
         monkeypatch.setattr(target, str(tmp_path / filename))

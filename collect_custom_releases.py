@@ -4,8 +4,10 @@ import sys
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 import subprocess
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from openai import OpenAI
 
 DATA_DIR = "data"
@@ -19,13 +21,13 @@ SKIP_REPOS = {"aks796/android32", "aks796/libnx32", "aks796/mesa-switch32", "aks
 NEW_AUTHOR_AGE_DAYS = 21  # Collect releases from last 3 weeks for new authors
 
 def run_gist_sync(action: str) -> bool:
-    """Runs the sync_gist_state.py script to download or upload state."""
+    """Downloads or uploads the two state files this collector uses; the runners sync everything else."""
     print(f"\n--- Gist Sync: {action.upper()} ---")
     try:
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         res = subprocess.run(
-            [sys.executable, "sync_gist_state.py", action],
+            [sys.executable, "sync_gist_state.py", action, MANUAL_RELEASES_FILE, CUSTOM_RELEASES_STATE_FILE],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -83,8 +85,8 @@ def is_release_after_cutoff(pub_date_str: str, cutoff_dt: datetime) -> bool:
         return False
     return pub_dt >= cutoff_dt
 
-def fetch_user_repos(username: str, token: str = None) -> list:
-    """Fetches all public repositories for a GitHub user."""
+def fetch_user_repos(username: str, token: str = None) -> Optional[list]:
+    """Fetches all public repositories for a GitHub user; None if the request failed."""
     print(f"Fetching repositories for user '{username}'...")
     url = f"https://api.github.com/users/{username}/repos?per_page=100&sort=updated"
     req = urllib.request.Request(url)
@@ -101,13 +103,13 @@ def fetch_user_repos(username: str, token: str = None) -> list:
             print(f"Warning: Authorization failed (401 Bad credentials) for {username}, retrying without token...")
             return fetch_user_repos(username, token=None)
         print(f"Error fetching repos for {username}: {e}")
-        return []
+        return None
     except Exception as e:
         print(f"Error fetching repos for {username}: {e}")
-        return []
+        return None
 
-def fetch_latest_release(owner: str, repo: str, token: str = None) -> dict:
-    """Fetches the latest release details for a repository."""
+def fetch_latest_release(owner: str, repo: str, token: str = None) -> Optional[dict]:
+    """Fetches the latest release of a repository: None if it has none; raises if the request failed."""
     url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
     req = urllib.request.Request(url)
     req.add_header("Accept", "application/vnd.github.v3+json")
@@ -124,20 +126,21 @@ def fetch_latest_release(owner: str, repo: str, token: str = None) -> dict:
             return fetch_latest_release(owner, repo, token=None)
         if e.code == 404:
             return None # No releases
-        print(f"HTTP Error {e.code} fetching release for {owner}/{repo}")
-        return None
-    except Exception as e:
-        print(f"Error fetching release for {owner}/{repo}: {e}")
-        return None
+        raise
+
+def repo_slug(url: str) -> str:
+    """'host/owner/repo' of a repository or release URL, lowercased; '' if it names no repository."""
+    parsed = urllib.parse.urlparse(url.strip().lower())
+    parts = parsed.path.strip("/").split("/")
+    return f"{parsed.netloc}/{parts[0]}/{parts[1]}" if parsed.netloc and len(parts) >= 2 else ""
 
 def is_already_added(manual_entries: list, repo_url: str, repo_name: str) -> bool:
     """Checks if a repository is already tracked in manual_releases.json."""
-    repo_url_clean = repo_url.lower().rstrip('/')
+    repo_key = repo_slug(repo_url)
     repo_name_clean = repo_name.lower().replace("-nx", "").replace("_nx", "").replace("-switch", "").replace("_switch", "").strip()
-    
+
     for entry in manual_entries:
-        entry_url = (entry.get("release_url") or entry.get("url") or "").lower().rstrip('/')
-        if repo_url_clean in entry_url or entry_url in repo_url_clean:
+        if repo_key and repo_slug(entry.get("release_url") or entry.get("url") or "") == repo_key:
             return True
             
         entry_name = (entry.get("app_name") or entry.get("title") or "").lower().replace("-nx", "").replace("_nx", "").replace("-switch", "").replace("_switch", "").strip()
@@ -247,9 +250,12 @@ def main():
         try:
             with open(MANUAL_RELEASES_FILE, "r", encoding="utf-8") as f:
                 manual_releases = json.load(f)
+            if not isinstance(manual_releases, list):
+                raise ValueError("not a JSON list")
         except Exception as e:
-            print(f"Error loading manual_releases.json: {e}")
-            manual_releases = []
+            # Carrying on with [] would rewrite the registry with only this run's rows.
+            print(f"Error loading manual_releases.json: {e}. Cannot proceed safely.")
+            return
     else:
         manual_releases = []
 
@@ -269,7 +275,8 @@ def main():
             print(f"Processing NEW author: {username} (cutoff: last {NEW_AUTHOR_AGE_DAYS} days -> {cutoff_dt.strftime('%Y-%m-%d')})")
             print(f"==========================================")
         else:
-            last_run_dt = parse_iso_datetime(last_run_str)
+            # The author's own last complete check, so a run that failed for them is retried from there.
+            last_run_dt = parse_iso_datetime(authors_state[username].get("last_checked") or last_run_str)
             if last_run_dt:
                 cutoff_dt = last_run_dt
             else:
@@ -279,8 +286,11 @@ def main():
             print(f"==========================================")
 
         repos = fetch_user_repos(username, github_token)
+        if repos is None:
+            print(f"Could not list repositories for {username}; retrying next run.")
+            continue
         if not repos:
-            print(f"No repositories found for {username} or error occurred.")
+            print(f"No repositories found for {username}.")
             authors_state[username] = {
                 "first_seen": authors_state.get(username, {}).get("first_seen") or now_str,
                 "last_checked": now_str
@@ -289,6 +299,7 @@ def main():
 
         print(f"Checking {len(repos)} repositories for {username}...")
         user_added_count = 0
+        complete = True
 
         for repo in repos:
             repo_name = repo["name"]
@@ -302,8 +313,13 @@ def main():
             if is_already_added(manual_releases, repo_url, repo_name):
                 continue
 
-            release = fetch_latest_release(username, repo_name, github_token)
-            
+            try:
+                release = fetch_latest_release(username, repo_name, github_token)
+            except Exception as e:
+                print(f"Skipping '{repo_name}': could not fetch its latest release ({e}); retrying next run.")
+                complete = False
+                continue
+
             pub_date = repo.get("pushed_at") or repo.get("updated_at") or now_str
             version = "v1.0.0"
             release_url = repo_url
@@ -323,19 +339,20 @@ def main():
             if any(m in repo_name_lower for m in ["-nx", "_nx", "-switch", "_switch", "switch-", "nx-", "libnx", "atmosphere", "hekate"]) or any("switch" in str(t).lower() for t in topics):
                 ai_res["is_switch_homebrew"] = True
 
-            if not ai_res.get("is_switch_homebrew", True):
+            if str(ai_res.get("is_switch_homebrew", True)).lower() == "false":
                 print(f"Skipping repository '{repo_name}': not identified as Nintendo Switch homebrew.")
                 continue
 
             print(f"\nFound new Nintendo Switch release: {repo_name} ({version}, date: {pub_date})...")
 
+            # The LLM reply is untrusted JSON: a null or non-string field must not reach the digest.
             new_entry = {
                 "type": "homebrew",
-                "platform": ai_res.get("platform", "Switch"),
-                "app_name": f"{ai_res.get('app_name', repo_name)} ({username})",
+                "platform": str(ai_res.get("platform") or "Switch"),
+                "app_name": f"{ai_res.get('app_name') or repo_name} ({username})",
                 "version": version,
                 "release_url": release_url,
-                "description": ai_res.get("description") or f"Новий реліз {repo_name} для Nintendo Switch.",
+                "description": str(ai_res.get("description") or f"Новий реліз {repo_name} для Nintendo Switch."),
                 "is_new": True,
                 "date": pub_date,
                 "processed": False
@@ -346,10 +363,11 @@ def main():
             total_added_count += 1
             print(f"-> ADDED NEW RELEASE: {new_entry['app_name']} ({version}) - {new_entry['description']}")
 
-        authors_state[username] = {
-            "first_seen": authors_state.get(username, {}).get("first_seen") or now_str,
-            "last_checked": now_str
-        }
+        if complete:  # otherwise the author keeps the old cutoff (or stays new) and is retried next run
+            authors_state[username] = {
+                "first_seen": authors_state.get(username, {}).get("first_seen") or now_str,
+                "last_checked": now_str
+            }
         print(f"\nUser {username}: added {user_added_count} new release(s).")
 
     state["last_run"] = now_str

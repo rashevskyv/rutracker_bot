@@ -55,7 +55,8 @@ Checks various platforms for homebrew updates:
 ### 4. Custom Switch Repositories Collector (`collect_custom_releases.py`)
 - Tracks custom GitHub authors (`NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`, `aks796`) for Nintendo Switch homebrew applications, ports, and games.
 - State is persisted in `data/custom_releases_state.json` (synced with Gist), tracking `last_run` timestamp and author history.
-- Evaluates releases over the last 3 weeks (21 days) for newly added authors, and since `last_run` for existing authors.
+- Evaluates releases over the last 3 weeks (21 days) for newly added authors, and since each author's last complete check for existing authors. If an author's repository listing or a release lookup fails, the author is retried on the next run instead of being skipped.
+- Syncs only `manual_releases.json` and `custom_releases_state.json` with the Gist; the runners sync the other state files.
 - Uses LLM verification to confirm that repositories are valid Nintendo Switch homebrew software before queueing them to `data/manual_releases.json`.
 - Never queues build-infrastructure repositories listed in `SKIP_REPOS` (libraries/runtimes such as `aks796/libnx32`), so only end-user releases reach the digest.
 - **Execution Scripts**:
@@ -157,6 +158,16 @@ If the token lacks Gist write permission or is invalid/expired, `upload` fails w
 
 ### Manual Releases Queue (`data/manual_releases.json`)
 Allows queueing custom posts that will be seamlessly merged into the next digest run.
+
+**Adding a release** (from any machine with `GIST_ID` / `GIST_TOKEN` in `config/local_settings.json`):
+```bash
+python add_release.py https://github.com/owner/repo                       # latest release, LLM description
+python add_release.py https://github.com/owner/repo/releases/tag/v1.2 --description "Опис українською."
+python add_release.py --status                                            # waiting / queued / published
+```
+The script writes only `manual_inbox.json` in the Gist, which the servers read and never upload. Each server download copies new inbox rows into `manual_releases.json`, so there is nothing to download, edit or upload by hand. Options: `--name`, `--version`, `--update` (announce as an update), `--dry-run`.
+
+- **Marked after sending**: A row becomes `processed` only after the digest was sent and its URL is in the digest data; a row that missed the digest is retried the next day.
 - **Processing limit**: Maximum 5 unprocessed releases are handled per script execution to avoid flood.
 - **Updates skip**: Collectors will automatically skip update checking for any app that has a pending (unprocessed) manual release in the queue to avoid announcement ordering bugs.
 

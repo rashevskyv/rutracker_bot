@@ -14,7 +14,7 @@ from core.settings_loader import IS_TEST_MODE, TEST_GROUPS
 from digest import runner
 from digest.homebrew import homebrew_digest_manager
 from services.telegram_sender import send_message_to_admin
-from services.manual_releases import process_manual_releases
+from services.manual_releases import process_manual_releases, mark_manual_releases_published
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +151,8 @@ async def send_digest():
             runner.save_last_run_time(LAST_RUN_FILE)
             # Mark included entries as no longer new
             homebrew_digest_manager.mark_as_sent(last_run_time)
+            manual_count = mark_manual_releases_published(
+                'homebrew', {e.get('release_url') for e in homebrew_digest_manager._load_data()['entries']})
             cleanup_time = datetime.now() - timedelta(days=7)
             homebrew_digest_manager.clear_old_entries(cleanup_time)
             logger.info(f"Cleared homebrew entries older than {cleanup_time}")
