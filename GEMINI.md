@@ -199,8 +199,21 @@ This ensures the digest window is between two successful **sends** (posts to Tel
 
 ## Manual Releases
 
+### Adding a Manual Release (agent procedure)
+When the user gives a GitHub link (repository, `/releases`, or `/releases/tag/<tag>`) and asks to add it, use `add_release.py`. Do **not** download, edit and upload `manual_releases.json`, and do not edit `manual_inbox.json` by hand: a server upload can drop such edits.
+
+1. Preview: `python add_release.py --dry-run <URL>`. It reads the version, release link and date from GitHub (latest release, the given tag, or `dev (<sha>)` when the repo has no releases) and generates the name and description with the LLM. Nothing is written.
+2. Check the preview against the release page. The LLM sees only the repository's short description, not the release notes or files, so it may call a Switch port a PC game (it did for Gen1Recomp). Confirm there is a Switch build (an asset like `*switch*.zip`, `.nro`, `.nsp`). Rules:
+   - `app_name`: `Name (owner)`, e.g. `Gen1Recomp (bryanthaboi)`.
+   - `description`: Ukrainian, 1–2 sentences, under 220 characters (the digest cuts longer text). Say what the app is and that it runs on Switch; no marketing.
+   - An update of an app the channel already announced takes `--update`; a new app does not.
+3. Add: `python add_release.py <URL>`, with `--description "..."` and/or `--name "..."` when the generated text is wrong. Several URLs can go in one call only without these overrides. A release that is already queued or published is skipped automatically.
+4. Confirm with `python add_release.py --status`: the new row shows `waiting for the next server cycle`. Then tell the user the name, version and description, and that it will be posted in the homebrew digest at 10:00 Kyiv (at most 5 manual releases per day; the rest go the next day).
+
+The script writes only `manual_inbox.json` in the Gist. Every server download copies new inbox rows into `manual_releases.json` (`absorb_inbox`, matched by `inbox_id`), usually within 30 minutes. A row is marked `processed` only after the digest containing it was sent; `--status` then shows `published`.
+
 ### Gist Sync (three-way merge)
-`sync_gist_state.py` merges `manual_releases.json` against `data/.gist_base/manual_releases.json`, the Gist content at this machine's last download or upload. A row that only one side has was added there, unless the base has it unchanged; then the other side deleted it. A row both sides have keeps the local version only if it was edited since the base, and stays processed if either side processed it. This is what keeps a row queued from another machine during a server cycle, and what stops a stale copy from bringing back a row the server re-versioned. An upload whose pre-merge fetch fails is aborted instead of uploading unmerged files.
+`sync_gist_state.py` merges `manual_releases.json` against `data/.gist_base/manual_releases.json`, the Gist content at this machine's last download or upload. A row that only one side has was added there, unless the base has it unchanged; then the other side deleted it. A row both sides have keeps the local version only if it was edited since the base, and takes `processed` from the side that changed it since the base (without a base, a row processed on either side stays processed). This is what keeps a row queued from another machine during a server cycle, and what stops a stale copy from bringing back a row the server re-versioned. An upload whose pre-merge fetch fails is aborted instead of uploading unmerged files.
 
 ### Processing Limit
 To prevent flooding channels with too many new releases at once when a bulk set of links is added, processing of new manual releases is limited to at most **5 unprocessed releases** per execution (which runs daily). The remaining releases are kept with `"processed": false` in `data/manual_releases.json` and are processed on subsequent runs.
