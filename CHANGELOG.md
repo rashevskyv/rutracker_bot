@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.65] - 2026-10-04
+
+### Fixed
+- **Digest Splitting (`_split_digest_message`)**: A digest over 4096 characters is split between whole `=== ... ===` sections, so a section that fits in one message is never torn; the last homebrew entry (Tico Snes9x) and the footer no longer land alone in a second message. A section longer than the limit is split at entry boundaries into the fewest roughly equal chunks, and each continuation repeats the section header.
+
 ## [v0.7.64] - 2026-10-03
 
 ### Added

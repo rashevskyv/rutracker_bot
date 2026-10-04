@@ -89,65 +89,80 @@ class BaseDigest:
 
     def _split_digest_message(self, message: str, max_length: int = 4096) -> list:
         """
-        Split digest message at entry boundaries (• markers).
-        Each entry (• line + continuation lines) stays together.
-        Section headers (=== ... ===) are kept attached to the first entry of their section.
+        Split a long digest into Telegram-sized parts.
+        1. Whole sections (=== ... ===) are packed into parts; a section that does not fit
+           into the current part starts a new one.
+        2. A section longer than max_length is split at entry boundaries (• / ⚠️ / #)
+           into roughly equal chunks; every continuation chunk repeats the section header.
+        Text before the first section header stays with the first section.
         """
-        lines = message.split('\n')
+        is_entry = lambda line: line.strip().startswith(('•', '⚠️', '#'))
 
-        # Group lines into entries: each entry starts with • or ⚠️ or # (header/hashtag)
-        # Section headers (===) are NOT standalone — they are buffered and prepended to the next entry
-        entries = []
-        current_entry = []
-        pending_header = []  # holds === lines waiting to be attached to the next entry
-
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith('==='):
-                # Flush current entry first
-                if current_entry:
-                    entries.append('\n'.join(current_entry))
-                    current_entry = []
-                pending_header.append(line)
-            elif stripped.startswith('•') or stripped.startswith('⚠️') or stripped.startswith('#'):
-                # Flush current entry
-                if current_entry:
-                    entries.append('\n'.join(current_entry))
-                # Start new entry, prepending any pending section header
-                current_entry = pending_header + [line]
-                pending_header = []
+        # Cut lines into sections at === headers
+        sections = [{'title': '', 'lines': []}]
+        for line in message.split('\n'):
+            if line.strip().startswith('==='):
+                sections.append({'title': line.strip(), 'lines': [line]})
             else:
-                # Continuation line — if we have a pending header but no entry started yet,
-                # attach the continuation to the header buffer (e.g. empty line between header and first entry)
-                if pending_header and not current_entry:
-                    pending_header.append(line)
-                else:
-                    current_entry.append(line)
+                sections[-1]['lines'].append(line)
+        if len(sections) > 1:
+            preamble = sections.pop(0)['lines']
+            sections[0]['lines'] = preamble + sections[0]['lines']
+            sections[0]['prefix_len'] = len(preamble)
 
-        # Flush remaining
-        if pending_header:
-            current_entry = pending_header + current_entry
-        if current_entry:
-            entries.append('\n'.join(current_entry))
-
-        # Pack entries into parts respecting max_length
         parts = []
-        current_part = []
-        current_length = 0
+        current = ''
+        for sec in sections:
+            lines = sec['lines']
+            # Head = preamble + title + non-entry lines before the first entry
+            i = sec.get('prefix_len', 0) + (1 if sec['title'] else 0)
+            while i < len(lines) and not is_entry(lines[i]):
+                i += 1
+            head, entries = lines[:i], []
+            for line in lines[i:]:
+                if is_entry(line) or not entries:
+                    entries.append(line)
+                else:
+                    entries[-1] += '\n' + line
 
-        for entry in entries:
-            entry_length = len(entry) + 1  # +1 for \n separator
-            if current_length + entry_length > max_length and current_part:
-                parts.append('\n'.join(current_part).strip())
-                current_part = []
-                current_length = 0
-            current_part.append(entry)
-            current_length += entry_length
+            body = '\n'.join(head + entries).strip()
+            if not body:
+                continue
+            if len(body) > max_length:
+                chunks = self._split_section_evenly(head, sec['title'], entries, max_length)
+                if current:
+                    parts.append(current)
+                parts.extend(chunks[:-1])
+                current = chunks[-1]  # the tail may share a part with the next section
+            elif current and len(current) + 2 + len(body) > max_length:
+                parts.append(current)
+                current = body
+            else:
+                current = f"{current}\n\n{body}" if current else body
 
-        if current_part:
-            parts.append('\n'.join(current_part).strip())
+        if current:
+            parts.append(current)
+        return parts
 
-        return [p for p in parts if p]
+    @staticmethod
+    def _split_section_evenly(head: list, title: str, entries: list, max_length: int) -> list:
+        """Split one oversized section into the fewest roughly equal chunks that fit max_length."""
+        total = sum(len(e) + 1 for e in entries)
+        n = max(2, -(-total // max_length))
+        while True:
+            groups = [[]]
+            acc = 0
+            for e in entries:
+                # Start the next chunk once this entry's midpoint crosses the next 1/n boundary
+                if groups[-1] and acc + len(e) / 2 > len(groups) * total / n:
+                    groups.append([])
+                groups[-1].append(e)
+                acc += len(e) + 1
+            chunks = ['\n'.join((head if k == 0 else [title]) + g).strip() for k, g in enumerate(groups)]
+            # A single entry longer than max_length cannot be fixed here; stop at one entry per chunk
+            if all(len(c) <= max_length for c in chunks) or n >= len(entries):
+                return chunks
+            n += 1
 
     async def send_digest(self, target_chat_id: int, target_topic_id: Optional[int] = None,
                           since_time: Optional[datetime] = None, translate_to_ua: bool = False):
