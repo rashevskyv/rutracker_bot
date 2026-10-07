@@ -169,6 +169,7 @@ The script writes only `manual_inbox.json` in the Gist, which the servers read a
 
 - **Marked after sending**: A row becomes `processed` only after the digest was sent and its URL is in the digest data; a row that missed the digest is retried the next day.
 - **Processing limit**: Maximum 5 unprocessed releases are handled per script execution to avoid flood.
+- **Priority**: Releases added through `add_release.py` (non-empty `inbox_id`) are selected before automatically collected rows. Order within each group is preserved; `--status` shows the same pending order. Legacy rows without `inbox_id` retain their relative order in the second group.
 - **Updates skip**: Collectors will automatically skip update checking for any app that has a pending (unprocessed) manual release in the queue to avoid announcement ordering bugs.
 
 Format for a manual homebrew entry:

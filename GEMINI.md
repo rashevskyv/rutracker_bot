@@ -218,6 +218,8 @@ The script writes only `manual_inbox.json` in the Gist. Every server download co
 ### Processing Limit
 To prevent flooding channels with too many new releases at once when a bulk set of links is added, processing of new manual releases is limited to at most **5 unprocessed releases** per execution (which runs daily). The remaining releases are kept with `"processed": false` in `data/manual_releases.json` and are processed on subsequent runs.
 
+Selection prioritizes rows added through `add_release.py` with a non-empty `inbox_id`, then rows without one. Relative order within each group is preserved. `add_release.py --status` displays pending rows in this same order; stored JSON order is not changed. Legacy rows without `inbox_id` stay in the second group.
+
 ### Skip Updates for Unprocessed Manual Releases
 If a manual release for an app is pending (has `"processed": false` in `data/manual_releases.json`), the automated homebrew collectors (`collect_homebrew_updates.py`) will **skip** adding any updates for that app to the digest. Instead, they will only update their internal state files (`hb_state.json`, `udb_state.json`, etc.) with the new version. This prevents:
 1. Posting update news for apps that have not yet been announced as new in the channel.

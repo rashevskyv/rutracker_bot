@@ -51,6 +51,22 @@ def _parse_timestamp(entry: Dict) -> datetime:
     return datetime.now()
 
 
+def prioritize_releases(entries: List[Dict]) -> List[Dict]:
+    """
+    Sort releases so that entries with a non-empty inbox_id come first.
+    Preserves existing relative order within each group (stable order).
+    """
+    manual = []
+    auto = []
+    for entry in entries:
+        inbox_id = entry.get('inbox_id') if isinstance(entry, dict) else None
+        if inbox_id and str(inbox_id).strip():
+            manual.append(entry)
+        else:
+            auto.append(entry)
+    return manual + auto
+
+
 def process_manual_releases(release_type: str = None) -> int:
     """
     Process all manual releases and add them to appropriate digests.
@@ -71,7 +87,7 @@ def process_manual_releases(release_type: str = None) -> int:
 
     processed = 0
 
-    for entry in entries:
+    for entry in prioritize_releases(entries):
         if entry.get('processed'):
             continue
 

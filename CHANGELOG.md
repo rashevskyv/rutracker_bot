@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.66] - 2026-10-07
+
+### Fixed
+- **Manual Release Priority**: Digest selection takes pending releases with a non-empty `inbox_id` before automatically collected rows, preserving order within each group and the five-entry limit. `add_release.py --status` displays the same priority order. Stored queue order and publication tracking remain unchanged.
+
 ## [v0.7.65] - 2026-10-04
 
 ### Fixed

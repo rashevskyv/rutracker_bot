@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 import sync_gist_state as sgs
 from collect_custom_releases import analyze_repo_with_gemini, fetch_latest_release
+from services.manual_releases import prioritize_releases
 
 MANUAL = "manual_releases.json"
 
@@ -87,7 +88,7 @@ def status(manual: list, inbox: list):
         m = by_id.get(row["inbox_id"])
         state = "waiting for the next server cycle" if m is None else ("published" if m.get("processed") else "queued for the next digest")
         print(f"{row['app_name']} {row['version']}: {state}")
-    pending = [m for m in manual if not m.get("processed")]
+    pending = prioritize_releases([m for m in manual if not m.get("processed")])
     print(f"\nmanual_releases.json: {len(pending)} pending of {len(manual)}")
     for m in pending:
         print(f"  {m.get('app_name') or m.get('title')} {m.get('version', '')}")
