@@ -14,6 +14,7 @@ from typing import List, Dict, Optional, Set
 import aiohttp
 from digest.homebrew import homebrew_digest_manager
 from services.translation import translate_ru_to_ua
+from utils.atomic_io import atomic_open
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -138,7 +139,7 @@ class HomebrewUpdatesCollector:
 
     @staticmethod
     def _load_json(path, label: str) -> Dict:
-        """Load a JSON state file, returning {} when missing or unreadable."""
+        """Load a JSON state file, returning {} when missing; raise when unreadable."""
         path = Path(path)
         if not path.exists():
             logger.info(f"{label} file not found: {path} — starting fresh")
@@ -146,11 +147,11 @@ class HomebrewUpdatesCollector:
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            logger.info(f"Loaded {label} for {len(data)} entries from {path}")
-            return data
         except Exception as e:
-            logger.error(f"Error loading {label}: {e}")
-            return {}
+            # Starting from {} would overwrite the file on save and re-announce every tracked app.
+            raise RuntimeError(f"Unreadable {label} file {path}: {e}") from e
+        logger.info(f"Loaded {label} for {len(data)} entries from {path}")
+        return data
 
     @staticmethod
     def _save_json(path, data: Dict, label: str):
@@ -158,7 +159,7 @@ class HomebrewUpdatesCollector:
         path = Path(path)
         try:
             os.makedirs(path.parent, exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
+            with atomic_open(path) as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.info(f"Saved {label} for {len(data)} entries to {path}")
         except Exception as e:
@@ -230,8 +231,8 @@ class HomebrewUpdatesCollector:
                 with open(self.list_path, 'r', encoding='utf-8') as f:
                     entries = json.load(f)
             except Exception as e:
-                logger.error(f"Error loading homebrew registry: {e}")
-                entries = []
+                # An empty registry silently stopped GitHub/GitLab tracking for a month (Sept 2026).
+                raise RuntimeError(f"Unreadable homebrew registry {self.list_path}: {e}") from e
 
         # Load and merge dynamic state
         self._state = self.load_state()
@@ -736,7 +737,7 @@ class HomebrewUpdatesCollector:
                         updated_m = True
                         break
                 if updated_m:
-                    with open(MANUAL_RELEASES_FILE, 'w', encoding='utf-8') as f:
+                    with atomic_open(MANUAL_RELEASES_FILE) as f:
                         json.dump(m_entries, f, ensure_ascii=False, indent=2)
                     logger.info(f"Updated manual_releases.json entry for {app_name} to version {update_info['tag_name']}")
             except Exception as e:
@@ -1996,7 +1997,7 @@ class HomebrewUpdatesCollector:
                         logger.info(f"Removed 'new' flag from {registry[index]['app_name']}")
 
                 try:
-                    with open(self.list_path, 'w', encoding='utf-8') as f:
+                    with atomic_open(self.list_path) as f:
                         json.dump(registry, f, ensure_ascii=False, indent=2)
                     logger.info(f"Updated {self.list_path} - removed 'new' flags")
                 except Exception as e:
@@ -2010,7 +2011,7 @@ class HomebrewUpdatesCollector:
         # Save stats for digest sender
         try:
             os.makedirs('data', exist_ok=True)
-            with open(HB_STATS_PATH, 'w', encoding='utf-8') as f:
+            with atomic_open(HB_STATS_PATH) as f:
                 json.dump(self.source_stats, f, ensure_ascii=False, indent=2)
             logger.info(f"Saved collector stats to {HB_STATS_PATH}")
         except Exception as e:
@@ -2126,7 +2127,7 @@ async def main():
     if not args.test:
         try:
             os.makedirs("data", exist_ok=True)
-            with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
+            with atomic_open(LAST_RUN_FILE) as f:
                 json.dump({'last_run_time': current_time.isoformat()}, f, indent=2)
             logger.info(f"Saved homebrew collect timestamp: {current_time}")
         except Exception as e:

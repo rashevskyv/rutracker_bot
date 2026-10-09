@@ -1,3 +1,4 @@
+import calendar
 import feedparser
 import os
 import time
@@ -5,7 +6,9 @@ import aiohttp
 import asyncio
 import logging
 from core.settings_loader import get_session
+from datetime import datetime, timezone
 from typing import Optional, List
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +42,40 @@ def write_last_entry_link(file_path: str, link: str):
              logger.error(f"Error: Attempted to write invalid link to last entry file: {link}")
              return
 
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with atomic_open(file_path) as f:
             f.write(link)
             logger.debug(f"Written last entry link: {link}")
     except Exception as e:
         logger.error(f"Error writing last entry file {file_path}: {e}")
 
-async def get_new_feed_entries(feed_url: str, last_entry_link: Optional[str], retries: int = 3, delay: int = 5) -> Optional[List[feedparser.FeedParserDict]]:
+def entry_timestamp(entry) -> Optional[float]:
+    """Feed update time (UTC epoch seconds); an updated topic moves up the feed with a new time."""
+    parsed = entry.get('updated_parsed') or entry.get('published_parsed')
+    return float(calendar.timegm(parsed)) if parsed else None
+
+def read_last_entry_time(file_path: str) -> Optional[float]:
+    """Reads the feed time of the last processed entry, or None when unknown."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return datetime.fromisoformat(f.read().strip()).timestamp()
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        logger.warning(f"Ignoring unreadable last entry time {file_path}: {e}")
+        return None
+
+def write_last_entry_time(file_path: str, timestamp: float):
+    """Advances the processed-feed cursor; never moves it backwards."""
+    current = read_last_entry_time(file_path)
+    if current is not None and timestamp <= current:
+        return
+    try:
+        with atomic_open(file_path) as f:
+            f.write(datetime.fromtimestamp(timestamp, timezone.utc).isoformat())
+    except Exception as e:
+        logger.error(f"Error writing last entry time {file_path}: {e}")
+
+async def get_new_feed_entries(feed_url: str, last_entry_link: Optional[str], last_entry_time: Optional[float] = None, retries: int = 3, delay: int = 5) -> Optional[List[feedparser.FeedParserDict]]:
     logger.info(f"Parsing feed from: {feed_url}")
     feed = None
     headers = {
@@ -96,6 +126,13 @@ async def get_new_feed_entries(feed_url: str, last_entry_link: Optional[str], re
     valid_entries = [entry for entry in feed.entries if hasattr(entry, 'link') and entry.link]
     if len(valid_entries) != len(feed.entries):
         logger.warning(f"Warning: Filtered out {len(feed.entries) - len(valid_entries)} entries missing a link.")
+
+    timestamps = [entry_timestamp(entry) for entry in valid_entries]
+    if last_entry_time is not None and None not in timestamps:
+        # The link cursor misses entries when the last processed topic is itself updated and jumps to the top.
+        new_entries = sorted((e for e, ts in zip(valid_entries, timestamps) if ts > last_entry_time), key=entry_timestamp)
+        logger.info(f"Found {len(new_entries)} entries updated after the last processed one.")
+        return new_entries
 
     last_index = -1
     if last_entry_link:

@@ -11,6 +11,7 @@ from typing import List, Dict
 
 from digest.daily import digest_manager
 from digest.homebrew import homebrew_digest_manager
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +160,7 @@ def mark_manual_releases_published(release_type: str, digest_urls: set) -> int:
             entry['processed'] = True
             marked += 1
     if marked:
-        with open(MANUAL_RELEASES_FILE, 'w', encoding='utf-8') as f:
+        with atomic_open(MANUAL_RELEASES_FILE) as f:
             json.dump(entries, f, indent=2, ensure_ascii=False)
         logger.info(f"Marked {marked} manual {release_type} releases as processed")
     return marked

@@ -8,6 +8,7 @@ from services.eshop.models import GameDeal, QualityCriteria
 from services.eshop.eshop_service import EShopService
 from services.eshop.rating_service import RatingService
 from services.eshop.region_price_service import RegionPriceService
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def _load_descriptions_cache() -> dict:
 def _save_descriptions_cache(data: dict) -> None:
     try:
         os.makedirs("data", exist_ok=True)
-        with open(DESCRIPTIONS_CACHE_FILE, "w", encoding="utf-8") as f:
+        with atomic_open(DESCRIPTIONS_CACHE_FILE) as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception:
         pass

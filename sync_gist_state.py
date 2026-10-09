@@ -6,6 +6,7 @@ import urllib.error
 import argparse
 import logging
 from typing import Dict
+from utils.atomic_io import atomic_open
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ FILES_TO_SYNC = [
     "daily_digest_data.json",
     "homebrew_digest_data.json",
     "last_entry.txt",
+    "last_entry_time.txt",
     "last_digest_run.json",
     "last_homebrew_digest_run.json",
     "manual_releases.json",
@@ -65,7 +67,7 @@ def save_base(filename: str, content: str):
     if filename not in {"manual_releases.json", "list_hb.json"}:
         return
     os.makedirs(BASE_DIR, exist_ok=True)
-    with open(os.path.join(BASE_DIR, filename), "w", encoding="utf-8") as f:
+    with atomic_open(os.path.join(BASE_DIR, filename)) as f:
         f.write(content)
 
 
@@ -287,7 +289,7 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
                         except ValueError as e:
                             logger.warning(f"Ignoring unreadable {INBOX_FILE}: {e}")
 
-                    with open(filepath, "w", encoding="utf-8") as f:
+                    with atomic_open(filepath) as f:
                         f.write(content)
                     save_base(filename, gist_text)
                     logger.info(f"Downloaded {filename}")
@@ -536,7 +538,7 @@ def upload_state(gist_id: str, token: str, force: bool = False, target_files: li
                     final_content = local_content
                 
                 # Write the merged content back to the local file to keep it synced
-                with open(filepath, "w", encoding="utf-8") as f:
+                with atomic_open(filepath) as f:
                     f.write(final_content)
             else:
                 final_content = local_content

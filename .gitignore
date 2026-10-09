@@ -52,4 +52,6 @@ Thumbs.db
 
 # Debug
 debug_*.txt
+failing_part.html
+test_badge_output.jpg
 scratch/

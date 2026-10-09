@@ -57,6 +57,7 @@ default_settings_path = os.path.join(config_directory, 'settings.json')
 test_settings_path = os.path.join(config_directory, 'test_settings.json')
 local_settings_path = os.path.join(config_directory, 'local_settings.json')
 last_entry_file_path = os.path.join(current_directory, "data", "last_entry.txt")
+last_entry_time_file_path = os.path.join(current_directory, "data", "last_entry_time.txt")
 
 # --- NEW Settings Loading Logic ---
 settings: Optional[Dict[str, Any]] = None

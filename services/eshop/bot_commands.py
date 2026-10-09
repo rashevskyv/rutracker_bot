@@ -18,6 +18,7 @@ from services.eshop.rating_service import RatingService
 from services.eshop.region_price_service import RegionPriceService, _is_title_match
 from services.eshop.wishlist_service import WishlistService
 from services.subscription_service import SubscriptionService
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def load_json_file(file_path: str, default: dict) -> dict:
 def save_json_file(file_path: str, data: dict) -> None:
     os.makedirs("data", exist_ok=True)
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
+        with atomic_open(file_path) as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.error(f"Failed to save {file_path}: {e}")

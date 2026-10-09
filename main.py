@@ -14,10 +14,11 @@ import logging
 
 from core.settings_loader import (
     LOG, IS_TEST_MODE, FEED_URL, TEST_LAST_ENTRY_LINK, YOUTUBE_API_KEY,
-    last_entry_file_path, current_directory, close_clients
+    last_entry_file_path, last_entry_time_file_path, current_directory, close_clients
 )
 from parsers.feed_handler import (
-    read_last_entry_link, write_last_entry_link, get_new_feed_entries
+    read_last_entry_link, write_last_entry_link, get_new_feed_entries,
+    entry_timestamp, read_last_entry_time, write_last_entry_time
 )
 from parsers.tracker_parser import parse_tracker_entry
 from services.homebrew_registry import register_tracker_homebrew
@@ -26,6 +27,7 @@ from services.ai_validator import validate_yt_title_with_gpt
 from services.titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
 from services.telegram_sender import send_to_telegram, send_error_to_telegram, notify_mismatched_trailer, send_message_to_admin, send_document_to_admin
 from digest.daily import digest_manager
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +41,9 @@ def load_posted_links() -> dict:
     try:
         with open(POSTED_LINKS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except Exception:
-        return {}
+    except Exception as e:
+        # Treating it as empty would repost the whole feed.
+        raise RuntimeError(f"Unreadable {POSTED_LINKS_FILE}: {e}") from e
 
 def is_already_posted(entry, posted_links: dict, is_updated: bool) -> bool:
     """New topics are posted once; an [Обновлено] entry only if the topic changed after our last post."""
@@ -58,6 +61,13 @@ def is_already_posted(entry, posted_links: dict, is_updated: bool) -> bool:
     except (TypeError, ValueError):
         return False
 
+async def mark_entry_processed(entry):
+    """Advance the feed cursor past an entry that needs no retry."""
+    await asyncio.to_thread(write_last_entry_link, last_entry_file_path, entry.get('link'))
+    timestamp = entry_timestamp(entry)
+    if timestamp is not None:
+        await asyncio.to_thread(write_last_entry_time, last_entry_time_file_path, timestamp)
+
 def save_posted_link(url: str):
     """Add URL to posted links tracker"""
     links = load_posted_links()
@@ -67,7 +77,7 @@ def save_posted_link(url: str):
     links = {u: t for u, t in links.items()
              if datetime.fromisoformat(t).timestamp() > cutoff}
     try:
-        with open(POSTED_LINKS_FILE, 'w', encoding='utf-8') as f:
+        with atomic_open(POSTED_LINKS_FILE) as f:
             json.dump(links, f, indent=2)
     except Exception as e:
         logger.error(f"Error saving posted links: {e}")
@@ -113,9 +123,10 @@ async def main_loop():
             logger.info(f"TEST MODE: Processing single link: {specific_entry_link_for_test}")
         else:
             last_processed_link = await asyncio.to_thread(read_last_entry_link, last_entry_file_path)
-            new_entries = await get_new_feed_entries(FEED_URL, last_processed_link)
+            last_processed_time = await asyncio.to_thread(read_last_entry_time, last_entry_time_file_path)
+            new_entries = await get_new_feed_entries(FEED_URL, last_processed_link, last_processed_time)
             if new_entries is None: await send_error_to_telegram("Failed to fetch or parse feed."); return
-            if not new_entries: logger.info("No new feed entries found."); await send_message_to_admin("No new feed entries found."); return
+            if not new_entries: logger.info("No new feed entries found."); return
             logger.info(f"Processing {len(new_entries)} new entries...")
             entries_to_process = new_entries
 
@@ -140,7 +151,7 @@ async def main_loop():
             if not IS_TEST_MODE and is_already_posted(entry, posted_links, is_updated_entry):
                 logger.info(f"SKIP: Already posted {entry_link} on {posted_links[entry_link]}")
                 # Advance past it, or every later run re-reads the same feed tail.
-                await asyncio.to_thread(write_last_entry_link, last_entry_file_path, entry_link)
+                await mark_entry_processed(entry)
                 continue
 
             try:
@@ -157,6 +168,9 @@ async def main_loop():
                 if "fetch page content" in err_msg.lower():
                     logger.warning("Stopping entry processing due to fetch error. Remaining entries will be retried next run.")
                     break
+                # A content error repeats on every retry: it is reported once, then skipped.
+                if not IS_TEST_MODE:
+                    await mark_entry_processed(entry)
                 continue
             except Exception as parse_err:
                 logger.error(f"Unexpected error parsing {entry_link}: {parse_err}")
@@ -171,7 +185,10 @@ async def main_loop():
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
-                     await send_error_to_telegram(f"Parser failed to extract display title for link: {entry_link}", entry_url=entry_link); continue
+                     await send_error_to_telegram(f"Parser failed to extract display title for link: {entry_link}", entry_url=entry_link)
+                     if not IS_TEST_MODE:
+                         await mark_entry_processed(entry)
+                     continue
                 if not title_text_for_youtube:
                      logger.warning(f"Parser failed to extract title block for YT search. Using display title '{page_display_title}' as fallback.")
                      title_text_for_youtube = page_display_title
@@ -299,8 +316,8 @@ async def main_loop():
                          logger.warning(f"Failed to add entry to digest: {digest_err}")
 
                      if not IS_TEST_MODE:
-                         await asyncio.to_thread(write_last_entry_link, last_entry_file_path, entry_link)
                          save_posted_link(entry_link)
+                         await mark_entry_processed(entry)
                 except TypeError as te:
                      logger.error(f"TypeError calling send_to_telegram: {te}. Check function signature.")
                      logger.error(traceback.format_exc())
@@ -321,6 +338,8 @@ async def main_loop():
                 # Avoid sending error if the feed itself failed (new_entries would be None)
                 if not IS_TEST_MODE and 'new_entries' in locals() and new_entries is None: send_error = False
                 if send_error: await send_error_to_telegram(f"Parser returned empty data (no exception raised).\n\n<b>Reason</b>: Unknown — check bot.log for details", entry_url=entry_link)
+                if not IS_TEST_MODE:
+                    await mark_entry_processed(entry)
 
         # Loop Finished
         if processed_count > 0: logger.info(f"Successfully processed {processed_count} entries.")

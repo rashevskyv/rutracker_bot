@@ -10,6 +10,7 @@ from typing import Optional
 from core.settings_loader import openai_client
 from services import gpt
 from utils.html_utils import sanitize_html_for_telegram
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def _save_cache() -> None:
     if _cache_memory is not None:
         try:
             os.makedirs("data", exist_ok=True)
-            with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            with atomic_open(CACHE_FILE) as f:
                 json.dump(_cache_memory, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.debug(f"Failed to save translation cache: {e}")

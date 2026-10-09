@@ -12,6 +12,7 @@ import aiohttp
 
 from services.eshop.models import RegionalPrice
 from services.eshop.currency_service import CurrencyService
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ def _load_cache() -> Dict[str, Any]:
 def _save_cache(data: Dict[str, Any]) -> None:
     try:
         os.makedirs("data", exist_ok=True)
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        with atomic_open(CACHE_FILE) as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception:
         pass

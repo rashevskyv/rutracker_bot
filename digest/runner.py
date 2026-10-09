@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Callable, Dict, List, Optional
 
 from core.settings_loader import setup_logging, close_clients, LOG, IS_TEST_MODE, TEST_GROUPS
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def save_last_run_time(path: str):
     """Stamp `path` with the current time."""
     current_time = datetime.now()
     try:
-        with open(path, 'w', encoding='utf-8') as f:
+        with atomic_open(path) as f:
             json.dump({'last_digest_time': current_time.isoformat()}, f, indent=2)
         logger.info(f"Saved digest send timestamp: {current_time}")
     except Exception as e:

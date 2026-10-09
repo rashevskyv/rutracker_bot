@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class SubscriptionService:
     def _save_data(self, data: Dict[str, Any]) -> None:
         try:
             os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
-            with open(self.filepath, "w", encoding="utf-8") as f:
+            with atomic_open(self.filepath) as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Failed to save user subscriptions data: {e}")

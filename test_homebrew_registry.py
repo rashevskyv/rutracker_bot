@@ -297,6 +297,8 @@ async def test_main_registers_only_published_production_homebrew(monkeypatch, tm
     monkeypatch.setattr(main, "TEST_LAST_ENTRY_LINK", "https://rutracker.org/forum/viewtopic.php?t=1")
     monkeypatch.setattr(main, "read_last_entry_link", lambda path: "")
     monkeypatch.setattr(main, "write_last_entry_link", lambda *args: None)
+    monkeypatch.setattr(main, "read_last_entry_time", lambda path: None)
+    monkeypatch.setattr(main, "write_last_entry_time", lambda *args: None)
     monkeypatch.setattr(main, "get_new_feed_entries", AsyncMock(return_value=[{"link": "https://rutracker.org/forum/viewtopic.php?t=1"}]))
     parsed = ("Game", "Game", None, "magnet", "description", "1 MB", "ENG", ["Homebrew"], None, is_homebrew, [API])
     monkeypatch.setattr(main, "parse_tracker_entry", AsyncMock(return_value=parsed))

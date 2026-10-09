@@ -9,6 +9,7 @@ import subprocess
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from openai import OpenAI
+from utils.atomic_io import atomic_open
 
 DATA_DIR = "data"
 MANUAL_RELEASES_FILE = os.path.join(DATA_DIR, "manual_releases.json")
@@ -59,7 +60,7 @@ def save_custom_releases_state(state: dict):
     """Saves state tracking for custom releases collection."""
     os.makedirs(DATA_DIR, exist_ok=True)
     try:
-        with open(CUSTOM_RELEASES_STATE_FILE, "w", encoding="utf-8") as f:
+        with atomic_open(CUSTOM_RELEASES_STATE_FILE) as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"Error saving custom_releases_state.json: {e}")
@@ -376,7 +377,7 @@ def main():
 
     if total_added_count > 0:
         os.makedirs(DATA_DIR, exist_ok=True)
-        with open(MANUAL_RELEASES_FILE, "w", encoding="utf-8") as f:
+        with atomic_open(MANUAL_RELEASES_FILE) as f:
             json.dump(manual_releases, f, ensure_ascii=False, indent=2)
             
         print(f"\nSuccessfully added {total_added_count} new manual releases locally.")

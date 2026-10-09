@@ -2,6 +2,21 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.70] - 2026-10-09
+
+### Fixed
+- **Atomic State Writes**: All bot state, cache and registry files are written through `utils/atomic_io.atomic_open` (temp file + `os.replace`). A concurrent reader or the Gist uploader can no longer see a half-written file. This is the likely cause of the truncated `list_hb.json` (61440 → 12288 bytes, Sept 2026).
+- **Fail Loudly on Unreadable State**: The homebrew collector now stops with an error when the registry or a state file cannot be read, instead of continuing with an empty one. An empty registry had silently stopped GitHub/GitLab tracking since September, and an empty state would be saved over the real one. `main.py` likewise stops (and reports to Telegram) on an unreadable `posted_links.json` instead of reposting the whole feed.
+- **Feed Cursor by Update Time**: New entries are selected by feed update time (`data/last_entry_time.txt`, synced via Gist). An updated last-processed topic jumping to the top no longer hides newer entries. Without a saved time the link cursor is used as before.
+- **No Repeated Parse Errors**: Entries with content parse errors (not fetch errors) are reported once and skipped, instead of being retried and reported every cycle.
+- Removed the "No new feed entries found." admin message sent on every idle run.
+
+### Data
+- Restored `list_hb.json` in the Gist (345 entries; the truncated copies were exact prefixes of it) and re-added the 342 registry entries dropped from `hb_state.json`, baselined at each repository's current latest release so the restore does not trigger a burst of old updates.
+
+### Chore
+- Removed generated files from git (`failing_part.html`, `log_tg_send.txt`, `test_badge_output.jpg`, `tmp_videos/`).
+
 ## [v0.7.69] - 2026-10-09
 
 ### Fixed

@@ -8,6 +8,7 @@ import re
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
+from utils.atomic_io import atomic_open
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class BaseDigest:
     def _save_data(self, data: Dict):
         """Save digest data to file"""
         try:
-            with open(self.data_path, 'w', encoding='utf-8') as f:
+            with atomic_open(self.data_path) as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Error saving {self.digest_name} data: {e}")

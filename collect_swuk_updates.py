@@ -15,6 +15,7 @@ from typing import Dict, Optional, List
 from bs4 import BeautifulSoup
 
 from digest.swuk import swuk_digest_manager
+from utils.atomic_io import atomic_open
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ def save_swuk_state(state: Dict):
     path = Path(SWUK_STATE_PATH)
     try:
         os.makedirs(path.parent, exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
+        with atomic_open(path) as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
         logger.info(f"Saved swuk state: {len(state)} entries")
     except Exception as e:
@@ -191,7 +192,7 @@ async def collect_swuk_updates():
     # Save stats for digest sender
     try:
         os.makedirs('data', exist_ok=True)
-        with open(SWUK_STATS_PATH, 'w', encoding='utf-8') as f:
+        with atomic_open(SWUK_STATS_PATH) as f:
             json.dump({'checked': items_checked, 'found': updates_found}, f)
     except Exception as e:
         logger.error(f"Error saving swuk stats: {e}")
@@ -224,7 +225,7 @@ async def main():
         # Save last run time
         try:
             os.makedirs("data", exist_ok=True)
-            with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
+            with atomic_open(LAST_RUN_FILE) as f:
                 json.dump({'last_run_time': current_time.isoformat()}, f, indent=2)
             logger.info(f"Saved swuk collect timestamp: {current_time}")
         except Exception as e:
