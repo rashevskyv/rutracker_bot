@@ -148,7 +148,7 @@ All sources: `_extract_latest_changelog()` extracts the top block, then GPT summ
 
 ## Custom Switch Repositories Collector (`collect_custom_releases.py`)
 
-- **Tracked Authors:** `NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`, `aks796`.
+- **Tracked Authors:** `NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`, `aks796`, `antoxa2584x`.
 - **State File:** `data/custom_releases_state.json` (synced via Gist `sync_gist_state.py`).
 - **Time Windows:**
   - **New authors** (not in state): Collect releases from the last 3 weeks (21 days).

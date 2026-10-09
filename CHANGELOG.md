@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.67] - 2026-10-09
+
+### Added
+- **Custom Releases Collector (`antoxa2584x`)**: Added `antoxa2584x` to the monitored GitHub authors. The existing collector discovers all public repositories, including forks and future repositories, and applies its Nintendo Switch and recency filters. The first pass uses the existing 21-day window.
+
 ## [v0.7.66] - 2026-10-07
 
 ### Fixed
