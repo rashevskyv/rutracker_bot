@@ -48,7 +48,7 @@ FILES_TO_SYNC = [
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
-# Gist content of manual_releases.json at this machine's last sync: lets the merge tell a deletion from an addition.
+# Last synced registries: lets the merge tell a deletion from an addition.
 BASE_DIR = os.path.join(DATA_DIR, ".gist_base")
 
 
@@ -62,7 +62,7 @@ def load_base(filename: str):
 
 
 def save_base(filename: str, content: str):
-    if filename != "manual_releases.json":  # the only three-way merge
+    if filename not in {"manual_releases.json", "list_hb.json"}:
         return
     os.makedirs(BASE_DIR, exist_ok=True)
     with open(os.path.join(BASE_DIR, filename), "w", encoding="utf-8") as f:
@@ -237,6 +237,9 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
             for filename in sync_list:
                 if filename in files:
                     content = gist_file_text(files[filename], token)
+                    if filename == "list_hb.json":
+                        from services.homebrew_registry import validate_registry
+                        validate_registry(json.loads(content))
                     gist_text = content
                     filepath = os.path.join(DATA_DIR, filename)
 
@@ -256,6 +259,8 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
                                 content = local_content
                                 logger.info(f"Download kept non-empty local {filename} (Gist empty)")
                         except Exception as merge_err:
+                            if filename == "list_hb.json":
+                                raise ValueError("Homebrew registry download merge failed; preserving local file") from merge_err
                             logger.warning(
                                 f"Download merge failed for {filename}, using Gist content: {merge_err}"
                             )
@@ -288,14 +293,20 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
 def merge_json_files(filename: str, local_content: str, gist_content: str, base=None) -> str:
     """Safely merges local and Gist contents for JSON files to prevent data loss while respecting local edits.
 
-    base is the parsed Gist content at the last sync (see load_base); only manual_releases.json uses it.
+    base is the parsed Gist registry at the last sync (see load_base).
     """
     try:
         local_data = json.loads(local_content)
         gist_data = json.loads(gist_content)
     except Exception as e:
+        if filename == "list_hb.json":
+            raise ValueError("Invalid homebrew registry; refusing to merge") from e
         logger.error(f"Error parsing JSON for merge ({filename}): {e}. Keeping local version.")
         return local_content
+
+    if filename == "list_hb.json":
+        from services.homebrew_registry import merge_registry
+        return json.dumps(merge_registry(local_data, gist_data, base), ensure_ascii=False, indent=2)
 
     if filename == "manual_releases.json":
         merged_list = merge_manual_releases(
@@ -489,6 +500,10 @@ def upload_state(gist_id: str, token: str, force: bool = False, target_files: li
             # before a slow raw fetch wrote stale content back over another process's fresh writes.
             with open(filepath, "r", encoding="utf-8") as f:
                 local_content = f.read()
+
+            if filename == "list_hb.json":
+                from services.homebrew_registry import validate_registry
+                validate_registry(json.loads(local_content))
             
             # Merge logic if both Gist and local have content and force is False
             if not force and gist_content.strip() and gist_content.strip() not in ("empty", "{}") and local_content.strip():

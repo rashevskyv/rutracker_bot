@@ -10,6 +10,7 @@ import logging
 from typing import Optional, Tuple, List # Import Optional, Tuple, List
 # --- Import functions moved to html_utils ---
 from utils.html_utils import clean_description_html, make_tag, sanitize_html_for_telegram
+from services.homebrew_registry import source_urls
 from core.settings_loader import get_session, RUTRACKER_COOKIES, FLARESOLVERR_URL
 # --------------------------------------------
 
@@ -363,8 +364,7 @@ async def _strategy_author_update_post(soup: BeautifulSoup, base_url: str) -> Op
 
 
 
-# parse_tracker_entry remains the same (uses functions from html_utils)
-async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str]]]:
+async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str], bool, List[str]]]:
     soup = await fetch_page_content(entry_url)
     if not soup:
         raise ValueError(f"Failed to fetch page content (timeout or HTTP error)")
@@ -412,6 +412,9 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     post_body = soup.find("div", class_="post_body")
     if not post_body:
         raise ValueError(f"Could not find post body div on page (page structure changed or access denied)")
+
+    is_homebrew = is_homebrew_genre(description=str(post_body), title=page_display_title)
+    homebrew_sources = source_urls(post_body) if is_homebrew else []
 
     try:
         # Extract language from post body
@@ -552,6 +555,7 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
-    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text
+    is_homebrew = is_homebrew or is_homebrew_genre(genres=genres, description=final_description, title=page_display_title)
+    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text, is_homebrew, homebrew_sources
 
 # --- END OF FILE tracker_parser.py ---

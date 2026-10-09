@@ -109,6 +109,10 @@ Strategies are tried in order. First non-None result wins.
 
 ## Homebrew Collector — Multi-Source Architecture
 
+RuTracker discovery: `parse_tracker_entry()` appends the raw homebrew flag and source API URLs to its result (11 fields). `main.py` calls `services/homebrew_registry.py` after sending a production homebrew post. Exactly one explicit GitHub/GitLab repository is validated and registered in `list_hb.json` as `Switch`; existing registry/manual sources are skipped. GitLab paths resolve to numeric project IDs. A discovery timestamp prevents re-announcing the current release. Missing/ambiguous sources and lookup failures are logged; a later topic update retries discovery. No registration occurs in test mode.
+
+`sync_gist_state.py` merges `list_hb.json` by repository identity, preserves remote metadata and distinct existing aliases, and stores a sync base to honor deletions of unchanged rows. Invalid local/remote registry data aborts synchronization. Tests must mock source APIs and Gist and use temporary registry paths.
+
 `collect_homebrew_updates.py` runs in phases. Each phase returns a set of GitHub `owner/repo` slugs it covered. Phase 2 skips any entry whose slug was already handled.
 
 ```

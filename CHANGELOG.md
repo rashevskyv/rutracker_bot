@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.68] - 2026-10-09
+
+### Added
+- **RuTracker Homebrew Discovery**: Production homebrew posts register one explicit, validated GitHub/GitLab source in the Switch homebrew registry after sending. Source links are read before description cleaning. Existing registry/manual sources are skipped; missing or ambiguous sources and lookup failures are logged. Tracking starts at discovery time without a second announcement of the current release; test mode does not register sources.
+
+### Fixed
+- **Homebrew Registry Sync**: `list_hb.json` now keeps independent local/remote additions, remote metadata and distinct existing aliases. A saved sync base prevents unchanged deleted entries from returning. Invalid registries abort synchronization instead of overwriting a valid copy.
+
 ## [v0.7.67] - 2026-10-09
 
 ### Added

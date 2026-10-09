@@ -53,6 +53,10 @@ Checks various platforms for homebrew updates:
 - Queues localization entries into `data/swuk_digest_data.json`.
 
 ### 4. Custom Switch Repositories Collector (`collect_custom_releases.py`)
+RuTracker posts also discover sources automatically: after a homebrew post is sent, the bot reads repository links from the original first post, validates one unambiguous GitHub/GitLab source, and adds it to `data/list_hb.json` under `Switch` if it is not already registered or present in homebrew manual releases. The homebrew collector watches updates from discovery onward, without announcing the existing release again. Test mode does not register sources. Missing/ambiguous links or failed source lookups are logged; discovery is retried when the topic is processed again.
+
+Registry synchronization preserves independent additions, remote metadata and existing distinct aliases. With a saved sync base, deleting an unchanged registry entry does not revive it from a stale copy. Invalid registry data aborts its synchronization rather than overwriting the other copy.
+
 - Tracks custom GitHub authors (`NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`, `aks796`, `antoxa2584x`) for Nintendo Switch homebrew applications, ports, and games.
 - State is persisted in `data/custom_releases_state.json` (synced with Gist), tracking `last_run` timestamp and author history.
 - Evaluates releases over the last 3 weeks (21 days) for newly added authors, and since each author's last complete check for existing authors. If an author's repository listing or a release lookup fails, the author is retried on the next run instead of being skipped.

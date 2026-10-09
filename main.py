@@ -18,7 +18,8 @@ from core.settings_loader import (
 from parsers.feed_handler import (
     read_last_entry_link, write_last_entry_link, get_new_feed_entries
 )
-from parsers.tracker_parser import parse_tracker_entry, is_homebrew_genre
+from parsers.tracker_parser import parse_tracker_entry
+from services.homebrew_registry import register_tracker_homebrew
 from services.youtube_search import search_trailer_on_youtube
 from services.ai_validator import validate_yt_title_with_gpt
 from services.titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
@@ -147,7 +148,7 @@ async def main_loop():
                 continue
 
             if parsed_data:
-                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres, raw_update_text = parsed_data
+                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres, raw_update_text, is_homebrew, homebrew_sources = parsed_data
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
@@ -197,7 +198,6 @@ async def main_loop():
 
                 # Get and Download Screenshots from TitleDB (Skip for Homebrew releases)
                 local_screenshot_paths: List[str] = []
-                is_homebrew = is_homebrew_genre(genres=genres, description=cleaned_description, title=page_display_title)
                 if is_homebrew:
                     logger.info(f"Homebrew release detected ('{page_display_title}'). Skipping screenshot lookup/download.")
                 elif db_manager:
@@ -225,6 +225,9 @@ async def main_loop():
                           torrent_size=torrent_size
                      )
                      processed_count += 1
+
+                     if is_homebrew and not IS_TEST_MODE:
+                         await register_tracker_homebrew(page_display_title, homebrew_sources)
 
                      # Add to daily digest after successful send
                      try:
