@@ -239,7 +239,12 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
                     content = gist_file_text(files[filename], token)
                     if filename == "list_hb.json":
                         from services.homebrew_registry import validate_registry
-                        validate_registry(json.loads(content))
+                        try:
+                            validate_registry(json.loads(content))
+                        except ValueError as e:
+                            # Skip only the registry: aborting here left later files (and the upload) unsynced.
+                            logger.error(f"Invalid list_hb.json in Gist, keeping local file: {e}")
+                            continue
                     gist_text = content
                     filepath = os.path.join(DATA_DIR, filename)
 
@@ -260,7 +265,14 @@ def download_state(gist_id: str, token: str, target_files: list = None, exclude_
                                 logger.info(f"Download kept non-empty local {filename} (Gist empty)")
                         except Exception as merge_err:
                             if filename == "list_hb.json":
-                                raise ValueError("Homebrew registry download merge failed; preserving local file") from merge_err
+                                try:
+                                    validate_registry(json.loads(local_content))
+                                except ValueError:
+                                    # Gist copy was validated above: let it repair a broken local file.
+                                    logger.error(f"Local list_hb.json unusable, taking Gist copy: {merge_err}")
+                                else:
+                                    logger.error(f"Homebrew registry download merge failed; preserving local file: {merge_err}")
+                                    continue
                             logger.warning(
                                 f"Download merge failed for {filename}, using Gist content: {merge_err}"
                             )
@@ -503,11 +515,22 @@ def upload_state(gist_id: str, token: str, force: bool = False, target_files: li
 
             if filename == "list_hb.json":
                 from services.homebrew_registry import validate_registry
-                validate_registry(json.loads(local_content))
+                try:
+                    validate_registry(json.loads(local_content))
+                except ValueError as e:
+                    logger.error(f"Invalid local list_hb.json, not uploading it: {e}")
+                    continue
             
             # Merge logic if both Gist and local have content and force is False
             if not force and gist_content.strip() and gist_content.strip() not in ("empty", "{}") and local_content.strip():
-                if filename.endswith('.json'):
+                if filename == "list_hb.json":
+                    try:
+                        final_content = merge_json_files(filename, local_content, gist_content, base=load_base(filename))
+                    except ValueError as e:
+                        # Local was validated above: let it repair a broken Gist copy.
+                        logger.error(f"Gist list_hb.json unusable, uploading local: {e}")
+                        final_content = local_content
+                elif filename.endswith('.json'):
                     final_content = merge_json_files(filename, local_content, gist_content, base=load_base(filename))
                 else:
                     final_content = local_content

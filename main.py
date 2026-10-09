@@ -1,5 +1,6 @@
 # --- START OF FILE main.py ---
 import asyncio
+import calendar
 import time
 import traceback
 import html
@@ -40,6 +41,22 @@ def load_posted_links() -> dict:
             return json.load(f)
     except Exception:
         return {}
+
+def is_already_posted(entry, posted_links: dict, is_updated: bool) -> bool:
+    """New topics are posted once; an [Обновлено] entry only if the topic changed after our last post."""
+    posted_at = posted_links.get(entry.get('link'))
+    if not posted_at:
+        return False
+    if not is_updated:
+        return True
+    updated = entry.get('updated_parsed')
+    if not updated:
+        return False
+    try:
+        # posted_at is naive server-local time; the feed time is UTC.
+        return datetime.fromisoformat(posted_at).astimezone().timestamp() >= calendar.timegm(updated)
+    except (TypeError, ValueError):
+        return False
 
 def save_posted_link(url: str):
     """Add URL to posted links tracker"""
@@ -117,11 +134,13 @@ async def main_loop():
             logger.info(f"\n--- Processing Entry ---")
             logger.info(f"Link: {entry_link}")
 
-            # Deduplication: skip if already posted (but allow updates through)
+            # Deduplication: skip if already posted; updates only if not posted since the feed update time
             is_updated_entry = "[Обновлено]" in entry_title_feed_or_placeholder or "[Updated]" in entry_title_feed_or_placeholder
             posted_links = load_posted_links()
-            if entry_link in posted_links and not IS_TEST_MODE and not is_updated_entry:
+            if not IS_TEST_MODE and is_already_posted(entry, posted_links, is_updated_entry):
                 logger.info(f"SKIP: Already posted {entry_link} on {posted_links[entry_link]}")
+                # Advance past it, or every later run re-reads the same feed tail.
+                await asyncio.to_thread(write_last_entry_link, last_entry_file_path, entry_link)
                 continue
 
             try:

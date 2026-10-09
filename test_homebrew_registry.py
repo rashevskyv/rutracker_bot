@@ -228,22 +228,48 @@ def test_real_sync_paths_keep_both_additions(monkeypatch, tmp_path, action):
         assert sync.load_base("list_hb.json") == remote
 
 
-@pytest.mark.parametrize("action", ["download", "upload"])
-def test_invalid_sync_does_not_write_files_or_patch(monkeypatch, tmp_path, action):
+def _gist_response(files):
+    response = Mock()
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+    response.status = 200
+    response.read.return_value = json.dumps({"files": files}).encode()
+    return response
+
+
+def test_invalid_gist_registry_does_not_block_other_downloads(monkeypatch, tmp_path):
     monkeypatch.setattr(sync, "DATA_DIR", str(tmp_path))
     path = tmp_path / "list_hb.json"
     original = json.dumps([row()])
     path.write_text(original, encoding="utf-8")
-    response = Mock()
-    response.__enter__ = Mock(return_value=response)
-    response.__exit__ = Mock(return_value=False)
-    response.read.return_value = json.dumps({"files": {"list_hb.json": {"content": "{broken"}}}).encode()
-    opener = Mock(return_value=response)
-    monkeypatch.setattr(sync.urllib.request, "urlopen", opener)
-    with pytest.raises(ValueError):
-        (DOWNLOAD if action == "download" else UPLOAD)("pytest-no-such-gist", "fake-token", target_files=["list_hb.json"])
+    response = _gist_response({"list_hb.json": {"content": "{broken"}, "last_entry.txt": {"content": "new-link"}})
+    monkeypatch.setattr(sync.urllib.request, "urlopen", Mock(return_value=response))
+    DOWNLOAD("pytest-no-such-gist", "fake-token", target_files=["list_hb.json", "last_entry.txt"])
     assert path.read_text(encoding="utf-8") == original
-    assert opener.call_count == 1
+    assert (tmp_path / "last_entry.txt").read_text(encoding="utf-8") == "new-link"
+
+
+def test_invalid_local_registry_is_not_uploaded_but_others_are(monkeypatch, tmp_path):
+    monkeypatch.setattr(sync, "DATA_DIR", str(tmp_path))
+    (tmp_path / "list_hb.json").write_text("{broken", encoding="utf-8")
+    (tmp_path / "last_entry.txt").write_text("new-link", encoding="utf-8")
+    opener = Mock(return_value=_gist_response({"list_hb.json": {"content": json.dumps([row()])}}))
+    monkeypatch.setattr(sync.urllib.request, "urlopen", opener)
+    UPLOAD("pytest-no-such-gist", "fake-token", target_files=["list_hb.json", "last_entry.txt"])
+    patched = json.loads(opener.call_args_list[-1].args[0].data)["files"]
+    assert set(patched) == {"last_entry.txt"}
+    assert (tmp_path / "list_hb.json").read_text(encoding="utf-8") == "{broken"
+
+
+def test_valid_local_registry_repairs_broken_gist_copy(monkeypatch, tmp_path):
+    monkeypatch.setattr(sync, "DATA_DIR", str(tmp_path))
+    original = json.dumps([row()])
+    (tmp_path / "list_hb.json").write_text(original, encoding="utf-8")
+    opener = Mock(return_value=_gist_response({"list_hb.json": {"content": "{broken"}}))
+    monkeypatch.setattr(sync.urllib.request, "urlopen", opener)
+    UPLOAD("pytest-no-such-gist", "fake-token", target_files=["list_hb.json"])
+    patched = json.loads(opener.call_args_list[-1].args[0].data)["files"]
+    assert patched["list_hb.json"]["content"] == original
 
 
 @pytest.mark.asyncio
@@ -286,3 +312,13 @@ async def test_main_registers_only_published_production_homebrew(monkeypatch, tm
     assert register.await_count == expected
     if expected:
         register.assert_awaited_once_with("Game", [API])
+
+
+def test_valid_gist_registry_repairs_broken_local_copy(monkeypatch, tmp_path):
+    monkeypatch.setattr(sync, "DATA_DIR", str(tmp_path))
+    path = tmp_path / "list_hb.json"
+    path.write_text('[{"app_name": "Ga', encoding="utf-8")
+    remote = json.dumps([row()])
+    monkeypatch.setattr(sync.urllib.request, "urlopen", Mock(return_value=_gist_response({"list_hb.json": {"content": remote}})))
+    DOWNLOAD("pytest-no-such-gist", "fake-token", target_files=["list_hb.json"])
+    assert path.read_text(encoding="utf-8") == remote

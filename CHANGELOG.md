@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.69] - 2026-10-09
+
+### Fixed
+- **RuTracker Reposting Loop**: An invalid `list_hb.json` (the Gist copy has been truncated since September) made v0.7.68 abort the whole Gist upload and stop the download midway. Every run then restored a stale `last_entry.txt`, re-read the same feed tail and reposted `[Обновлено]` entries. Now only the invalid registry copy is skipped; the rest of the state syncs, and a valid copy (local or Gist) replaces a broken one.
+- **Feed Deduplication**: `[Обновлено]` entries are reposted only when the feed update time is later than our last post of that topic. Entries skipped as already posted now advance `last_entry.txt`.
+
 ## [v0.7.68] - 2026-10-09
 
 ### Added
