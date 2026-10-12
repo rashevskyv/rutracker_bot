@@ -2,7 +2,10 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
-## [v0.7.72] - 2026-10-12
+## [v0.7.73] - 2026-10-12
+
+### Added
+- **Manual Releases Reach the Store**: `add_release.py` also adds each GitHub repo to `manual.json` in `rashevskyv/emuradar-store` through `gh api` (`services/store_manual.py`). The Emu Radar Store, the Kefir Hub Ports filter and the digest then read one library. Idempotent; a `disabled` row is re-enabled. A missing `gh` or a failed call prints a warning and never fails the queue. Verification: host tests pass (new `test_store_manual.py`, fake `gh`); live `gh` write not done, no release was queued.
 
 ### Changed
 - **SwitchPorts reads the Emu Radar Store**: Phase 1e fetches `catalog.json` (slugs, titles, versions) and `repo.json` (release dates) from `rashevskyv/emuradar-store` instead of parsing the SwitchPorts README. The README parser stays as the fallback when the store is unreachable or invalid (warning logged). Stored state keeps the GitHub slug keys; store entries carry `source: "store"` and the release date in `updated`. The first run after the change seeds unseen ports silently, so nothing is re-announced. Store path shows real titles for emulator rows (README path still reads the System column). Verification: host tests pass (199 passed, WSL pytest); live run not done. Live digest behaviour: pending the next daily run.

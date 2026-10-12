@@ -171,7 +171,7 @@ python add_release.py https://github.com/owner/repo                       # late
 python add_release.py https://github.com/owner/repo/releases/tag/v1.2 --description "Опис українською."
 python add_release.py --status                                            # waiting / queued / published
 ```
-The script writes only `manual_inbox.json` in the Gist, which the servers read and never upload. Each server download copies new inbox rows into `manual_releases.json`, so there is nothing to download, edit or upload by hand. Options: `--name`, `--version`, `--update` (announce as an update), `--dry-run`.
+The script writes only `manual_inbox.json` in the Gist, which the servers read and never upload. It also adds the GitHub repo to the Emu Radar Store's `manual.json` via `gh` (best effort; warns if `gh` is missing). Each server download copies new inbox rows into `manual_releases.json`, so there is nothing to download, edit or upload by hand. Options: `--name`, `--version`, `--update` (announce as an update), `--dry-run`.
 
 - **Marked after sending**: A row becomes `processed` only after the digest was sent and its URL is in the digest data; a row that missed the digest is retried the next day.
 - **Processing limit**: Maximum 5 unprocessed releases are handled per script execution to avoid flood.

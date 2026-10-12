@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 import sync_gist_state as sgs
 from collect_custom_releases import analyze_repo_with_gemini, fetch_latest_release
+from services import store_manual
 from services.manual_releases import prioritize_releases
 
 MANUAL = "manual_releases.json"
@@ -122,7 +123,7 @@ def main():
         return status(manual, inbox)
 
     taken = {(r.get("release_url"), r.get("version")) for r in manual + inbox}
-    added = []
+    added, added_urls = [], []
     for url in args.urls:
         row = build_row(url, args, token)
         if (row["release_url"], row["version"]) in taken:
@@ -130,6 +131,7 @@ def main():
             continue
         taken.add((row["release_url"], row["version"]))
         added.append(row)
+        added_urls.append(url)
         print(json.dumps(row, ensure_ascii=False, indent=2))
     if not added or args.dry_run:
         return
@@ -138,6 +140,13 @@ def main():
     published = {m.get("inbox_id") for m in manual if m.get("processed") and m.get("inbox_id")}
     write_inbox(gist_id, token, [r for r in inbox if r["inbox_id"] not in published] + added)
     print(f"\nAdded {len(added)} release(s) to {sgs.INBOX_FILE}; the next server cycle queues them.")
+
+    # Best effort: the Emu Radar Store lists the repo too. Its failure never undoes the queue row.
+    for url in added_urls:
+        try:
+            print(store_manual.sync_release(url))
+        except Exception as e:
+            print(f"store: WARNING sync failed for {url}: {type(e).__name__}")
 
 
 if __name__ == "__main__":
