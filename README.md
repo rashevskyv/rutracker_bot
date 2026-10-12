@@ -146,6 +146,8 @@ Required keys (environment variables take precedence over both JSON files):
 | `GIST_TOKEN` | Gist read/write. Falls back to `GITHUB_TOKEN`, which then needs the `Gists: Read and write` permission. |
 
 ### State Synchronization (`sync_gist_state.py`)
+
+On Linux, `config/run_checker.sh` (from the example) and `run_custom_collector.sh` hold the same `data/.runner.lock` across downloading, processing and uploading state. Keep this lock when customizing the server runner: per-command cron locks prevent duplicate jobs, but do not protect the shared JSON files and sync bases from different jobs. Direct Python invocations bypass the runner lock.
 State lives in a GitHub Gist so that runs on different machines stay consistent.
 These files are synced: `posted_links.json`, `hb_state.json`, `daily_digest_data.json`,
 `homebrew_digest_data.json`, `last_entry.txt`, `last_digest_run.json`,

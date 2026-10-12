@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.71] - 2026-10-12
+
+### Fixed
+- **Server Runner State Race**: The universal Linux runner and standalone custom collector share `data/.runner.lock` for the entire download → process → upload cycle. Concurrent daily, homebrew, SWUK and RuTracker jobs can no longer replace each other's manual-release flags and sync bases. On October 12 the homebrew run selected five previously published manual releases again, exhausting the limit before reaching Silent Hill 2 and the four October 11 additions. A concurrency test exercises both real launchers with fake Python commands.
+
 ## [v0.7.70] - 2026-10-09
 
 ### Fixed

@@ -50,6 +50,11 @@ fi
 # Parse command
 COMMAND="${1:-rt}"
 
+# All runners share state and sync bases; keep download, processing and upload together.
+mkdir -p "$PROJECT_DIR/data"
+exec 9>"$PROJECT_DIR/data/.runner.lock"
+flock -x 9 || exit 1
+
 # Digest/rt/hb must NOT download/upload Live Showcase state — that races with eshop
 # and used to restore stale 20-card Gist over a fresh local 30-card showcase.
 GIST_EXCLUDE_ESHOP="--exclude-eshop-state"

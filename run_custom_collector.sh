@@ -11,6 +11,11 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
+# Use the same state lock as run_checker.sh for the entire collector sync cycle.
+mkdir -p "$SCRIPT_DIR/data"
+exec 9>"$SCRIPT_DIR/data/.runner.lock"
+flock -x 9
+
 echo "=================================================="
 echo "Running Custom Switch Repositories Collector..."
 echo "=================================================="
