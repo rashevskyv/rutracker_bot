@@ -15,8 +15,8 @@ def test_launchers_hold_one_lock_across_download_process_upload(tmp_path):
     config.mkdir()
     main = config / "run_checker.sh"
     custom = tmp_path / "run_custom_collector.sh"
-    shutil.copyfile(root / "config/run_checker.sh.example", main)
-    shutil.copyfile(root / "run_custom_collector.sh", custom)
+    main.write_text((root / "config/run_checker.sh.example").read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+    custom.write_text((root / "run_custom_collector.sh").read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     binary = tmp_path / "bin"
     binary.mkdir()
     fake = binary / "python"
