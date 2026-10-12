@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.74] - 2026-10-12
+
+### Added
+- **New Homebrew Reach the Emu Radar Store**: each new Switch homebrew digest item (collectors and manual releases) gets its project's GitHub repo added to `manual.json` in `rashevskyv/emuradar-store` (`services/store_sync.py`). A direct GitHub link is used as is; another link is read once and the bot's LLM names the repo, which must appear on that page and exist on GitHub. Repos already in `catalog.json` or `manual.json` (disabled rows included) are not written again. Category: keyword heuristic (emu, tool, else port). At most 20 additions per run. Runs in the homebrew digest sender before the send; `STORE_SYNC=0` turns it off; it runs only when `gh` is installed. Verification: host tests pass (224 passed, WSL pytest; new `test_store_sync.py`); live run not done.
+
+### Changed
+- `services/store_manual.py`: one-read, one-write batch writer (`add_manual_rows`) and `read_manual_rows`. `sync_release` (used by `add_release.py`) behaves as before.
+- Digest entries appended by `add_entry` carry `store_sync: "pending"`. Legacy entries have no flag and are never synced, so the first run after deploy does not flood the store.
+
 ## [v0.7.73] - 2026-10-12
 
 ### Added

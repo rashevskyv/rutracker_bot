@@ -15,6 +15,7 @@ from digest import runner
 from digest.homebrew import homebrew_digest_manager
 from services.telegram_sender import send_message_to_admin
 from services.manual_releases import process_manual_releases, mark_manual_releases_published
+from services import store_sync
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,12 @@ async def send_digest():
 
     # PRODUCTION MODE: full digest to GROUPS + DIGEST_CHANNEL, short stats to test channel
     config = await runner.load_settings_or_exit(__file__, "Homebrew digest")
+
+    # Store sync: production only, never inside test mode. Failures are logged; the digest goes on.
+    try:
+        await store_sync.sync_pending_digest_items(homebrew_digest_manager)
+    except Exception as e:
+        logger.warning(f"store-sync failed, digest continues: {type(e).__name__}: {e}")
 
     entries = homebrew_digest_manager.get_entries_since(last_run_time)
     total_count = len(entries)

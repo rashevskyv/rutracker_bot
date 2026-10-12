@@ -53,6 +53,8 @@ Checks various platforms for homebrew updates:
 - Queues localization entries into `data/swuk_digest_data.json`.
 
 ### 4. Custom Switch Repositories Collector (`collect_custom_releases.py`)
+New Switch homebrew in the digest also reaches the Emu Radar Store: `services/store_sync.py` adds each new item's GitHub repo to the store's `manual.json` before the homebrew digest is sent (direct GitHub link, or the LLM reads the release page). Known and disabled store rows are never re-added; at most 20 per run; `STORE_SYNC=0` turns it off; it needs `gh`.
+
 RuTracker posts also discover sources automatically: after a homebrew post is sent, the bot reads repository links from the original first post, validates one unambiguous GitHub/GitLab source, and adds it to `data/list_hb.json` under `Switch` if it is not already registered or present in homebrew manual releases. The homebrew collector watches updates from discovery onward, without announcing the existing release again. Test mode does not register sources. Missing/ambiguous links or failed source lookups are logged; discovery is retried when the topic is processed again.
 
 Registry synchronization preserves independent additions, remote metadata and existing distinct aliases. With a saved sync base, deleting an unchanged registry entry does not revive it from a stale copy. Invalid registry data aborts its synchronization rather than overwriting the other copy.

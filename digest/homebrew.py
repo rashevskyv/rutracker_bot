@@ -156,16 +156,37 @@ class HomebrewDigest(BaseDigest):
                     entry["timestamp"] = existing.get("timestamp", entry["timestamp"])
                     logger.debug(f"Preserving timestamp for unchanged entry: {app_name} {version}")
 
+                # Keep the store-sync state: a re-add must not make an already-synced entry pending again
+                if existing.get("store_sync"):
+                    entry["store_sync"] = existing["store_sync"]
+
                 data["entries"][i] = entry
                 replaced = True
                 logger.info(f"Updated existing homebrew digest entry: {app_name} {version}")
                 break
 
         if not replaced:
+            # Only entries appended here are new; legacy entries have no flag and are never synced.
+            entry["store_sync"] = "pending"
             data["entries"].append(entry)
             logger.info(f"Added homebrew entry to digest: {app_name} {version}{' (NEW)' if is_new else ''}")
 
         self._save_data(data)
+
+    def pending_store_sync(self) -> List[Dict]:
+        """Entries appended since the last store sync (flag "pending"). Legacy entries are never returned."""
+        return [dict(e) for e in self._load_data()["entries"] if e.get("store_sync") == "pending"]
+
+    def set_store_sync(self, release_url: str, state: str):
+        """Set the store-sync state ("pending" or "done") of the entry with this release_url."""
+        data = self._load_data()
+        changed = False
+        for e in data["entries"]:
+            if e.get("release_url") == release_url and e.get("store_sync"):
+                e["store_sync"] = state
+                changed = True
+        if changed:
+            self._save_data(data)
 
     def format_digest_message(self, since_time: datetime) -> Optional[str]:
         """
