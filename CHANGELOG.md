@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.72] - 2026-10-12
+
+### Changed
+- **SwitchPorts reads the Emu Radar Store**: Phase 1e fetches `catalog.json` (slugs, titles, versions) and `repo.json` (release dates) from `rashevskyv/emuradar-store` instead of parsing the SwitchPorts README. The README parser stays as the fallback when the store is unreachable or invalid (warning logged). Stored state keeps the GitHub slug keys; store entries carry `source: "store"` and the release date in `updated`. The first run after the change seeds unseen ports silently, so nothing is re-announced. Store path shows real titles for emulator rows (README path still reads the System column). Verification: host tests pass (199 passed, WSL pytest); live run not done. Live digest behaviour: pending the next daily run.
+
 ## [v0.7.71] - 2026-10-12
 
 ### Fixed

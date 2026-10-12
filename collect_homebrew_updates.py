@@ -10,7 +10,7 @@ import sys
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Tuple
 import aiohttp
 from digest.homebrew import homebrew_digest_manager
 from services.translation import translate_ru_to_ua
@@ -55,6 +55,10 @@ VITA_CATEGORIES = {'Vita', 'PSVita', 'PSP'}
 # SwitchPorts (ChanseyIsTheBest/SwitchPorts)
 SWITCHPORTS_STATE_PATH = os.path.join('data', 'switchports_state.json')
 SWITCHPORTS_REPO_URL = 'https://raw.githubusercontent.com/ChanseyIsTheBest/SwitchPorts/main/README.md'
+# Emu Radar Store (rashevskyv/emuradar-store) reads SwitchPorts daily; primary source for Phase 1e.
+# README parsing above stays as the fallback when the store is unreachable or invalid.
+STORE_CATALOG_URL = 'https://raw.githubusercontent.com/rashevskyv/emuradar-store/main/catalog.json'
+STORE_REPO_URL = 'https://raw.githubusercontent.com/rashevskyv/emuradar-store/main/repo.json'
 
 # Collector run stats (saved after each run for the digest sender)
 HB_STATS_PATH = os.path.join('data', 'hb_collect_stats.json')
@@ -1344,11 +1348,17 @@ class HomebrewUpdatesCollector:
 
     async def collect_switchports_updates(self, local_entries: List[Dict]) -> Set[str]:
         """
-        Phase 1e: Fetch Switch ports from ChanseyIsTheBest/SwitchPorts README.md.
+        Phase 1e: SwitchPorts. Reads the Emu Radar Store catalog; falls back to the
+        ChanseyIsTheBest/SwitchPorts README.md when the store is unavailable or invalid.
         Returns a set of GitHub slugs ('owner/repo') covered by SwitchPorts.
         """
         logger.info("=== Phase 1e: SwitchPorts (Nintendo Switch Ports) ===")
         self.source_stats['SwitchPorts'] = {'checked': 0, 'found': 0}
+
+        store_entries = await self._load_store_catalog()
+        if store_entries is not None:
+            return await self._collect_switchports_from_store(store_entries)
+        logger.warning("SwitchPorts: Emu Radar Store unavailable or invalid — falling back to README")
 
         try:
             async with self.session.get(SWITCHPORTS_REPO_URL, headers=BROWSER_HEADERS, timeout=30) as resp:
@@ -1368,21 +1378,7 @@ class HomebrewUpdatesCollector:
         items = self._parse_switchports_readme(content)
         logger.info(f"Parsed {len(items)} ports from SwitchPorts README")
 
-        processed_manual_names = set()
-        processed_manual_slugs = set()
-        try:
-            from services.manual_releases import load_manual_releases
-            for m_entry in load_manual_releases():
-                m_name = m_entry.get('app_name', '').lower()
-                m_url = m_entry.get('release_url') or m_entry.get('url') or ''
-                m_slug = self._extract_github_slug(m_url)
-                if m_entry.get('processed'):
-                    if m_name:
-                        processed_manual_names.add(m_name)
-                    if m_slug:
-                        processed_manual_slugs.add(m_slug.lower())
-        except Exception as e:
-            logger.error(f"Error loading processed manual releases in SwitchPorts collector: {e}")
+        processed_manual_names, processed_manual_slugs = self._processed_manual_switchports()
 
         covered_slugs: Set[str] = set()
         first_run_initialized = 0
@@ -1468,9 +1464,12 @@ class HomebrewUpdatesCollector:
             saved_updated = saved.get('last_updated', '')
 
             version_changed = version and version != saved_version
-            updated_changed = last_updated and last_updated != saved_updated
+            # Entries written by the store path have no README date: adopt it silently, never announce it.
+            updated_changed = last_updated and saved_updated and last_updated != saved_updated
 
             if not version_changed and not updated_changed:
+                if last_updated and not saved_updated:
+                    self._switchports_state[key]['last_updated'] = last_updated
                 continue
 
             # Collision check: pending manual release
@@ -1519,6 +1518,189 @@ class HomebrewUpdatesCollector:
         )
         self.source_stats['SwitchPorts']['found'] = updates_found
         return covered_slugs
+
+    def _processed_manual_switchports(self) -> Tuple[Set[str], Set[str]]:
+        """Lowercase names and GitHub slugs of manual releases already processed."""
+        names: Set[str] = set()
+        slugs: Set[str] = set()
+        try:
+            from services.manual_releases import load_manual_releases
+            for m_entry in load_manual_releases():
+                m_name = m_entry.get('app_name', '').lower()
+                m_url = m_entry.get('release_url') or m_entry.get('url') or ''
+                m_slug = self._extract_github_slug(m_url)
+                if m_entry.get('processed'):
+                    if m_name:
+                        names.add(m_name)
+                    if m_slug:
+                        slugs.add(m_slug.lower())
+        except Exception as e:
+            logger.error(f"Error loading processed manual releases in SwitchPorts collector: {e}")
+        return names, slugs
+
+    async def _fetch_text(self, url: str) -> Optional[str]:
+        """GET a text file; None on any HTTP or network failure."""
+        try:
+            async with self.session.get(url, headers=BROWSER_HEADERS, timeout=30) as resp:
+                if resp.status != 200:
+                    logger.warning(f"{url} returned HTTP {resp.status}")
+                    return None
+                text = await resp.text()
+                self.github_requests += 1
+                return text
+        except Exception as e:
+            logger.warning(f"{url} request failed: {e}")
+            return None
+
+    @staticmethod
+    def _parse_store_catalog(text: str) -> Optional[List[Dict]]:
+        """Entries of the store's catalog.json as {repo, title, version_hint}. None if the file is not usable."""
+        try:
+            data = json.loads(text)
+        except (TypeError, ValueError):
+            return None
+        raw_entries = data.get('entries') if isinstance(data, dict) else None
+        if not isinstance(raw_entries, list) or not raw_entries:
+            return None
+        entries: Dict[str, Dict] = {}
+        for raw in raw_entries:
+            repo = raw.get('repo') if isinstance(raw, dict) else None
+            if not isinstance(repo, str) or repo.count('/') != 1 or not all(repo.split('/')):
+                return None
+            title = str(raw.get('title') or '').strip() or repo.split('/')[1]
+            entries.setdefault(repo.lower(), {
+                'repo': repo,
+                'title': title,
+                'version_hint': str(raw.get('version_hint') or '').strip(),
+            })
+        return list(entries.values())
+
+    def _parse_store_repo_dates(self, text: str) -> Dict[str, str]:
+        """Map lowercase 'owner/repo' to the store's release date (dd/mm/yyyy) from repo.json."""
+        try:
+            data = json.loads(text)
+        except (TypeError, ValueError):
+            return {}
+        packages = data.get('packages') if isinstance(data, dict) else None
+        if not isinstance(packages, list):
+            return {}
+        dates: Dict[str, str] = {}
+        for pkg in packages:
+            if not isinstance(pkg, dict) or not pkg.get('updated'):
+                continue
+            slug = self._extract_github_slug(str(pkg.get('url') or ''))
+            if slug:
+                dates[slug.lower()] = str(pkg['updated'])
+        return dates
+
+    async def _load_store_catalog(self) -> Optional[List[Dict]]:
+        """Store catalog entries, each with an 'updated' date when repo.json has one. None if the catalog is unusable."""
+        text = await self._fetch_text(STORE_CATALOG_URL)
+        entries = self._parse_store_catalog(text) if text else None
+        if entries is None:
+            logger.warning(f"Emu Radar Store catalog unusable: {STORE_CATALOG_URL}")
+            return None
+        dates_text = await self._fetch_text(STORE_REPO_URL)
+        dates = self._parse_store_repo_dates(dates_text) if dates_text else {}
+        if not dates:
+            logger.warning("Emu Radar Store repo.json unavailable — SwitchPorts release dates not compared")
+        for entry in entries:
+            entry['updated'] = dates.get(entry['repo'].lower(), '')
+        return entries
+
+    async def _publish_switchports(self, key: str, title: str, version: str, release_url: str, is_new: bool):
+        description = await self._get_description_cached(
+            cache_key=f"switchports:{key}",
+            local_entry=None,
+            raw_text=f"Port of {title} for Nintendo Switch.",
+            fallback_name=f"Порт {title} для Nintendo Switch"
+        )
+        homebrew_digest_manager.add_entry(
+            app_name=f"{title} (Port)",
+            version=version,
+            release_url=release_url,
+            description=description,
+            platform='Switch',
+            timestamp=datetime.now(),
+            is_new=is_new
+        )
+        self.updates_found += 1
+        self.updated_apps.append(f"{title} (Port)" if is_new else f"{title} (Port) [Update]")
+
+    async def _collect_switchports_from_store(self, entries: List[Dict]) -> Set[str]:
+        """
+        Phase 1e from the Emu Radar Store catalog. Same state keys (GitHub slug, lowercase)
+        and the same announcement rules as the README path.
+        A store-written state entry carries source='store'. Until one exists, the first run
+        seeds every port silently, so an upgrade does not re-announce the whole list.
+        """
+        processed_manual_names, processed_manual_slugs = self._processed_manual_switchports()
+        has_store_baseline = any(
+            isinstance(v, dict) and v.get('source') == 'store' for v in self._switchports_state.values()
+        )
+        stats = self.source_stats['SwitchPorts']
+        covered: Set[str] = set()
+        seeded = 0
+        announced = 0
+
+        for entry in entries:
+            repo = entry['repo']
+            slug = repo.lower()
+            title = entry['title']
+            version = entry['version_hint']
+            updated = entry.get('updated', '')
+            release_url = f"https://github.com/{repo}"
+            covered.add(slug)
+            stats['checked'] += 1
+            saved = self._switchports_state.get(slug)
+
+            if saved is None:
+                record = {'game_name': title, 'version': version, 'release_url': release_url, 'source': 'store'}
+                if updated:
+                    record['updated'] = updated
+                self._switchports_state[slug] = record
+                if not has_store_baseline:
+                    seeded += 1
+                    continue
+                if self.is_unprocessed_manual(title) or self.is_unprocessed_manual(slug):
+                    logger.info(f"Skipping initial SwitchPorts entry for {title} — pending manual release.")
+                    continue
+                if title.lower().strip() in processed_manual_names or slug in processed_manual_slugs:
+                    logger.info(f"SwitchPorts entry {title} was already processed in manual releases. Seeding state without posting.")
+                    continue
+                logger.info(f"New SwitchPorts entry found: {title} ({version})")
+                await self._publish_switchports(slug, title, version or '1.0', release_url, is_new=True)
+                announced += 1
+                continue
+
+            old_version = saved.get('version', '')
+            version_changed = bool(version) and version != old_version
+            # Entries seeded by the README path have no store date yet: adopt it silently.
+            date_changed = bool(updated) and bool(saved.get('updated')) and updated != saved.get('updated')
+            if not version_changed and not date_changed:
+                if updated and not saved.get('updated'):
+                    saved['updated'] = updated
+                saved['source'] = 'store'
+                continue
+
+            saved.update({'game_name': title, 'version': version, 'release_url': release_url, 'source': 'store'})
+            if updated:
+                saved['updated'] = updated
+            if self.is_unprocessed_manual(title) or self.is_unprocessed_manual(slug):
+                logger.info(f"Skipping SwitchPorts update for {title} — pending manual release. Updating state only.")
+                continue
+            logger.info(f"SwitchPorts update: {title} {version} (was {old_version})")
+            await self._publish_switchports(slug, title, version or 'Update', release_url, is_new=False)
+            announced += 1
+
+        if seeded:
+            logger.info(f"SwitchPorts store baseline: {seeded} ports seeded without posting")
+        logger.info(
+            f"SwitchPorts complete (Emu Radar Store): {announced} updates/new, "
+            f"{seeded} initialized, {len(covered)} GitHub repos covered"
+        )
+        stats['found'] = announced
+        return covered
 
     @staticmethod
     def _commit_snapshot_states(target_states: Dict[Path, Dict]) -> bool:
