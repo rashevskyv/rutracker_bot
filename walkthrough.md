@@ -8,6 +8,12 @@ register_tracker_homebrew додає окремі джерела та поточ
 
 WSL: 241 тест пройшов. Покрито дві платформи, один PC-репозиторій, вигаданий репозиторій, непідтримувану платформу, неправильний release URL, повторення після збою, відсутність дублів та GitLab identity/assets.
 
+Справжній AI-запит на сервері підтвердив Switch hazevauks/openPREYswitch v0.1.0 і PC themuffinator/openPREY nightly-0.0.1-nightly.20260426.81.1-c9601e08. b6d369f запушено та розгорнуто. register_tracker_homebrew запущено для точних URL з оригінального допису, без повторного Telegram-повідомлення. Реєстр має Switch і PC; homebrew-дайджест містить обидва API-релізи зі справжніми датами. list_hb.json та homebrew_digest_data.json вивантажено у Gist. Store sync позначив обидва записи done; PC пропущено як іншу платформу.
+
+Store workflow 38587597563 завершився success: manual.json, catalog.json і repo.json містять Switch-порт v0.1.0; skipped.json його не містить. Radar store.py прочитав 248 пакетів; store:openpreyswitch@v0.1.0 є в items. PC-репозиторій окремо підключено до site.json Radar як gh:openPREY-PC (локальний коміт 807f014, серверне налаштування збережено). Radar прочитав 10 PC-релізів; останній відповідає nightly у дайджесті. PC не додавався до Switch Store.
+
+Фінальна зміна обертає невдалі записи в кінець pending-черги, щоб перші три не блокували наступні. Повторно пройшло 57 профільних тестів. Повний наступний плановий дайджест і запуск гри на консолі не перевірялися.
+
 # v0.7.75 — відновлення синхронізації (2026-10-14)
 
 Сервер залишався на f6013f7 (v0.7.71). Код Store sync v0.7.72–74 був лише на GitHub. На сервері не було gh, а RADAR_BRIDGE не був увімкнений у жодній Radar-службі. Обидві працюють від radar, який не має доступу до /root/rutracker_bot. Halo був у статті Radar, FlatOut 2 — у pending черзі бота; обох не було у Store.

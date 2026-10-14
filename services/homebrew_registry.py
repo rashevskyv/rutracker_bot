@@ -169,10 +169,11 @@ async def register_tracker_homebrew(title: str, urls: list) -> bool:
     candidates = {api for url in urls if (api := repository_api_url(url))}
     if not candidates:
         return False
-    pending = _load_pending()
-    pending[title] = sorted(candidates)
-    _save_pending(pending)
     try:
+        pending = _load_pending()
+        pending.pop(title, None)  # Failed posts move to the end so retries do not starve later posts.
+        pending[title] = sorted(candidates)
+        _save_pending(pending)
         from services.homebrew_sources import resolve_sources
         from digest.homebrew import homebrew_digest_manager
         from services.store_sync import sync_pending_digest_items

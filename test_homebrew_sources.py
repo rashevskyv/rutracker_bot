@@ -83,6 +83,16 @@ async def test_ai_outage_is_retried_without_new_tracker_post(setup_sources):
 
 
 @pytest.mark.asyncio
+async def test_failed_retries_rotate_instead_of_starving_later_posts(setup_sources):
+    ask, _, _, _ = setup_sources
+    ask.return_value = None
+    for title in ["A", "B", "C", "D"]:
+        await registry.register_tracker_homebrew(title, [SWITCH, PC])
+    await registry.retry_tracker_homebrew()
+    assert list(registry._load_pending()) == ["D", "A", "B", "C"]
+
+
+@pytest.mark.asyncio
 async def test_single_pc_source_is_not_assumed_switch(setup_sources):
     ask, result, digest, _ = setup_sources
     result["sources"] = result["sources"][1:]
