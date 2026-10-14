@@ -1,0 +1,4 @@
+#!/bin/sh
+# Install root-owned as /usr/local/bin/rutracker-radar-queue (0755).
+cd /root/rutracker_bot || exit 1
+exec /usr/bin/flock -x data/.inbox.lock venv/bin/python radar_queue.py "$@"

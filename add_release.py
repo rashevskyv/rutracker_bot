@@ -126,20 +126,22 @@ def main():
     added, added_urls = [], []
     for url in args.urls:
         row = build_row(url, args, token)
+        if args.platform == "Switch":
+            added_urls.append(url)
         if (row["release_url"], row["version"]) in taken:
             print(f"Skipped {row['app_name']} {row['version']}: already queued or published.")
             continue
         taken.add((row["release_url"], row["version"]))
         added.append(row)
-        added_urls.append(url)
         print(json.dumps(row, ensure_ascii=False, indent=2))
-    if not added or args.dry_run:
+    if args.dry_run:
         return
 
     # Published rows leave the inbox; queued ones stay so the server can re-take a row an upload lost.
     published = {m.get("inbox_id") for m in manual if m.get("processed") and m.get("inbox_id")}
-    write_inbox(gist_id, token, [r for r in inbox if r["inbox_id"] not in published] + added)
-    print(f"\nAdded {len(added)} release(s) to {sgs.INBOX_FILE}; the next server cycle queues them.")
+    if added:
+        write_inbox(gist_id, token, [r for r in inbox if r["inbox_id"] not in published] + added)
+        print(f"\nAdded {len(added)} release(s) to {sgs.INBOX_FILE}; the next server cycle queues them.")
 
     # Best effort: the Emu Radar Store lists the repo too. Its failure never undoes the queue row.
     for url in added_urls:

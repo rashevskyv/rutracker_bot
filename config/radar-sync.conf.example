@@ -1,0 +1,4 @@
+# Install in both emu-radar-hourly.service.d and emu-radar-daily.service.d.
+[Service]
+Environment=RADAR_BRIDGE=1
+Environment=RUTRACKER_SUDO=1

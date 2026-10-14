@@ -1,0 +1,2 @@
+# Install root-owned as /etc/sudoers.d/radar-rutracker (0440); validate with visudo -cf.
+radar ALL=(root) NOPASSWD: /usr/local/bin/rutracker-radar-queue

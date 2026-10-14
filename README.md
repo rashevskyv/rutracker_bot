@@ -2,6 +2,14 @@
 
 A Telegram bot designed to fetch, parse, translate, and post updates from RuTracker, collect multi-source homebrew software updates, track Ukrainian Switch localizations, and send daily digests to configured Telegram channels.
 
+## Emu Radar synchronization (v0.7.75)
+
+The shared Store is `rashevskyv/emuradar-store`. New Switch digest entries and manual GitHub releases register their repositories there. Repeating a manual addition repairs a missing Store row without queuing it twice. Vita and PS1 releases stay in the bot queue only.
+
+Install the root-owned launcher and scoped sudo rule from `config/radar_queue.sh.example` and `config/radar-rutracker.sudoers.example`. Validate with `visudo -cf`. Apply `config/radar-sync.conf.example` to both Radar services and reload systemd. Radar calls the gateway with `RUTRACKER_SUDO=1`; it cannot read bot credentials or execute arbitrary Python as root. The launcher serializes inbox writes.
+
+Root also needs authenticated `gh` with Store write access. The Store workflow generates packages; Radar reads those packages on its next run. Do not edit generated `catalog.json` or `repo.json`. Store publication waits for its scheduled build; dispatch `store.yml` to rebuild immediately.
+
 ## Core Architecture
 
 The bot runs on a hybrid scheduling model using GitHub Actions and self-managing python scripts with state synchronization stored in a GitHub Gist.
