@@ -127,7 +127,7 @@ async def main_loop():
             last_processed_time = await asyncio.to_thread(read_last_entry_time, last_entry_time_file_path)
             new_entries = await get_new_feed_entries(FEED_URL, last_processed_link, last_processed_time)
             if new_entries is None: await send_error_to_telegram("Failed to fetch or parse feed."); return
-            if not new_entries: logger.info("No new feed entries found."); return
+            if not new_entries: logger.info("No new feed entries found."); await send_message_to_admin("No new feed entries found."); return
             logger.info(f"Processing {len(new_entries)} new entries...")
             entries_to_process = new_entries
 

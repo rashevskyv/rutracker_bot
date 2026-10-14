@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.78] - 2026-10-14
+
+### Fixed
+- A feed check with no new entries again sends "No new feed entries found." to the admin chat. `v0.7.70` removed this message, so a quiet feed looked like a stopped bot.
+
 ## [v0.7.77] - 2026-10-14
 
 ### Changed
