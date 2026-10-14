@@ -6,6 +6,10 @@ services/platform_ai.py використовує прямий Messages API че�
 
 Повний WSL-прогін: 251 passed. Перевірено успішний Anthropic без резервного запиту, відсутній ключ, HTTP, timeout, неправильний JSON, вигадане джерело, обрізану відповідь, вибір Sonnet і наступну модель OpenRouter після помилки перевірки.
 
+ee4d82e запушено та розгорнуто. Наявний ключ Radar підключено до /root/rutracker_bot/config/local_settings.json без виведення ключа. Файл і резервна копія config/local_settings.json.pre-anthropic-v77 мають права 0600. Інші серверні налаштування збережено. HOMEBREW_CLASSIFIER_MODEL встановлено claude-haiku-5-5.
+
+Справжній resolve_sources для Prey завершився через Anthropic claude-haiku-5-5: 8138 input_tokens, 220 output_tokens. Відповідь дала openPREYswitch → Switch v0.1.0 та openPREY → PC nightly. Контроль логів підтвердив, що резервний OpenRouter не викликався. Перевірка не записувала нові релізи й не надсилала Telegram. Резервні переходи перевірено офлайн тестами. Організацію з Max-кредитами й баланс не підтверджували.
+
 # v0.7.76 — визначення платформ homebrew через ШІ (2026-10-14)
 
 Останній RuTracker допис — Prey, тема 6922682. За оригінальною сторінкою джерела: hazevauks/openPREYswitch і themuffinator/openPREY. Старий register_tracker_homebrew пропускав будь-які два джерела і завжди призначав одному джерелу Switch. Допис був опублікований, але Prey не потрапив до homebrew-дайджесту, Store чи Radar.
