@@ -8,6 +8,7 @@ All notable changes to the RuTracker Bot project will be documented in this file
 - Emu Radar can queue releases through the restricted `radar_queue.py` gateway without reading root credentials. Requests validate platform, URLs, payload size and publication fields. The root launcher serializes inbox writers.
 - Adding an existing Switch release retries its Store registration without queuing a duplicate. Vita and PS1 releases are not added to the Switch Store.
 - Deployment enables the Radar bridge and installs authenticated `gh`, required by the existing Store synchronization.
+- Scheduled runners use the authenticated `gh` account for Store writes instead of the collector's read-only token; token fragments are no longer printed by the runner.
 
 ## [v0.7.74] - 2026-10-12
 

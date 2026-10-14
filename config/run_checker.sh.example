@@ -35,9 +35,18 @@ fi
 
 # Verify token is set
 if [ -n "$GITHUB_TOKEN" ]; then
-    echo "DEBUG: GITHUB_TOKEN is exported: ${GITHUB_TOKEN:0:10}...${GITHUB_TOKEN: -5}"
+    echo "DEBUG: GITHUB_TOKEN is configured"
 else
     echo "ERROR: GITHUB_TOKEN is not set!"
+fi
+
+# Store writes need the authenticated gh account, not the collector's read-only token.
+if command -v gh >/dev/null 2>&1; then
+    GH_TOKEN_FROM_LOGIN=$(env -u GITHUB_TOKEN -u GH_TOKEN gh auth token 2>/dev/null) || true
+    if [ -n "$GH_TOKEN_FROM_LOGIN" ]; then
+        export GH_TOKEN="$GH_TOKEN_FROM_LOGIN"
+    fi
+    unset GH_TOKEN_FROM_LOGIN
 fi
 
 # Activate virtual environment if exists
