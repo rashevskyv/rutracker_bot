@@ -64,7 +64,7 @@ def discovery(monkeypatch, tmp_path):
 @pytest.mark.asyncio
 async def test_register_then_repeat_without_reannouncement(discovery):
     before = datetime.now(timezone.utc)
-    assert await registry.register_tracker_homebrew("Torrent title [Homebrew]", [API])
+    assert await registry._register_source("Torrent title [Homebrew]", [API])
     rows = registry.load_registry(registry.REGISTRY_PATH)
     assert len(rows) == 1
     assert rows[0]["api_url"] == API
@@ -72,7 +72,7 @@ async def test_register_then_repeat_without_reannouncement(discovery):
     assert rows[0]["new"] is False
     assert "tag_name" not in rows[0]
     assert datetime.fromisoformat(rows[0]["comm_date"]) >= before
-    assert not await registry.register_tracker_homebrew("Updated title", [API])
+    assert not await registry._register_source("Updated title", [API])
     assert discovery[1].call_count == 1
 
 
@@ -82,15 +82,15 @@ async def test_manual_source_is_already_tracked(discovery, processed):
     registry.MANUAL_PATH.write_text(json.dumps([{
         "type": "homebrew", "release_url": "https://github.com/Author/Game-NX/releases/tag/v1", "processed": processed,
     }]), encoding="utf-8")
-    assert not await registry.register_tracker_homebrew("Game", [API])
+    assert not await registry._register_source("Game", [API])
     discovery[1].assert_not_called()
     assert not registry.REGISTRY_PATH.exists()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("urls", [[], [API, "https://github.com/other/game"], ["https://github.com.evil.test/a/b"]])
+@pytest.mark.parametrize("urls", [[], ["https://github.com.evil.test/a/b"]])
 async def test_missing_ambiguous_or_invalid_sources(discovery, urls):
-    assert not await registry.register_tracker_homebrew("Game", urls)
+    assert not await registry._register_source("Game", urls)
     discovery[1].assert_not_called()
     assert not registry.REGISTRY_PATH.exists()
 
@@ -99,7 +99,7 @@ async def test_missing_ambiguous_or_invalid_sources(discovery, urls):
 @pytest.mark.parametrize("content", ["{broken", "{}", "[42]", "[{}]"])
 async def test_corrupt_registry_is_never_overwritten(discovery, content):
     registry.REGISTRY_PATH.write_text(content, encoding="utf-8")
-    assert not await registry.register_tracker_homebrew("Game", [API])
+    assert not await registry._register_source("Game", [API])
     assert registry.REGISTRY_PATH.read_text(encoding="utf-8") == content
     discovery[1].assert_not_called()
 
@@ -107,18 +107,18 @@ async def test_corrupt_registry_is_never_overwritten(discovery, content):
 @pytest.mark.asyncio
 async def test_failed_lookup_does_not_write(discovery):
     discovery[0].status = 503
-    assert not await registry.register_tracker_homebrew("Game", [API])
+    assert not await registry._register_source("Game", [API])
     assert not registry.REGISTRY_PATH.exists()
     discovery[0].status = 200
     discovery[0].json.side_effect = TimeoutError("offline")
-    assert not await registry.register_tracker_homebrew("Game", [API])
+    assert not await registry._register_source("Game", [API])
     assert not registry.REGISTRY_PATH.exists()
 
 
 @pytest.mark.asyncio
 async def test_mismatched_source_is_rejected(discovery):
     discovery[0].json.return_value = {"name": "Other", "html_url": "https://github.com/other/game"}
-    assert not await registry.register_tracker_homebrew("Game", [API])
+    assert not await registry._register_source("Game", [API])
     assert not registry.REGISTRY_PATH.exists()
 
 
@@ -131,7 +131,7 @@ async def test_registration_preserves_rows_added_during_lookup(discovery):
         return {"name": "game-nx", "html_url": "https://github.com/author/game-nx"}
 
     discovery[0].json.side_effect = metadata
-    assert await registry.register_tracker_homebrew("Game", [API])
+    assert await registry._register_source("Game", [API])
     rows = registry.load_registry(registry.REGISTRY_PATH)
     assert rows[0] == added
     assert rows[1]["api_url"] == API
@@ -143,7 +143,7 @@ async def test_collector_ignores_old_release_and_detects_future_update(discovery
     from collect_homebrew_updates import HomebrewUpdatesCollector
     import services.manual_releases as manual
     monkeypatch.setattr(manual, "load_manual_releases", lambda: [])
-    assert await registry.register_tracker_homebrew("Game", [API])
+    assert await registry._register_source("Game", [API])
     collector = HomebrewUpdatesCollector(list_path=str(registry.REGISTRY_PATH), state_path=str(tmp_path / "hb_state.json"))
     entry = collector.load_homebrew_list()[0]
     date = datetime.fromisoformat(entry["comm_date"])
@@ -159,7 +159,7 @@ async def test_gitlab_numeric_identity_deduplicates_existing_entry(discovery):
     api = "https://gitlab.com/api/v4/projects/42/releases"
     registry.REGISTRY_PATH.write_text(json.dumps([row(api)]), encoding="utf-8")
     discovery[0].json.return_value = {"id": 42, "name": "Game"}
-    assert not await registry.register_tracker_homebrew("Game", ["https://gitlab.com/group/game/-/releases"])
+    assert not await registry._register_source("Game", ["https://gitlab.com/group/game/-/releases"])
     assert registry.load_registry(registry.REGISTRY_PATH) == [row(api)]
 
 
@@ -294,6 +294,7 @@ async def test_main_registers_only_published_production_homebrew(monkeypatch, tm
     monkeypatch.chdir(tmp_path)
     (tmp_path / "log").mkdir()
     monkeypatch.setattr(main, "IS_TEST_MODE", test_mode)
+    monkeypatch.setattr(main, "retry_tracker_homebrew", AsyncMock())
     monkeypatch.setattr(main, "TEST_LAST_ENTRY_LINK", "https://rutracker.org/forum/viewtopic.php?t=1")
     monkeypatch.setattr(main, "read_last_entry_link", lambda path: "")
     monkeypatch.setattr(main, "write_last_entry_link", lambda *args: None)

@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.76] - 2026-10-14
+
+### Fixed
+- RuTracker homebrew source discovery now classifies each verified GitHub/GitLab project through the existing AI client, using its description, README and release files. Switch ports and PC upstreams become separate tracked sources and homebrew digest releases.
+- AI output is restricted to the supplied repositories and Switch/PC platforms. SDKs and uncertain sources are excluded. Current release URLs and versions come from the repository API, not the model. Switch entries use the existing Store sync; PC entries stay in the PC digest section.
+- Unresolved classifications are retained in local `data/pending_homebrew_sources.json`. Production RuTracker runs retry up to three pending posts before fetching new topics. Repeated successes do not duplicate sources or releases.
+
 ## [v0.7.75] - 2026-10-14
 
 ### Fixed

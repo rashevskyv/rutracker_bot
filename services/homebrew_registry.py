@@ -105,7 +105,7 @@ def merge_registry(local: list, remote: list, base=None) -> list:
     return merged
 
 
-async def register_tracker_homebrew(title: str, urls: list) -> bool:
+async def _register_source(title: str, urls: list, platform="Switch") -> bool:
     """Register a single explicit source; failures must not prevent the RuTracker post."""
     candidates = {api for url in urls if (api := repository_api_url(url))}
     if len(candidates) != 1:
@@ -141,7 +141,7 @@ async def register_tracker_homebrew(title: str, urls: list) -> bool:
         if api_url in tracked_api_urls(rows + manual):
             return False
         rows.append({
-            "app_name": name.strip(), "api_url": api_url, "platform": "Switch",
+            "app_name": name.strip(), "api_url": api_url, "platform": platform,
             "description": "", "prefix": "", "new": False,
             # The torrent was already announced; watch changes from discovery onward.
             "comm_date": datetime.now(timezone.utc).isoformat(),
@@ -158,8 +158,71 @@ async def register_tracker_homebrew(title: str, urls: list) -> bool:
         finally:
             if temp_path is not None:
                 temp_path.unlink(missing_ok=True)
-        logger.info("Registered RuTracker homebrew for Switch updates: %s (%s)", name, api_url)
+        logger.info("Registered RuTracker homebrew for %s updates: %s (%s)", platform, name, api_url)
         return True
     except Exception:
         logger.exception("Could not register RuTracker homebrew: %s", title)
         return False
+
+
+async def register_tracker_homebrew(title: str, urls: list) -> bool:
+    candidates = {api for url in urls if (api := repository_api_url(url))}
+    if not candidates:
+        return False
+    pending = _load_pending()
+    pending[title] = sorted(candidates)
+    _save_pending(pending)
+    try:
+        from services.homebrew_sources import resolve_sources
+        from digest.homebrew import homebrew_digest_manager
+        from services.store_sync import sync_pending_digest_items
+        load_registry(REGISTRY_PATH)
+        sources = await resolve_sources(title, candidates)
+        if not sources:
+            raise ValueError("No confirmed platform-specific source; keep for retry")
+        changed = False
+        for source in sources:
+            api, platform = source["api_url"], source["platform"]
+            changed = await _register_source(title, [api], platform) or changed
+            manual = [r for r in load_registry(MANUAL_PATH) if r.get("type") == "homebrew"]
+            if api not in tracked_api_urls(load_registry(REGISTRY_PATH) + manual):
+                raise ValueError("Source registration failed; keep for retry")
+            release = source["release"]
+            if release:
+                url = release.get("_links", {}).get("self") if "gitlab.com" in api else release["html_url"]
+                name = source["metadata"]["name"]
+                homebrew_digest_manager.add_entry(
+                    app_name=name, version=release["tag_name"], release_url=url,
+                    description=source["description"], platform=platform, is_new=True,
+                    release_date=datetime.fromisoformat((release.get("published_at") or release["released_at"]).replace("Z", "+00:00")))
+                logger.info("Resolved RuTracker homebrew: %s %s [%s] %s", name, release["tag_name"], platform, url)
+        await sync_pending_digest_items(homebrew_digest_manager)
+        pending = _load_pending()
+        pending.pop(title, None)
+        _save_pending(pending)
+        return changed
+    except Exception:
+        logger.exception("Could not resolve RuTracker homebrew platforms: %s", title)
+        return False
+
+
+def _load_pending():
+    path = REGISTRY_PATH.with_name("pending_homebrew_sources.json")
+    data = json.loads(path.read_text()) if path.exists() else {}
+    if not isinstance(data, dict):
+        raise ValueError("Invalid pending homebrew sources")
+    return data
+
+
+def _save_pending(data):
+    from utils.atomic_io import atomic_open
+    with atomic_open(REGISTRY_PATH.with_name("pending_homebrew_sources.json")) as stream:
+        json.dump(data, stream, ensure_ascii=False, indent=2)
+
+
+async def retry_tracker_homebrew():
+    try:
+        for title, urls in list(_load_pending().items())[:3]:
+            await register_tracker_homebrew(title, urls)
+    except Exception:
+        logger.exception("Pending homebrew retry failed; RuTracker processing continues")

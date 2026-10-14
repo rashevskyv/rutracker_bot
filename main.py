@@ -21,7 +21,7 @@ from parsers.feed_handler import (
     entry_timestamp, read_last_entry_time, write_last_entry_time
 )
 from parsers.tracker_parser import parse_tracker_entry
-from services.homebrew_registry import register_tracker_homebrew
+from services.homebrew_registry import register_tracker_homebrew, retry_tracker_homebrew
 from services.youtube_search import search_trailer_on_youtube
 from services.ai_validator import validate_yt_title_with_gpt
 from services.titledb_manager import TitleDBManager, DEFAULT_TMP_SCREENSHOT_DIR
@@ -122,6 +122,7 @@ async def main_loop():
             entries_to_process = [{'link': specific_entry_link_for_test, 'title': 'TEST_MODE_FETCH_TITLE'}]
             logger.info(f"TEST MODE: Processing single link: {specific_entry_link_for_test}")
         else:
+            await retry_tracker_homebrew()
             last_processed_link = await asyncio.to_thread(read_last_entry_link, last_entry_file_path)
             last_processed_time = await asyncio.to_thread(read_last_entry_time, last_entry_time_file_path)
             new_entries = await get_new_feed_entries(FEED_URL, last_processed_link, last_processed_time)
