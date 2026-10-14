@@ -1,3 +1,11 @@
+# v0.7.77 — Anthropic перед OpenRouter (2026-10-14)
+
+Користувач дозволив Haiku/Sonnet і послідовний перехід між API. Наявний ANTHROPIC_API_KEY у /home/radar/emu-radar/.env перевірено без його виведення: GET моделі підтвердив доступ до claude-haiku-5-5. Належність цього ключа до організації з Max-кредитами не підтверджена.
+
+services/platform_ai.py використовує прямий Messages API через наявний aiohttp session, без нового SDK. Haiku 5.5, low effort, JSON schema з enum перевірених джерел. HOMEBREW_CLASSIFIER_MODEL дозволяє Sonnet. Помилки HTTP/timeout, неповна відповідь, неправильний JSON або джерело переходять до наявного OpenRouter-ланцюжка: GPT-5.6 Luna → DeepSeek V4 Flash → Gemini 3.5 Flash Lite. services/gpt.py має необов'язковий validate callback і логування провайдера, моделі, токенів та cost, коли API його повертає. Інші виклики зберігають свої моделі.
+
+Повний WSL-прогін: 251 passed. Перевірено успішний Anthropic без резервного запиту, відсутній ключ, HTTP, timeout, неправильний JSON, вигадане джерело, обрізану відповідь, вибір Sonnet і наступну модель OpenRouter після помилки перевірки.
+
 # v0.7.76 — визначення платформ homebrew через ШІ (2026-10-14)
 
 Останній RuTracker допис — Prey, тема 6922682. За оригінальною сторінкою джерела: hazevauks/openPREYswitch і themuffinator/openPREY. Старий register_tracker_homebrew пропускав будь-які два джерела і завжди призначав одному джерелу Switch. Допис був опублікований, але Prey не потрапив до homebrew-дайджесту, Store чи Radar.

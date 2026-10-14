@@ -1,5 +1,7 @@
 # RuTracker Bot — Architecture Notes
 
+Homebrew platform routing (v0.7.77): `services/platform_ai.py` calls Anthropic Messages API first (default `claude-haiku-5-5`, low effort, JSON schema with candidate URL enum). `ANTHROPIC_API_KEY` comes from the environment or local settings; `HOMEBREW_CLASSIFIER_MODEL` may select Sonnet. HTTP/timeout/incomplete/invalid responses fall back to the existing `gpt.complete` chain. Its optional `validate` callback retries another model on invalid output; ordinary callers retain their behavior. Provider/model/token usage is logged; no keys are logged. No new SDK dependency.
+
 ## Project Structure
 
 ```

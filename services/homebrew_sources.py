@@ -6,7 +6,7 @@ import json
 
 async def resolve_sources(title, candidates):
     from core.settings_loader import get_session, get_env_or_setting, settings
-    from services.gpt import complete
+    from services.platform_ai import complete
     from services.homebrew_registry import repository_api_url
 
     async def fetch(url, optional=False):
@@ -54,7 +54,7 @@ async def resolve_sources(title, candidates):
               "Exclude SDKs, dependencies, unrelated projects and uncertain targets. PC includes Windows/Linux/macOS. "
               "Use README, repository description and release filenames. Never infer Switch merely from the post title. "
               "Never invent repositories or releases.\nPOST: " + title + "\nSOURCES: " + json.dumps(evidence, ensure_ascii=False))
-    raw = await asyncio.wait_for(complete(prompt, max_tokens=1800, temperature=0, label="Homebrew platforms"), timeout=45)
+    raw = await asyncio.wait_for(complete(prompt, candidates), timeout=65)
     if not raw:
         raise ValueError("Platform classification unavailable")
     selected = json.JSONDecoder().raw_decode(raw[raw.index("{"):])[0]["sources"]

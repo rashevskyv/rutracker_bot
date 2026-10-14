@@ -2,6 +2,13 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.77] - 2026-10-14
+
+### Changed
+- Homebrew platform classification first uses direct Anthropic Messages API with `claude-haiku-5-5`, low effort and a JSON schema restricted to the supplied repositories. `ANTHROPIC_API_KEY` enables it; `HOMEBREW_CLASSIFIER_MODEL` can select Sonnet instead.
+- Missing credentials, HTTP errors, timeouts, incomplete responses and invalid classifications fall back to the existing OpenRouter chain (GPT-5.6 Luna → DeepSeek V4 Flash → Gemini 3.5 Flash Lite). Validation failures also advance that chain.
+- Provider, actual model and token usage are logged. OpenRouter response cost is logged when available; Anthropic token usage is not a confirmation of which credit balance paid for the request.
+
 ## [v0.7.76] - 2026-10-14
 
 ### Fixed

@@ -17,6 +17,8 @@ def setup_sources(monkeypatch, tmp_path):
     import services.gpt as gpt
     import digest.homebrew as hb
     import services.store_sync as ss
+    monkeypatch.setitem(settings.settings, "ANTHROPIC_API_KEY", None)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(registry, "REGISTRY_PATH", tmp_path / "list_hb.json")
     monkeypatch.setattr(registry, "MANUAL_PATH", tmp_path / "manual.json")
     payloads = {}

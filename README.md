@@ -67,6 +67,10 @@ RuTracker posts also discover sources automatically after a production homebrew 
 
 Failed classifications remain in local `data/pending_homebrew_sources.json`; each production RuTracker cycle retries up to three pending posts even if the feed has no new topics. This retry file is local server state and is not currently mirrored to Gist. Back it up with the server data directory. Digest Store failures retain the existing pending flag. Test mode does not discover or retry sources.
 
+Platform classification uses Anthropic first when `ANTHROPIC_API_KEY` is configured in the server's `config/local_settings.json` or environment. The default is `claude-haiku-5-5`; `HOMEBREW_CLASSIFIER_MODEL: "claude-sonnet-5-5"` selects Sonnet. Failed or invalid Anthropic responses use the existing OpenRouter chain: GPT-5.6 Luna, DeepSeek V4 Flash, Gemini 3.5 Flash Lite. Other GPT callers retain their current models. Logs include provider/model/token counts and OpenRouter cost when returned.
+
+Create an Anthropic key in Claude Console → API keys, in the organization linked to your Max API credits. Put it in the server's local settings as `ANTHROPIC_API_KEY`; keep that file private and out of Git. An environment variable with the same name also works. A valid API key alone does not prove that the organization has received Max credits: check Console → Settings → Billing.
+
 Registry synchronization preserves independent additions, remote metadata and existing distinct aliases. With a saved sync base, deleting an unchanged registry entry does not revive it from a stale copy. Invalid registry data aborts its synchronization rather than overwriting the other copy.
 
 - Tracks custom GitHub authors (`NaGaa95`, `ChanseyIsTheBest`, `delsonazevedo`, `boraeskicioglu`, `PalindromicBreadLoaf`, `aks796`, `antoxa2584x`) for Nintendo Switch homebrew applications, ports, and games.
