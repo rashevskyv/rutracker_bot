@@ -14,6 +14,7 @@ from digest.base import BaseDigest
 logger = logging.getLogger(__name__)
 
 HOMEBREW_DIGEST_FILE = os.path.join("data", "homebrew_digest_data.json")
+PC_PLATFORMS = {"pc", "windows", "linux", "macos", "mac"}
 
 
 def clean_markdown_and_whitespace(text: str) -> str:
@@ -221,6 +222,8 @@ class HomebrewDigest(BaseDigest):
             for p in sub_platforms:
                 if p == 'DS':
                     p = 'DS(i)'
+                elif p.lower() in PC_PLATFORMS:  # one PC section instead of Windows, Linux and macOS copies
+                    p = 'PC'
                 if p not in platforms:
                     platforms[p] = []
                 if entry not in platforms[p]:

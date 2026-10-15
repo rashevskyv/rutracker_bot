@@ -130,6 +130,26 @@ def test_format_digest_message_sanitizes_markdown(tmp_path):
     assert "<i>Оновлено версію до v0.3.3</i>" in msg
 
 
+def test_format_digest_message_merges_desktop_platforms_into_pc(tmp_path):
+    digest = HomebrewDigest(data_file=str(tmp_path / "test_hb_digest.json"))
+    digest.add_entry(
+        app_name="Yakumo (TeamGDB)",
+        version="v0.6.0-alpha.4",
+        release_url="https://github.com/TeamGDB/yakumo/releases",
+        description="Port.",
+        platform="Windows/Linux/macOS",
+        timestamp=datetime.now(),
+        release_date=datetime.now(),
+        is_new=True
+    )
+
+    msg = digest.format_digest_message(datetime.now() - timedelta(hours=1))
+
+    assert "=== PC ===" in msg
+    assert "=== Windows ===" not in msg and "=== Linux ===" not in msg
+    assert msg.count("Yakumo (TeamGDB)") == 1
+
+
 @pytest.mark.asyncio
 async def test_get_description_cached_fallback_on_translation_failure(monkeypatch, tmp_path):
     from collect_homebrew_updates import HomebrewUpdatesCollector

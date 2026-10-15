@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.79] - 2026-10-15
+
+### Fixed
+- The homebrew digest puts Windows, Linux, macOS and PC releases in one `=== PC ===` section. A release for `Windows/Linux/macOS` was printed three times.
+
 ## [v0.7.78] - 2026-10-14
 
 ### Fixed
