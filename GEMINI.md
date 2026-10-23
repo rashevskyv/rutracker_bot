@@ -17,6 +17,7 @@ add_release.py           — Queue a manual release via the Gist inbox (manual_i
 
 - **Operating System:** Production bot runs on an **Ubuntu Server** (Linux environment).
 - **Execution:** Periodic execution handled via cron/systemd or runner script (`run_checker.sh`).
+- **Server location:** `root@45.134.218.34`, project in `/root/rutracker_bot`, interactive bot is the systemd unit `rutracker-bot.service`, collectors and digests run from cron. Deploy with `git fetch` + `git merge --no-edit origin/main` + `systemctl restart rutracker-bot`. The server holds local commits (`send_radar_daily.py`), so never `git reset --hard` there.
 - **Cloudflare & FlareSolverr Architecture:**
   - RuTracker frequently enforces Cloudflare challenge checks (HTTP 403 "Just a moment...") on datacenter IPs.
   - FlareSolverr runs as a Docker container on the Ubuntu server:
