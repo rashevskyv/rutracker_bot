@@ -1609,6 +1609,11 @@ class HomebrewUpdatesCollector:
         return entries
 
     async def _publish_switchports(self, key: str, title: str, version: str, release_url: str, is_new: bool):
+        # The store's version_hint can lag behind GitHub: announce the real latest release.
+        latest = await self.github_request(f"https://api.github.com/repos/{key}/releases/latest")
+        if isinstance(latest, dict) and latest.get('tag_name'):
+            version = latest['tag_name']
+            release_url = latest.get('html_url') or release_url
         description = await self._get_description_cached(
             cache_key=f"switchports:{key}",
             local_entry=None,

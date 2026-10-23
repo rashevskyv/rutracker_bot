@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.80] - 2026-10-23
+
+### Fixed
+- Manual releases go out oldest release date first, so the 5-per-run cap drains a backlog in the order the releases came out. Before, the order was the queue order, and a release could wait a week behind newer rows.
+- A SwitchPorts store entry is announced with the tag and link of the latest GitHub release. The store `version_hint` could be older (Tico showed 0.7.8 while 0.8.0 was out).
+
 ## [v0.7.79] - 2026-10-15
 
 ### Fixed

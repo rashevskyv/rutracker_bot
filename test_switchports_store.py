@@ -247,3 +247,16 @@ async def test_flip_flop_between_store_and_readme_is_silent(collector, no_manual
         collector.session.routes[STORE_CATALOG_URL] = Resp(200, catalog_json("1.0"))
         await collector.collect_switchports_updates([])          # store again
     assert add.call_count == 0
+
+
+async def test_publish_uses_live_latest_release_over_stale_hint(collector):
+    async def fake_request(url):
+        assert url == "https://api.github.com/repos/ticohq/tico/releases/latest"
+        return {"tag_name": "0.8.0", "html_url": "https://github.com/ticohq/tico/releases/tag/0.8.0"}
+
+    collector.github_request = fake_request
+    with patch.object(homebrew_digest_manager, "add_entry") as add:
+        await collector._publish_switchports("ticohq/tico", "Tico", "0.7.8", "https://github.com/ticohq/tico", is_new=False)
+    kwargs = add.call_args.kwargs
+    assert kwargs["version"] == "0.8.0"
+    assert kwargs["release_url"] == "https://github.com/ticohq/tico/releases/tag/0.8.0"

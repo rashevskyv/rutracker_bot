@@ -106,3 +106,14 @@ def test_prioritize_releases_helper():
     ]
     result = mr.prioritize_releases(entries)
     assert [e["app"] for e in result] == ["m1", "m2", "a1", "a2", "a3", "a4"]
+
+
+def test_prioritize_releases_oldest_release_first_inside_group():
+    entries = [
+        {"app": "m_new", "inbox_id": "1", "date": "2026-10-16T00:05:51Z"},
+        {"app": "m_old", "inbox_id": "2", "date": "2026-09-27T23:21:53Z"},
+        {"app": "m_nodate", "inbox_id": "3"},
+        {"app": "a_new", "date": "2026-10-20T00:00:00+00:00"},
+        {"app": "a_old", "date": "2026-10-01T00:00:00"},
+    ]
+    assert [e["app"] for e in mr.prioritize_releases(entries)] == ["m_old", "m_new", "m_nodate", "a_old", "a_new"]

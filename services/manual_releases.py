@@ -6,7 +6,7 @@ An entry is marked processed only after a digest containing it was sent.
 import json
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 
 from digest.daily import digest_manager
@@ -52,10 +52,19 @@ def _parse_timestamp(entry: Dict) -> datetime:
     return datetime.now()
 
 
+def _release_order(entry: Dict) -> datetime:
+    """Release date in UTC for ordering; a row without a usable date sorts last."""
+    try:
+        dt = datetime.fromisoformat(str(entry.get('date')).replace('Z', '+00:00'))
+    except ValueError:
+        return datetime.max.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 def prioritize_releases(entries: List[Dict]) -> List[Dict]:
     """
-    Sort releases so that entries with a non-empty inbox_id come first.
-    Preserves existing relative order within each group (stable order).
+    Entries with a non-empty inbox_id come first. Inside each group the oldest release goes first,
+    so the per-run cap drains a backlog in the order the releases came out (stable for equal dates).
     """
     manual = []
     auto = []
@@ -65,7 +74,7 @@ def prioritize_releases(entries: List[Dict]) -> List[Dict]:
             manual.append(entry)
         else:
             auto.append(entry)
-    return manual + auto
+    return sorted(manual, key=_release_order) + sorted(auto, key=_release_order)
 
 
 def process_manual_releases(release_type: str = None) -> int:
