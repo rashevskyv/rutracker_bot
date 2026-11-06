@@ -282,7 +282,7 @@ async def test_parser_extracts_raw_homebrew_sources(monkeypatch):
     monkeypatch.setattr(tracker_parser, "fetch_page_content", AsyncMock(return_value=soup))
     monkeypatch.setattr(tracker_parser, "clean_description_html", lambda text: "cleaned")
     result = await tracker_parser.parse_tracker_entry("https://rutracker.org/forum/viewtopic.php?t=1", "Game")
-    assert result[-2:] == (True, [API])
+    assert result[-3:-1] == (True, [API])
 
 
 @pytest.mark.asyncio
@@ -301,7 +301,7 @@ async def test_main_registers_only_published_production_homebrew(monkeypatch, tm
     monkeypatch.setattr(main, "read_last_entry_time", lambda path: None)
     monkeypatch.setattr(main, "write_last_entry_time", lambda *args: None)
     monkeypatch.setattr(main, "get_new_feed_entries", AsyncMock(return_value=[{"link": "https://rutracker.org/forum/viewtopic.php?t=1"}]))
-    parsed = ("Game", "Game", None, "magnet", "description", "1 MB", "ENG", ["Homebrew"], None, is_homebrew, [API])
+    parsed = ("Game", "Game", None, "magnet", "description", "1 MB", "ENG", ["Homebrew"], None, is_homebrew, [API], [])
     monkeypatch.setattr(main, "parse_tracker_entry", AsyncMock(return_value=parsed))
     monkeypatch.setattr(main, "db_manager", None)
     for name in ("search_trailer_on_youtube", "send_message_to_admin", "send_document_to_admin", "close_clients", "send_error_to_telegram"):

@@ -364,7 +364,30 @@ async def _strategy_author_update_post(soup: BeautifulSoup, base_url: str) -> Op
 
 
 
-async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str], bool, List[str]]]:
+# Port of findShots() from github.com/iArtem88/rutracker-games: thumbnails inside the
+# "Скриншоты" spoiler (some authors write a Latin "C"), spoilers can be nested.
+SHOTS_HEAD = re.compile(r'[сc]крин|screen', re.IGNORECASE)
+FASTPIC_THUMB = re.compile(r'^(https?://i\d+\.fastpic\.org)/thumb/(.+)\.jpe?g$', re.IGNORECASE)
+
+def find_screenshot_urls(post_body: Tag, limit: int = 4) -> List[str]:
+    """Full-size screenshot URLs from the release post itself, in post order."""
+    urls: List[str] = []
+    for wrap in post_body.select('.sp-wrap'):
+        head = wrap.find('div', class_='sp-head', recursive=False)
+        if not head or not SHOTS_HEAD.search(head.get_text()):
+            continue
+        for img in wrap.select('.sp-body var.postImg[title]'):
+            thumb = img['title']
+            if not thumb.startswith(('http://', 'https://')):
+                continue
+            # The thumbnail is a tiny 200px copy; fastpic keeps the original under /big/
+            m = FASTPIC_THUMB.match(thumb)
+            url = f"{m[1]}/big/{m[2]}.jpg" if m else thumb
+            if url not in urls:
+                urls.append(url)
+    return urls[:limit]
+
+async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str], bool, List[str], List[str]]]:
     soup = await fetch_page_content(entry_url)
     if not soup:
         raise ValueError(f"Failed to fetch page content (timeout or HTTP error)")
@@ -556,6 +579,6 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
     is_homebrew = is_homebrew or is_homebrew_genre(genres=genres, description=final_description, title=page_display_title)
-    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text, is_homebrew, homebrew_sources
+    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text, is_homebrew, homebrew_sources, find_screenshot_urls(post_body)
 
 # --- END OF FILE tracker_parser.py ---

@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.81] - 2026-11-06
+
+### Changed
+- Release screenshots now come from the "Скриншоты" spoiler of the RuTracker post itself (ported from the rutracker-games extension), in full size (fastpic `/thumb/` -> `/big/`), up to 4 per post. TitleDB screenshots are no longer used, and homebrew posts get their own screenshots too. `parse_tracker_entry` returns the screenshot URLs as a 12th value.
+
 ## [v0.7.80] - 2026-10-23
 
 ### Fixed

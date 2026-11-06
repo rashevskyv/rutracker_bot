@@ -182,7 +182,7 @@ async def main_loop():
                 continue
 
             if parsed_data:
-                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres, raw_update_text, is_homebrew, homebrew_sources = parsed_data
+                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres, raw_update_text, is_homebrew, homebrew_sources, screenshot_urls = parsed_data
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
@@ -233,20 +233,12 @@ async def main_loop():
                 except Exception as yt_err:
                     logger.warning(f"YouTube search/validation failed: {yt_err}")
 
-                # Get and Download Screenshots from TitleDB (Skip for Homebrew releases)
+                # Screenshots come from the release post itself (the "Скриншоты" spoiler)
                 local_screenshot_paths: List[str] = []
-                if is_homebrew:
-                    logger.info(f"Homebrew release detected ('{page_display_title}'). Skipping screenshot lookup/download.")
-                elif db_manager:
-                    game_db_data = await asyncio.to_thread(db_manager.find_game_data, title_text_for_youtube)
-                    if game_db_data:
-                        nsuid_from_db = game_db_data.get('nsuId')
-                        screenshot_urls_from_db = game_db_data.get('screenshots', [])
-                        if screenshot_urls_from_db and isinstance(screenshot_urls_from_db, list):
-                             logger.debug(f"Found {len(screenshot_urls_from_db)} screenshot URLs in titledb.")
-                             local_screenshot_paths = await db_manager.download_screenshots(
-                                 screenshot_urls_from_db, nsuid=nsuid_from_db, game_title=title_text_for_youtube
-                             )
+                if screenshot_urls and db_manager:
+                    local_screenshot_paths = await db_manager.download_screenshots(
+                        screenshot_urls, game_title=title_text_for_youtube
+                    )
 
                 # Send to Telegram
                 try:

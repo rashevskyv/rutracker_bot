@@ -58,3 +58,15 @@ def test_is_homebrew_genre_from_title():
 def test_is_homebrew_genre_all_empty():
     assert is_homebrew_genre() is False
     assert is_homebrew_genre(genres=[], description="", title="") is False
+
+
+def test_find_screenshot_urls_takes_full_size_from_screenshots_spoiler_only():
+    from bs4 import BeautifulSoup
+    from parsers.tracker_parser import find_screenshot_urls
+    shot = '<var class="postImg" title="https://i1.fastpic.org/thumb/2024/0108/ef/a.jpeg"></var>'
+    post = BeautifulSoup(
+        f'<div><div class="sp-wrap"><div class="sp-head">Cкриншоты</div><div class="sp-body">{shot}{shot}'
+        '<var class="postImg" title="https://imgbox.com/t/b.jpg"></var></div></div>'
+        '<div class="sp-wrap"><div class="sp-head">Трейлер</div><div class="sp-body">'
+        '<var class="postImg" title="https://x.org/no.jpg"></var></div></div></div>', "html.parser")
+    assert find_screenshot_urls(post) == ["https://i1.fastpic.org/big/2024/0108/ef/a.jpg", "https://imgbox.com/t/b.jpg"]
