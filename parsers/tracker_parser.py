@@ -369,6 +369,45 @@ async def _strategy_author_update_post(soup: BeautifulSoup, base_url: str) -> Op
 SHOTS_HEAD = re.compile(r'[сc]крин|screen', re.IGNORECASE)
 # Hosts' scaled copies (fastpic /thumb/ and /preview/, imageban /thumbs/)
 SCALED_COPY = re.compile(r'/(thumbs?|preview)/')
+# imagebam gives other sites a "Thumbnail Temporarily Unavailable" stub
+IMAGEBAM = re.compile(r'^https?://[^/]*imagebam\.com/', re.IGNORECASE)
+IMAGE_URL = re.compile(r'\.(?:jpe?g|png|gif|webp)(?:[?#].*)?$', re.IGNORECASE)
+# fastpic's /big/ originals come only through the signed link on its own page: its "_…" files
+# to anyone, the others to aiohttp (404 by its headers, 2026-11-06, while curl gets the picture)
+FASTPIC_SIGNED = re.compile(r'\.fastpic\.(?:org|ru)/big/', re.IGNORECASE)
+# i128.fastpic.org/big/2026/0923/77/_6c1d….jpg linked as is: its page is fastpic.org/view/128/2026/0923/_6c1d….jpg.html
+FASTPIC_BIG = re.compile(r'^https?://i(\d+)\.fastpic\.(org|ru)/big/(\d{4})/(\d{4})/[^/]+/([^/?#]+)$', re.IGNORECASE)
+# ImgBB's and PostImages' page of a picture names the full one in og:image
+IMAGE_PAGE = re.compile(r'^https?://(?:ibb\.co(?:\.com)?/[A-Za-z0-9]+|postimg\.cc/(?:image/)?[A-Za-z0-9]+)/?$', re.IGNORECASE)
+PAGE_PICTURE = re.compile(r'^https://i\.(?:ibb\.co(?:\.com)?|postimg\.cc)/[^\s"\'<>]+$')
+
+
+def guess_full_image(thumb: str, link: Optional[str]) -> Optional[str]:
+    """Port of guessFullImage() from github.com/iArtem88/rutracker-games 1.1.0: the full
+    picture from the URLs alone, without the host's page. A fastpic one still needs its page."""
+    if link and link != thumb and IMAGE_URL.search(link):
+        return link
+    if re.match(r'^https?://i\d+\.fastpic\.(?:org|ru)/big/|^https?://i\d+\.imageban\.ru/out/', thumb, re.IGNORECASE):
+        return thumb
+    # i123.fastpic.org/thumb/2024/0325/08/hash.jpeg -> i123.fastpic.org/big/2024/0325/08/hash.jpg,
+    # the extension from the link: fastpic.org/view/123/2024/0325/hash.jpg.html
+    fastpic = re.match(r'^https?://(i\d+)\.fastpic\.(org|ru)/thumb/(.+)/([^/.]+)\.\w+$', thumb, re.IGNORECASE)
+    ext = re.search(r'/([^/.]+)\.(\w+)\.html$', link or '', re.IGNORECASE)
+    if fastpic and ext and ext[1] == fastpic[4]:
+        return f"https://{fastpic[1]}.fastpic.{fastpic[2]}/big/{fastpic[3]}/{fastpic[4]}.{ext[2]}"
+    # i5.imageban.ru/thumbs/2026.09.29/hash.jpg -> i5.imageban.ru/out/2026/09/29/hash.jpg
+    imageban = re.match(r'^https?://(i\d+)\.imageban\.ru/thumbs/(\d{4})\.(\d{2})\.(\d{2})/([^/]+)$', thumb, re.IGNORECASE)
+    if imageban:
+        return f"https://{imageban[1]}.imageban.ru/out/{imageban[2]}/{imageban[3]}/{imageban[4]}/{imageban[5]}"
+    # GOG's own screenshots: <hash>.jpg is the picture, <hash>_<format>.jpg a smaller copy
+    gog = re.match(r'^https?://images\.gog-statics\.com/([0-9a-f]{64})(?:_\w+)?\.(jpe?g|png|webp)$', thumb, re.IGNORECASE)
+    if gog:
+        return f"https://images.gog-statics.com/{gog[1]}.{gog[2]}"
+    # riotpixels: ….jpg.240p.jpg is the thumbnail of ….jpg
+    riotpixels = re.match(r'^https?://(s\d+\.riotpixels\.net/data/.+\.(?:jpe?g|png))\.\d+p\.jpe?g$', thumb, re.IGNORECASE)
+    if riotpixels:
+        return f"https://{riotpixels[1]}"
+    return None
 
 def find_screenshots(post_body: Tag, limit: int = 4) -> List[Tuple[str, str]]:
     """(thumbnail, link) pairs from the release post itself, in post order."""
@@ -379,7 +418,7 @@ def find_screenshots(post_body: Tag, limit: int = 4) -> List[Tuple[str, str]]:
             continue
         for img in wrap.select('.sp-body var.postImg[title]'):
             thumb = img['title']
-            if not thumb.startswith(('http://', 'https://')) or any(thumb == t for t, _ in shots):
+            if not thumb.startswith(('http://', 'https://')) or IMAGEBAM.match(thumb) or any(thumb == t for t, _ in shots):
                 continue
             link = img.find_parent('a', class_='postLink')
             link = link.get('href', '') if link else ''
@@ -387,13 +426,21 @@ def find_screenshots(post_body: Tag, limit: int = 4) -> List[Tuple[str, str]]:
     return shots[:limit]
 
 async def resolve_full_image(thumb: str, link: str, attempts: int = 3, retry_delay: float = 1) -> Optional[str]:
-    """The original image behind a thumbnail. The link opens the host's viewer page
-    (fastpic, imageban) with ads around the image; the original carries the thumbnail's
-    file hash in its name. None when there is no original: a thumbnail is never used."""
-    if link == thumb:
+    """The original image behind a thumbnail: from the URLs when they tell it, else from the
+    host's viewer page (fastpic "_…" files, ImgBB, PostImages). On fastpic's page the original
+    carries the thumbnail's file hash in its name. None when there is no original: a thumbnail
+    is never used."""
+    full = guess_full_image(thumb, None if link == thumb else link)
+    if full and not FASTPIC_SIGNED.search(full):
+        return full
+    big = FASTPIC_BIG.match(link)
+    if big:
+        # A fastpic original linked as is opens no more: its page has the signed link
+        link = f"https://fastpic.{big[2]}/view/{big[1]}/{big[3]}/{big[4]}/{big[5]}.html"
+    elif link == thumb:
         # A bare [img] is the picture itself, unless it is a host's scaled copy
         return None if SCALED_COPY.search(thumb) else thumb
-    file_hash = thumb.rsplit('/', 1)[-1].split('.')[0]
+    file_hash = (full or thumb).rsplit('/', 1)[-1].split('.')[0]
     # fastpic sometimes answers with an error page (HTTP 502, or "Could not connect to DB server"
     # with HTTP 200), so the page is fetched again (as github.com/sukiboo/fastpic_redirect does)
     for attempt in range(1, attempts + 1):
@@ -408,10 +455,15 @@ async def resolve_full_image(thumb: str, link: str, attempts: int = 3, retry_del
         except Exception as e:
             logger.warning(f"Screenshot page failed ({e}), attempt {attempt}/{attempts}: {link}")
             continue
+        if IMAGE_PAGE.match(link):
+            meta = re.search(r'<meta\s[^>]*property=["\']og:image["\'][^>]*>', page, re.IGNORECASE)
+            url = re.search(r'\scontent=["\']([^"\']+)["\']', meta[0]) if meta else None
+            return url[1] if url and PAGE_PICTURE.match(url[1]) else None
         for src in re.findall(r'<img[^>]+?src="(https?://[^"]+)"', page):
             src = html.unescape(src)
             # fastpic shows big images as a scaled /preview/ copy; the /big/ original is on the page too
-            if file_hash in src and not SCALED_COPY.search(src):
+            # dl=1 is the same picture as a download
+            if file_hash in src and not SCALED_COPY.search(src) and 'dl=' not in src:
                 return src
         logger.warning(f"No full image on {link}, attempt {attempt}/{attempts}")
     return None

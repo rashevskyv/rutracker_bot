@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.89] - 2026-11-06
+
+### Changed
+- Screenshot fixes from rutracker-games 1.1.0/1.2.0. The originals of imageban, GOG and riotpixels thumbnails and direct picture links come from the URLs, without the host's page. ImgBB and PostImages pages give theirs in og:image. A fastpic /big/ link put in as is goes to its view page. imagebam stubs are skipped.
+- fastpic stays on its view page and the signed link: an unsigned /big/ address answers 404 to the bot (live check: 69/69 screenshots from 18 releases).
+
 ## [v0.7.88] - 2026-11-06
 
 ### Changed
