@@ -75,26 +75,30 @@ def test_find_screenshots_reads_only_the_screenshots_spoiler():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("page, expected", [
+@pytest.mark.parametrize("pages, expected", [
     # fastpic viewer: the thumbnail is on the page too, the original is the signed /big/ image
-    ('<img src="https://i1.fastpic.org/preview/2026/1105/a3/abc.avif?md5=p"><img src="https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg"><img src="https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x&amp;expires=1">',
+    (['<img src="https://i1.fastpic.org/preview/2026/1105/a3/abc.avif?md5=p"><img src="https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg"><img src="https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x&amp;expires=1">'],
      "https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x&expires=1"),
-    # No original on the page: no screenshot rather than a thumbnail
-    ('<img src="https://ads.example/banner.jpg"><img src="https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg">', None),
+    # fastpic error page first, the real page on the retry
+    (['Could not connect to DB server', '<img src="https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x">'],
+     "https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x"),
+    # No original on any attempt: no screenshot rather than a thumbnail
+    (['<img src="https://ads.example/banner.jpg"><img src="https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg">'] * 3, None),
 ])
-async def test_resolve_full_image_picks_the_original_from_the_viewer_page(monkeypatch, page, expected):
+async def test_resolve_full_image_picks_the_original_from_the_viewer_page(monkeypatch, pages, expected):
     from parsers import tracker_parser
+    pages = iter(pages)
 
     class Response:
         content_type = "text/html"
         def raise_for_status(self): pass
-        async def text(self): return page
+        async def text(self): return next(pages)
         async def __aenter__(self): return self
         async def __aexit__(self, *args): pass
 
     monkeypatch.setattr(tracker_parser, "get_session", lambda: type("S", (), {"get": lambda self, url, timeout: Response()})())
     assert await tracker_parser.resolve_full_image(
-        "https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg", "https://fastpic.org/view/1/2026/1105/abc.avif.html") == expected
+        "https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg", "https://fastpic.org/view/1/2026/1105/abc.avif.html", retry_delay=0) == expected
 
 
 @pytest.mark.asyncio

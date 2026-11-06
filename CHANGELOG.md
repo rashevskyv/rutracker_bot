@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.84] - 2026-11-06
+
+### Fixed
+- The image host page is fetched up to 3 times, 1 s apart, when it fails or has no original. fastpic sometimes answers with an error page (HTTP 502, or "Could not connect to DB server" with HTTP 200); before, one such answer dropped the screenshot. Idea from github.com/sukiboo/fastpic_redirect.
+
 ## [v0.7.83] - 2026-11-06
 
 ### Changed

@@ -386,7 +386,7 @@ def find_screenshots(post_body: Tag, limit: int = 4) -> List[Tuple[str, str]]:
             shots.append((thumb, link if link.startswith(('http://', 'https://')) else thumb))
     return shots[:limit]
 
-async def resolve_full_image(thumb: str, link: str) -> Optional[str]:
+async def resolve_full_image(thumb: str, link: str, attempts: int = 3, retry_delay: float = 1) -> Optional[str]:
     """The original image behind a thumbnail. The link opens the host's viewer page
     (fastpic, imageban) with ads around the image; the original carries the thumbnail's
     file hash in its name. None when there is no original: a thumbnail is never used."""
@@ -394,21 +394,26 @@ async def resolve_full_image(thumb: str, link: str) -> Optional[str]:
         # A bare [img] is the picture itself, unless it is a host's scaled copy
         return None if SCALED_COPY.search(thumb) else thumb
     file_hash = thumb.rsplit('/', 1)[-1].split('.')[0]
-    try:
-        async with get_session().get(link, timeout=20) as response:
-            response.raise_for_status()
-            if response.content_type.startswith('image/'):
-                return link
-            page = await response.text()
-    except Exception as e:
-        logger.warning(f"Screenshot page failed ({e}): {link}")
-        return None
-    for src in re.findall(r'<img[^>]+?src="(https?://[^"]+)"', page):
-        src = html.unescape(src)
-        # fastpic shows big images as a scaled /preview/ copy; the /big/ original is on the page too
-        if file_hash in src and not SCALED_COPY.search(src):
-            return src
-    logger.warning(f"No full image on {link}")
+    # fastpic sometimes answers with an error page (HTTP 502, or "Could not connect to DB server"
+    # with HTTP 200), so the page is fetched again (as github.com/sukiboo/fastpic_redirect does)
+    for attempt in range(1, attempts + 1):
+        if attempt > 1:
+            await asyncio.sleep(retry_delay)
+        try:
+            async with get_session().get(link, timeout=20) as response:
+                response.raise_for_status()
+                if response.content_type.startswith('image/'):
+                    return link
+                page = await response.text()
+        except Exception as e:
+            logger.warning(f"Screenshot page failed ({e}), attempt {attempt}/{attempts}: {link}")
+            continue
+        for src in re.findall(r'<img[^>]+?src="(https?://[^"]+)"', page):
+            src = html.unescape(src)
+            # fastpic shows big images as a scaled /preview/ copy; the /big/ original is on the page too
+            if file_hash in src and not SCALED_COPY.search(src):
+                return src
+        logger.warning(f"No full image on {link}, attempt {attempt}/{attempts}")
     return None
 
 async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str], bool, List[str], List[str]]]:
