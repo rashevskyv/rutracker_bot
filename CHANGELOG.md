@@ -2,6 +2,12 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.83] - 2026-11-06
+
+### Changed
+- A thumbnail is never posted. A screenshot whose original cannot be found on the image host page is dropped. A bare image in the post is kept unless it is a host's scaled copy (`/thumb/`, `/thumbs/`, `/preview/`).
+- When a release has no original screenshots, the bot uses the eShop screenshots from TitleDB again, as before v0.7.81 (still not for homebrew).
+
 ## [v0.7.82] - 2026-11-06
 
 ### Changed

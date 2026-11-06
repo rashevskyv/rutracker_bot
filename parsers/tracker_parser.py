@@ -367,6 +367,8 @@ async def _strategy_author_update_post(soup: BeautifulSoup, base_url: str) -> Op
 # Port of findShots() from github.com/iArtem88/rutracker-games: thumbnails inside the
 # "Скриншоты" spoiler (some authors write a Latin "C"), spoilers can be nested.
 SHOTS_HEAD = re.compile(r'[сc]крин|screen', re.IGNORECASE)
+# Hosts' scaled copies (fastpic /thumb/ and /preview/, imageban /thumbs/)
+SCALED_COPY = re.compile(r'/(thumbs?|preview)/')
 
 def find_screenshots(post_body: Tag, limit: int = 4) -> List[Tuple[str, str]]:
     """(thumbnail, link) pairs from the release post itself, in post order."""
@@ -384,12 +386,13 @@ def find_screenshots(post_body: Tag, limit: int = 4) -> List[Tuple[str, str]]:
             shots.append((thumb, link if link.startswith(('http://', 'https://')) else thumb))
     return shots[:limit]
 
-async def resolve_full_image(thumb: str, link: str) -> str:
+async def resolve_full_image(thumb: str, link: str) -> Optional[str]:
     """The original image behind a thumbnail. The link opens the host's viewer page
     (fastpic, imageban) with ads around the image; the original carries the thumbnail's
-    file hash in its name. Falls back to the thumbnail."""
+    file hash in its name. None when there is no original: a thumbnail is never used."""
     if link == thumb:
-        return thumb
+        # A bare [img] is the picture itself, unless it is a host's scaled copy
+        return None if SCALED_COPY.search(thumb) else thumb
     file_hash = thumb.rsplit('/', 1)[-1].split('.')[0]
     try:
         async with get_session().get(link, timeout=20) as response:
@@ -399,14 +402,14 @@ async def resolve_full_image(thumb: str, link: str) -> str:
             page = await response.text()
     except Exception as e:
         logger.warning(f"Screenshot page failed ({e}): {link}")
-        return thumb
+        return None
     for src in re.findall(r'<img[^>]+?src="(https?://[^"]+)"', page):
         src = html.unescape(src)
         # fastpic shows big images as a scaled /preview/ copy; the /big/ original is on the page too
-        if file_hash in src and not re.search(r'/(thumbs?|preview)/', src):
+        if file_hash in src and not SCALED_COPY.search(src):
             return src
-    logger.warning(f"No full image on {link}, using thumbnail")
-    return thumb
+    logger.warning(f"No full image on {link}")
+    return None
 
 async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str], bool, List[str], List[str]]]:
     soup = await fetch_page_content(entry_url)
@@ -599,7 +602,7 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
-    screenshot_urls = [await resolve_full_image(thumb, link) for thumb, link in find_screenshots(post_body)]
+    screenshot_urls = [url for thumb, link in find_screenshots(post_body) if (url := await resolve_full_image(thumb, link))]
     is_homebrew = is_homebrew or is_homebrew_genre(genres=genres, description=final_description, title=page_display_title)
     return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text, is_homebrew, homebrew_sources, screenshot_urls
 

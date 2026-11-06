@@ -239,6 +239,13 @@ async def main_loop():
                     local_screenshot_paths = await db_manager.download_screenshots(
                         screenshot_urls, game_title=title_text_for_youtube
                     )
+                # No originals in the post: eShop screenshots from TitleDB (they guess wrong for homebrew)
+                if not local_screenshot_paths and not is_homebrew and db_manager:
+                    game_db_data = await asyncio.to_thread(db_manager.find_game_data, title_text_for_youtube)
+                    if game_db_data and isinstance(game_db_data.get('screenshots'), list):
+                        local_screenshot_paths = await db_manager.download_screenshots(
+                            game_db_data['screenshots'], nsuid=game_db_data.get('nsuId'), game_title=title_text_for_youtube
+                        )
 
                 # Send to Telegram
                 try:

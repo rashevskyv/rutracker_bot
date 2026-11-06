@@ -79,7 +79,8 @@ def test_find_screenshots_reads_only_the_screenshots_spoiler():
     # fastpic viewer: the thumbnail is on the page too, the original is the signed /big/ image
     ('<img src="https://i1.fastpic.org/preview/2026/1105/a3/abc.avif?md5=p"><img src="https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg"><img src="https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x&amp;expires=1">',
      "https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x&expires=1"),
-    ('<img src="https://ads.example/banner.jpg">', "https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg"),
+    # No original on the page: no screenshot rather than a thumbnail
+    ('<img src="https://ads.example/banner.jpg"><img src="https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg">', None),
 ])
 async def test_resolve_full_image_picks_the_original_from_the_viewer_page(monkeypatch, page, expected):
     from parsers import tracker_parser
@@ -94,3 +95,11 @@ async def test_resolve_full_image_picks_the_original_from_the_viewer_page(monkey
     monkeypatch.setattr(tracker_parser, "get_session", lambda: type("S", (), {"get": lambda self, url, timeout: Response()})())
     assert await tracker_parser.resolve_full_image(
         "https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg", "https://fastpic.org/view/1/2026/1105/abc.avif.html") == expected
+
+
+@pytest.mark.asyncio
+async def test_resolve_full_image_keeps_bare_image_but_never_a_bare_thumbnail():
+    from parsers.tracker_parser import resolve_full_image
+    assert await resolve_full_image("https://x.org/shot.png", "https://x.org/shot.png") == "https://x.org/shot.png"
+    thumb = "https://i1.imageban.ru/thumbs/2026.11.06/abc.png"
+    assert await resolve_full_image(thumb, thumb) is None
