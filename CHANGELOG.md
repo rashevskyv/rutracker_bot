@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.88] - 2026-11-06
+
+### Changed
+- Every post has one layout: the cover with the caption, the rest of the text, then the screenshots album. The cover is no longer the first item of the screenshots album, and there is no album-with-caption strategy.
+
 ## [v0.7.87] - 2026-11-06
 
 ### Added

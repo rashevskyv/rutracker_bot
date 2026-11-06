@@ -12,7 +12,6 @@ import traceback
 import os
 import logging
 from telebot.types import InputMediaPhoto
-from PIL import Image
 from typing import List, Optional, Tuple, IO # Import IO for type hinting file handles
 import shutil
 
@@ -30,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 # --- Constants ---
 MAX_MEDIA_GROUP_SIZE = 10
-MIN_MEDIA_FOR_GROUP_STRATEGY = 6 # Without a cover, 6+ screenshots carry the caption themselves
 GOOGLE_IMG_SEARCH_URL = "https://www.google.com/search?tbm=isch&q=Nintendo+Switch"
 MAX_DESCRIPTION_LENGTH = 5000 # Summarize if longer than this (approx 2 posts limit)
 
@@ -48,16 +46,6 @@ def _screenshot_media(screenshots: List[str], media_files_opened: List[IO]) -> L
         else:
             logger.warning(f"Warning: Screenshot file not found: {item}")
     return media
-
-
-def _is_landscape(image: BytesIO) -> bool:
-    try:
-        with Image.open(image) as img:
-            return img.width > img.height
-    except Exception:
-        return False
-    finally:
-        image.seek(0)
 
 
 def _sent_file_ids(messages, count: int) -> List[str]:
@@ -146,87 +134,6 @@ async def _send_strategy_separate(
     return media_files_opened, file_ids
 
 
-# --- Private Helper Function for Strategy 2 (Grouped Media) ---
-async def _send_strategy_grouped(
-    chat_id: int,
-    topic_id: Optional[int],
-    message_text: str,
-    cover_image_file: Optional[BytesIO],
-    local_screenshot_paths: List[str],
-    group_name: str = "Unknown",
-    log_file: str = ""
-) -> Tuple[List[IO], List[str]]:
-    """One album (the cover, then the screenshots) with the caption, then the remaining text. Returns opened files and screenshot file_ids."""
-    media_files_opened: List[IO] = []
-    media_group_to_send: List[InputMediaPhoto] = []
-    caption_for_group = ""
-    remaining_text_group = message_text
-
-    if cover_image_file:
-        cover_image_file.seek(0)
-        media_group_to_send.append(InputMediaPhoto(media=cover_image_file))
-
-    # Add Screenshots
-    screenshot_media = _screenshot_media(local_screenshot_paths[:MAX_MEDIA_GROUP_SIZE - len(media_group_to_send)], media_files_opened)
-    media_group_to_send.extend(screenshot_media)
-    file_ids: List[str] = []
-
-    # --- Assign Caption and Send ---
-    if media_group_to_send:
-        caption_parts = split_text(message_text, MAX_CAPTION_LENGTH)
-        if caption_parts:
-            caption_for_group = convert_markdown_to_html(caption_parts[0])
-            caption_for_group = fix_html_for_telegram(caption_for_group)
-            remaining_text_group = "\n".join(caption_parts[1:])
-            media_group_to_send[0].caption = caption_for_group
-            media_group_to_send[0].parse_mode = "HTML"
-            if log_file:
-                with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n=== [{group_name}] STRATEGY 2 MEDIA GROUP CAPTION (len {len(caption_for_group)}) ===\n{caption_for_group}\n")
-        else:
-            remaining_text_group = ""
-
-        # Send Media Group or Single Photo
-        if len(media_group_to_send) > 1:
-            logger.info(f"Sending media group ({len(media_group_to_send)} items)...")
-            sent = await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=media_group_to_send)
-            file_ids = _sent_file_ids(sent, len(screenshot_media))
-            await asyncio.sleep(2)
-        elif len(media_group_to_send) == 1:
-            logger.info("Sending single photo...")
-            single_media_obj = media_group_to_send[0]
-            media_content = single_media_obj.media
-            if hasattr(media_content, 'seek'): media_content.seek(0)
-            await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=media_content, caption=single_media_obj.caption, parse_mode="HTML")
-            if log_file:
-                with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n=== [{group_name}] STRATEGY 2 SINGLE PHOTO CAPTION (len {len(single_media_obj.caption or '')}) ===\n{single_media_obj.caption}\n")
-            await asyncio.sleep(1)
-
-    # Send Remaining Text (if any)
-    if remaining_text_group.strip():
-        logger.debug("Strategy 2: Sending remaining text...")
-        message_parts = split_text(remaining_text_group, MAX_MESSAGE_LENGTH)
-        for i, part in enumerate(message_parts):
-             if part.strip():
-                 formatted_part = convert_markdown_to_html(part)
-                 # Merge fragmented blockquotes tightly
-                 formatted_part = re.sub(r'</blockquote>\s*<blockquote>', '</blockquote><blockquote>', formatted_part, flags=re.IGNORECASE)
-                 formatted_part = fix_html_for_telegram(formatted_part)
-                 logger.debug(f"TG Strategy 2 - Sending Part {i+1} (len {len(formatted_part)}): {formatted_part[:300]}...")
-                 if log_file:
-                     with open(log_file, "a", encoding="utf-8") as f:
-                         f.write(f"\n=== [{group_name}] STRATEGY 2 PART {i+1} (len {len(formatted_part)}) ===\n{formatted_part}\n")
-                 await bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=formatted_part, parse_mode="HTML", disable_web_page_preview=True)
-                 await asyncio.sleep(1)
-             else:
-                  logger.debug("Strategy 2: Skipped sending empty part of remaining text.")
-    else:
-         logger.debug("Strategy 2: No remaining text to send.")
-
-    return media_files_opened, file_ids
-
-
 # --- Main Sending Function (remains the same structure, calls helpers) ---
 async def send_to_telegram(title_for_caption: str,
                      cover_image_url: Optional[str],
@@ -296,11 +203,6 @@ async def send_to_telegram(title_for_caption: str,
 
     # Download media needed for all groups first
     cover_image_file = await download_cover_image_tg(cover_image_url)
-    # A landscape cover joins the screenshots' album; a portrait one would look out of place there
-    if cover_image_file:
-        use_album = bool(local_screenshot_paths) and _is_landscape(cover_image_file)
-    else:
-        use_album = len(local_screenshot_paths) >= MIN_MEDIA_FOR_GROUP_STRATEGY
 
     # --- Assemble message text ONCE before the group loop ---
     description_part = description.strip()
@@ -452,8 +354,8 @@ async def send_to_telegram(title_for_caption: str,
         # --- Execute Sending Strategy ---
         opened_files_for_group: List[IO] = [] # Track files opened for this specific group send
         try:
-            strategy = _send_strategy_grouped if use_album else _send_strategy_separate
-            opened_files_for_group, file_ids = await strategy(
+            # The cover with the caption, then the rest of the text, then the screenshots
+            opened_files_for_group, file_ids = await _send_strategy_separate(
                 chat_id, topic_id, message_text, cover_image_file, local_screenshot_paths,
                 group_name=group_name, log_file=cycle_log_file
             )
