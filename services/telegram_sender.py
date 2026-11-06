@@ -34,6 +34,26 @@ GOOGLE_IMG_SEARCH_URL = "https://www.google.com/search?tbm=isch&q=Nintendo+Switc
 MAX_DESCRIPTION_LENGTH = 5000 # Summarize if longer than this (approx 2 posts limit)
 
 
+def _screenshot_media(screenshots: List[str], media_files_opened: List[IO]) -> List[InputMediaPhoto]:
+    """A local file, or the Telegram file_id of a screenshot sent before (no path separators)."""
+    media: List[InputMediaPhoto] = []
+    for item in screenshots:
+        if os.path.exists(item):
+            file_handle = open(item, 'rb')
+            media_files_opened.append(file_handle) # Add handle to list for later closing
+            media.append(InputMediaPhoto(media=file_handle))
+        elif '/' not in item and os.sep not in item:
+            media.append(InputMediaPhoto(media=item))
+        else:
+            logger.warning(f"Warning: Screenshot file not found: {item}")
+    return media
+
+
+def _sent_file_ids(messages, count: int) -> List[str]:
+    """file_ids of the last `count` photos sent (the screenshots), largest size of each."""
+    return [m.photo[-1].file_id for m in messages[-count:] if getattr(m, 'photo', None)] if count else []
+
+
 # --- Private Helper Function for Strategy 1 (Separate Media) ---
 async def _send_strategy_separate(
     chat_id: int,
@@ -44,8 +64,8 @@ async def _send_strategy_separate(
     local_screenshot_paths: List[str],
     group_name: str = "Unknown",
     log_file: str = ""
-) -> List[IO]:
-    """Handles sending logic when media count is below the threshold."""
+) -> Tuple[List[IO], List[str]]:
+    """Handles sending logic when media count is below the threshold. Returns opened files and screenshot file_ids."""
     media_files_opened: List[IO] = []
     caption_for_photo = ""
     remaining_text = message_text
@@ -117,30 +137,21 @@ async def _send_strategy_separate(
         logger.debug("Strategy 1: No remaining text to send.")
 
     # Send ONLY Screenshots
-    if local_screenshot_paths:
-        screenshot_media_group: List[InputMediaPhoto] = []
-        screenshots_added_count = 0
-        for file_path in local_screenshot_paths:
-            if len(screenshot_media_group) >= MAX_MEDIA_GROUP_SIZE:
-                logger.warning(f"Reached max media group size ({MAX_MEDIA_GROUP_SIZE}), stopping screenshot add.")
-                break
-            if not os.path.exists(file_path):
-                logger.warning(f"Warning: Screenshot file not found: {file_path}")
-                continue
-            try:
-                file_handle = open(file_path, 'rb')
-                media_files_opened.append(file_handle) # Add handle to list for later closing
-                screenshot_media_group.append(InputMediaPhoto(media=file_handle))
-                screenshots_added_count += 1
-            except Exception as open_err:
-                logger.error(f"Error opening screenshot file {file_path}: {open_err}")
+    file_ids: List[str] = []
+    screenshot_media_group = _screenshot_media(local_screenshot_paths[:MAX_MEDIA_GROUP_SIZE], media_files_opened)
+    if len(screenshot_media_group) == 1:
+        # A media group needs 2-10 items
+        logger.info("Sending the only screenshot as a photo...")
+        sent = await bot.send_photo(chat_id=chat_id, message_thread_id=topic_id, photo=screenshot_media_group[0].media)
+        file_ids = _sent_file_ids([sent], 1)
+        await asyncio.sleep(1)
+    elif screenshot_media_group:
+        logger.info(f"Sending screenshot-only media group ({len(screenshot_media_group)} items)...")
+        sent = await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=screenshot_media_group)
+        file_ids = _sent_file_ids(sent, len(screenshot_media_group))
+        await asyncio.sleep(2)
 
-        if screenshot_media_group:
-            logger.info(f"Sending screenshot-only media group ({screenshots_added_count} items)...")
-            await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=screenshot_media_group)
-            await asyncio.sleep(2)
-
-    return media_files_opened
+    return media_files_opened, file_ids
 
 
 # --- Private Helper Function for Strategy 2 (Grouped Media) ---
@@ -154,8 +165,8 @@ async def _send_strategy_grouped(
     is_max_res_thumbnail: bool,
     group_name: str = "Unknown",
     log_file: str = ""
-) -> List[IO]:
-    """Handles sending logic when media count meets or exceeds the threshold."""
+) -> Tuple[List[IO], List[str]]:
+    """Handles sending logic when media count meets or exceeds the threshold. Returns opened files and screenshot file_ids."""
     media_files_opened: List[IO] = []
     media_group_to_send: List[InputMediaPhoto] = []
     caption_for_group = ""
@@ -177,22 +188,9 @@ async def _send_strategy_grouped(
             media_group_to_send.append(InputMediaPhoto(media=trailer_thumbnail_file))
 
     # Add Screenshots
-    if local_screenshot_paths:
-        screenshots_added_count = 0
-        for file_path in local_screenshot_paths:
-            if len(media_group_to_send) >= MAX_MEDIA_GROUP_SIZE:
-                 logger.warning(f"Reached max media group size ({MAX_MEDIA_GROUP_SIZE}), stopping screenshot add.")
-                 break
-            if not os.path.exists(file_path):
-                logger.warning(f"Warning: Screenshot file not found: {file_path}")
-                continue
-            try:
-                file_handle = open(file_path, 'rb')
-                media_files_opened.append(file_handle) # Add handle to list for later closing
-                media_group_to_send.append(InputMediaPhoto(media=file_handle))
-                screenshots_added_count += 1
-            except Exception as open_err:
-                logger.error(f"Error opening screenshot file {file_path}: {open_err}")
+    screenshot_media = _screenshot_media(local_screenshot_paths[:MAX_MEDIA_GROUP_SIZE - len(media_group_to_send)], media_files_opened)
+    media_group_to_send.extend(screenshot_media)
+    file_ids: List[str] = []
 
     # --- Assign Caption and Send ---
     if media_group_to_send:
@@ -212,7 +210,8 @@ async def _send_strategy_grouped(
         # Send Media Group or Single Photo
         if len(media_group_to_send) > 1:
             logger.info(f"Sending media group ({len(media_group_to_send)} items)...")
-            await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=media_group_to_send)
+            sent = await bot.send_media_group(chat_id=chat_id, message_thread_id=topic_id, media=media_group_to_send)
+            file_ids = _sent_file_ids(sent, len(screenshot_media))
             await asyncio.sleep(2)
         elif len(media_group_to_send) == 1:
             logger.info("Sending single photo...")
@@ -246,7 +245,7 @@ async def _send_strategy_grouped(
     else:
          logger.debug("Strategy 2: No remaining text to send.")
 
-    return media_files_opened
+    return media_files_opened, file_ids
 
 
 # --- Main Sending Function (remains the same structure, calls helpers) ---
@@ -258,9 +257,10 @@ async def send_to_telegram(title_for_caption: str,
                      video_id_for_thumbnail: Optional[str] = None,
                      local_screenshot_paths: Optional[List[str]] = None,
                      cycle_log_file: Optional[str] = None,
-                     torrent_size: Optional[str] = None):
+                     torrent_size: Optional[str] = None) -> List[str]:
     """
     Sends the parsed tracker data to configured Telegram groups.
+    Screenshots are file paths or Telegram file_ids; returns the screenshots' file_ids.
     Handles translation, media grouping, and message splitting.
     Uses helper functions for different sending strategies.
     """
@@ -291,6 +291,7 @@ async def send_to_telegram(title_for_caption: str,
 
     if local_screenshot_paths is None:
         local_screenshot_paths = []
+    sent_screenshot_file_ids: List[str] = []
 
     # --- AI Summarization for long descriptions ---
     if len(description) > MAX_DESCRIPTION_LENGTH:
@@ -478,16 +479,19 @@ async def send_to_telegram(title_for_caption: str,
         opened_files_for_group: List[IO] = [] # Track files opened for this specific group send
         try:
             if potential_total_media < MIN_MEDIA_FOR_GROUP_STRATEGY:
-                opened_files_for_group = await _send_strategy_separate(
+                opened_files_for_group, file_ids = await _send_strategy_separate(
                     chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths,
                     group_name=group_name, log_file=cycle_log_file
                 )
             else:
-                opened_files_for_group = await _send_strategy_grouped(
+                opened_files_for_group, file_ids = await _send_strategy_grouped(
                     chat_id, topic_id, message_text, cover_image_file, trailer_thumbnail_file, local_screenshot_paths, is_max_res_thumbnail,
                     group_name=group_name, log_file=cycle_log_file
                 )
             success_count += 1
+            # The next groups get the uploaded screenshots by file_id, not uploaded again
+            if file_ids and len(file_ids) == len(local_screenshot_paths):
+                local_screenshot_paths = sent_screenshot_file_ids = file_ids
 
         except Exception as e:
             logger.error(f"!!! Failed to send message to group {group_name}: {type(e).__name__}: {e}")
@@ -514,6 +518,7 @@ async def send_to_telegram(title_for_caption: str,
         cover_image_file.close()
     if trailer_thumbnail_file and hasattr(trailer_thumbnail_file, 'close') and not trailer_thumbnail_file.closed:
         trailer_thumbnail_file.close()
+    return sent_screenshot_file_ids
 
 
 # --- Other sender functions (send_message_to_admin, send_error_to_telegram, notify_mismatched_trailer) ---

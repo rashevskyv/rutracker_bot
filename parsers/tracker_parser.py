@@ -416,7 +416,7 @@ async def resolve_full_image(thumb: str, link: str, attempts: int = 3, retry_del
         logger.warning(f"No full image on {link}, attempt {attempt}/{attempts}")
     return None
 
-async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str], bool, List[str], List[str]]]:
+async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str], bool, List[str], List[Tuple[str, str]]]]:
     soup = await fetch_page_content(entry_url)
     if not soup:
         raise ValueError(f"Failed to fetch page content (timeout or HTTP error)")
@@ -607,8 +607,7 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
-    screenshot_urls = [url for thumb, link in find_screenshots(post_body) if (url := await resolve_full_image(thumb, link))]
     is_homebrew = is_homebrew or is_homebrew_genre(genres=genres, description=final_description, title=page_display_title)
-    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text, is_homebrew, homebrew_sources, screenshot_urls
+    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text, is_homebrew, homebrew_sources, find_screenshots(post_body)
 
 # --- END OF FILE tracker_parser.py ---

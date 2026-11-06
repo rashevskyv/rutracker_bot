@@ -20,7 +20,7 @@ from parsers.feed_handler import (
     read_last_entry_link, write_last_entry_link, get_new_feed_entries,
     entry_timestamp, read_last_entry_time, write_last_entry_time
 )
-from parsers.tracker_parser import parse_tracker_entry
+from parsers.tracker_parser import parse_tracker_entry, resolve_full_image
 from services.homebrew_registry import register_tracker_homebrew, retry_tracker_homebrew
 from services.youtube_search import search_trailer_on_youtube
 from services.ai_validator import validate_yt_title_with_gpt
@@ -60,6 +60,26 @@ def is_already_posted(entry, posted_links: dict, is_updated: bool) -> bool:
         return datetime.fromisoformat(posted_at).astimezone().timestamp() >= calendar.timegm(updated)
     except (TypeError, ValueError):
         return False
+
+SCREENSHOT_CACHE_FILE = os.path.join("data", "screenshot_file_ids.json")
+
+def load_screenshot_cache() -> dict:
+    """Telegram file_ids of each topic's own screenshots, by topic link. Losing it costs one more image host visit."""
+    try:
+        with open(SCREENSHOT_CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+def save_screenshot_file_ids(url: str, file_ids: List[str]):
+    # ponytail: never pruned, ~300 bytes per release; prune like posted_links if it grows past a few MB
+    cache = load_screenshot_cache()
+    cache[url] = file_ids
+    try:
+        with atomic_open(SCREENSHOT_CACHE_FILE) as f:
+            json.dump(cache, f)
+    except Exception as e:
+        logger.error(f"Error saving screenshot cache: {e}")
 
 async def mark_entry_processed(entry):
     """Advance the feed cursor past an entry that needs no retry."""
@@ -182,7 +202,7 @@ async def main_loop():
                 continue
 
             if parsed_data:
-                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres, raw_update_text, is_homebrew, homebrew_sources, screenshot_urls = parsed_data
+                page_display_title, title_text_for_youtube, cover_image_url, magnet_link, cleaned_description, torrent_size, torrent_language, genres, raw_update_text, is_homebrew, homebrew_sources, screenshot_links = parsed_data
 
                 if not page_display_title or page_display_title == "Unknown Title":
                      logger.error(f"Parser failed to extract display title for {entry_link}. Skipping.")
@@ -233,12 +253,18 @@ async def main_loop():
                 except Exception as yt_err:
                     logger.warning(f"YouTube search/validation failed: {yt_err}")
 
-                # Screenshots come from the release post itself (the "Скриншоты" spoiler)
-                local_screenshot_paths: List[str] = []
-                if screenshot_urls and db_manager:
-                    local_screenshot_paths = await db_manager.download_screenshots(
-                        screenshot_urls, game_title=title_text_for_youtube
-                    )
+                # Screenshots come from the release post itself (the "Скриншоты" spoiler).
+                # A repost ([Обновлено]) sends the file_ids of the first post: no image host again
+                local_screenshot_paths: List[str] = load_screenshot_cache().get(entry_link, [])
+                if local_screenshot_paths:
+                    logger.info(f"Screenshots: {len(local_screenshot_paths)} cached Telegram file_ids.")
+                elif screenshot_links and db_manager:
+                    screenshot_urls = [url for thumb, link in screenshot_links if (url := await resolve_full_image(thumb, link))]
+                    if screenshot_urls:
+                        local_screenshot_paths = await db_manager.download_screenshots(
+                            screenshot_urls, game_title=title_text_for_youtube
+                        )
+                screenshots_from_post = bool(local_screenshot_paths)
                 # No originals in the post: eShop screenshots from TitleDB (they guess wrong for homebrew)
                 if not local_screenshot_paths and not is_homebrew and db_manager:
                     game_db_data = await asyncio.to_thread(db_manager.find_game_data, title_text_for_youtube)
@@ -249,7 +275,7 @@ async def main_loop():
 
                 # Send to Telegram
                 try:
-                     await send_to_telegram(
+                     sent_file_ids = await send_to_telegram(
                           final_title_for_telegram,
                           cover_image_url,
                           magnet_link,
@@ -261,6 +287,8 @@ async def main_loop():
                           torrent_size=torrent_size
                      )
                      processed_count += 1
+                     if screenshots_from_post and sent_file_ids:
+                         save_screenshot_file_ids(entry_link, sent_file_ids)
 
                      if is_homebrew and not IS_TEST_MODE:
                          await register_tracker_homebrew(page_display_title, homebrew_sources)

@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.85] - 2026-11-06
+
+### Added
+- Screenshot cache: `data/screenshot_file_ids.json` keeps the Telegram file_ids of each topic's own screenshots. A repost of the same topic ([Обновлено], ~46% of posts) sends them by file_id, without the image hosts and without a new upload. TitleDB screenshots are not cached. Within one post, the groups after the first also get the screenshots by file_id.
+
+### Fixed
+- One screenshot goes as a photo. A Telegram media group needs 2-10 items, so a release with one screenshot failed to send them.
+
 ## [v0.7.84] - 2026-11-06
 
 ### Fixed
