@@ -110,6 +110,7 @@ OPENAI_BASE_URL = settings.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_BASE
 OPENAI_API_KEY = OPENROUTER_API_KEY or get_env_or_setting(settings, 'OPENAI_API', 'OPENAI_API_KEY') if not OPENAI_BASE_URL else None
 FEED_URL = settings.get('FEED_URL', 'https://feed.rutracker.cc/atom/f/1605.atom')
 YOUTUBE_API_KEY = get_env_or_setting(settings, 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEY')
+STEAMGRIDDB_API_KEY = settings.get('STEAMGRIDDB_API_KEY') or os.environ.get('STEAMGRIDDB_API_KEY')
 FLARESOLVERR_URL = settings.get('FLARESOLVERR_URL', 'http://localhost:8191/v1')
 
 GROUPS = settings.get('GROUPS', [])

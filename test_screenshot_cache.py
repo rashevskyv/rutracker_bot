@@ -23,7 +23,7 @@ async def test_screenshots_return_their_file_ids(monkeypatch, tmp_path, count):
                           send_message=AsyncMock())
     monkeypatch.setattr(telegram_sender, "bot", bot)
     monkeypatch.setattr(telegram_sender.asyncio, "sleep", AsyncMock())
-    files, file_ids = await telegram_sender._send_strategy_separate(1, None, "", None, None, paths)
+    files, file_ids = await telegram_sender._send_strategy_separate(1, None, "", None, paths)
     for f in files:
         f.close()
     assert file_ids == [f"id{i}" for i in range(count)]
@@ -37,7 +37,7 @@ async def test_cached_file_ids_are_sent_as_is(monkeypatch):
     bot = SimpleNamespace(send_media_group=AsyncMock(return_value=[_photo("a"), _photo("b")]), send_message=AsyncMock())
     monkeypatch.setattr(telegram_sender, "bot", bot)
     monkeypatch.setattr(telegram_sender.asyncio, "sleep", AsyncMock())
-    files, file_ids = await telegram_sender._send_strategy_separate(1, None, "", None, None, ["AgACAgIa", "AgACAgIb"])
+    files, file_ids = await telegram_sender._send_strategy_separate(1, None, "", None, ["AgACAgIa", "AgACAgIb"])
     assert files == [] and file_ids == ["a", "b"]
     assert [m.media for m in bot.send_media_group.await_args.kwargs["media"]] == ["AgACAgIa", "AgACAgIb"]
 
@@ -58,3 +58,35 @@ async def test_no_cover_means_no_placeholder(monkeypatch):
     assert await telegram_utils.download_cover_image_tg(None) is None
     assert await telegram_utils.download_cover_image_tg("https://x.org/dead.jpg") is None
     assert fetch.await_count == 1
+
+
+def _image(width, height):
+    from io import BytesIO
+    from PIL import Image
+    image = BytesIO()
+    Image.new("RGB", (width, height)).save(image, "PNG")
+    image.seek(0)
+    return image
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cover_size, album", [((920, 430), True), ((600, 900), False)])
+async def test_landscape_cover_goes_first_in_the_screenshots_album(monkeypatch, cover_size, album):
+    from services import telegram_sender
+    bot = SimpleNamespace(send_photo=AsyncMock(), send_message=AsyncMock(),
+                          send_media_group=AsyncMock(return_value=[_photo("cover"), _photo("a"), _photo("b")]))
+    monkeypatch.setattr(telegram_sender, "bot", bot)
+    monkeypatch.setattr(telegram_sender, "IS_TEST_MODE", True)
+    monkeypatch.setattr(telegram_sender, "TEST_GROUPS", [{"group_name": "t", "chat_id": -1, "language": "RU"}])
+    monkeypatch.setattr(telegram_sender, "download_cover_image_tg", AsyncMock(return_value=_image(*cover_size)))
+    monkeypatch.setattr(telegram_sender.asyncio, "sleep", AsyncMock())
+    file_ids = await telegram_sender.send_to_telegram("Title", "https://x.org/c.png", "magnet:?", "Text", "https://x.org/t", ["AgACAgIa", "AgACAgIb"])
+    media = bot.send_media_group.await_args.kwargs["media"]
+    if album:
+        # One album: the cover with the caption, then the screenshots; the cached ids are only the screenshots'
+        assert bot.send_photo.await_count == 0 and len(media) == 3 and media[0].caption
+        assert [m.media for m in media[1:]] == ["AgACAgIa", "AgACAgIb"]
+    else:
+        # A portrait cover goes alone with the caption, the screenshots follow as their own album
+        assert bot.send_photo.await_count == 1 and [m.media for m in media] == ["AgACAgIa", "AgACAgIb"]
+    assert file_ids == ["a", "b"]

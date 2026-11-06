@@ -7,13 +7,12 @@ import html
 import re
 import json
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs
 from typing import Optional, List
 import os
 import logging
 
 from core.settings_loader import (
-    LOG, IS_TEST_MODE, FEED_URL, TEST_LAST_ENTRY_LINK, YOUTUBE_API_KEY,
+    LOG, IS_TEST_MODE, FEED_URL, TEST_LAST_ENTRY_LINK, YOUTUBE_API_KEY, STEAMGRIDDB_API_KEY,
     last_entry_file_path, last_entry_time_file_path, current_directory, close_clients
 )
 from parsers.feed_handler import (
@@ -21,6 +20,7 @@ from parsers.feed_handler import (
     entry_timestamp, read_last_entry_time, write_last_entry_time
 )
 from parsers.tracker_parser import parse_tracker_entry, resolve_full_image
+from services.steamgriddb import find_landscape_cover
 from services.homebrew_registry import register_tracker_homebrew, retry_tracker_homebrew
 from services.youtube_search import search_trailer_on_youtube
 from services.ai_validator import validate_yt_title_with_gpt
@@ -111,18 +111,6 @@ try:
 except FileNotFoundError as e:
     logger.error(f"Error initializing TitleDBManager: {e}")
     logger.warning("Screenshots from titledb will be unavailable.")
-
-def get_youtube_video_id(url: Optional[str]) -> Optional[str]:
-    """Extracts YouTube video ID from various URL formats."""
-    if not url: return None
-    try:
-        parsed_url = urlparse(url)
-        if "youtube.com" in parsed_url.netloc:
-            if parsed_url.path == "/watch": return parse_qs(parsed_url.query).get("v", [None])[0]
-            if parsed_url.path.startswith(("/embed/", "/v/")): return parsed_url.path.split("/")[2]
-        elif "youtu.be" in parsed_url.netloc: return parsed_url.path[1:]
-    except Exception as e: logger.error(f"Error parsing YouTube URL {url}: {e}")
-    return None
 
 async def main_loop():
     logger.info("-------------------------------------")
@@ -222,9 +210,10 @@ async def main_loop():
                 title_link_html = f'<a href="{entry_link}">{html.escape(page_display_title)}</a>'
                 final_title_for_telegram = f"{update_prefix}{title_link_html}"
 
-                # Search for Trailer & Prepare Thumbnail
-                trailer_thumbnail_url = None # Initialize
-                video_id_for_thumbnail = None # Initialize video ID
+                # A landscape cover goes first in the album with the screenshots; RuTracker covers are portrait
+                cover_image_url = await find_landscape_cover(title_text_for_youtube, STEAMGRIDDB_API_KEY) or cover_image_url
+
+                # Search for Trailer (a link in the title)
                 current_trailer_url = None # For digest
                 try:
                     candidates = await search_trailer_on_youtube(title_text_for_youtube, YOUTUBE_API_KEY)
@@ -239,9 +228,7 @@ async def main_loop():
                     if validated_trailer:
                         trailer_url, found_yt_title = validated_trailer
                         current_trailer_url = trailer_url
-                        video_id_for_thumbnail = get_youtube_video_id(trailer_url)
-                        if video_id_for_thumbnail:
-                            logger.info(f"Trailer validated: '{found_yt_title}' — {trailer_url}")
+                        logger.info(f"Trailer validated: '{found_yt_title}' — {trailer_url}")
                         if 'Trailer</a>' not in final_title_for_telegram:
                             final_title_for_telegram += f' | <a href="{trailer_url}">Trailer</a>'
                     elif candidates:
@@ -281,7 +268,6 @@ async def main_loop():
                           magnet_link,
                           cleaned_description,
                           entry_link,
-                          video_id_for_thumbnail,
                           local_screenshot_paths,
                           cycle_log_file=cycle_log_file,
                           torrent_size=torrent_size

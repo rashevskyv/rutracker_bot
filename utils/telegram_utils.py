@@ -390,41 +390,4 @@ async def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -
         logger.warning("TG: Cover download failed or URL was empty. Posting without a cover.")
     return image
 
-async def download_trailer_thumbnail_tg(video_id: Optional[str], timeout: int = 15) -> Tuple[Optional[BytesIO], Optional[str]]:
-    """
-    Downloads the best available YouTube thumbnail for a video ID.
-
-    Args:
-        video_id: The YouTube video ID.
-        timeout: Download timeout in seconds.
-
-    Returns:
-        A tuple containing:
-        - BytesIO object of the thumbnail image (or None if failed).
-        - String key representing the resolution ('maxres', 'sd', etc.) or None.
-    """
-    if not video_id:
-        return None, None
-
-    logger.debug(f"TG: Attempting to download trailer thumbnail for video ID: {video_id}")
-
-    # Try resolutions from highest to lowest
-    resolutions = [
-        ("maxres", "maxresdefault"), # Max resolution
-        ("sd", "sddefault"),         # Standard definition
-        ("hq", "hqdefault"),         # High quality
-        ("mq", "mqdefault"),         # Medium quality
-        ("default", "default"),      # Default (low quality)
-    ]
-
-    for res_key, filename_part in resolutions:
-        url = f"https://img.youtube.com/vi/{video_id}/{filename_part}.jpg"
-        image = await _try_download_image_tg(url, timeout)
-        if image:
-            logger.debug(f"  TG: Successfully downloaded thumbnail ({res_key}): {url}")
-            return image, res_key # Return image data and resolution key
-
-    logger.warning(f"  TG: Failed to download any thumbnail for video ID: {video_id}")
-    return None, None # Return None if all resolutions failed
-
 # --- END OF FILE telegram_utils.py ---

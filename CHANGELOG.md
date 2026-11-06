@@ -2,6 +2,14 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.87] - 2026-11-06
+
+### Added
+- Landscape cover from SteamGridDB (`STEAMGRIDDB_API_KEY`): a 920x430 grid of the game with the exact release name. It goes first in one album with the screenshots, with the caption on it. Without an exact match the RuTracker cover is used. A portrait cover goes alone, and the screenshots follow as their own album.
+
+### Removed
+- The YouTube trailer thumbnail in posts. The "Trailer" link in the title stays.
+
 ## [v0.7.86] - 2026-11-06
 
 ### Fixed
