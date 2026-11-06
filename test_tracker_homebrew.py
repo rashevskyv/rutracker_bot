@@ -60,13 +60,37 @@ def test_is_homebrew_genre_all_empty():
     assert is_homebrew_genre(genres=[], description="", title="") is False
 
 
-def test_find_screenshot_urls_takes_full_size_from_screenshots_spoiler_only():
+
+def test_find_screenshots_reads_only_the_screenshots_spoiler():
     from bs4 import BeautifulSoup
-    from parsers.tracker_parser import find_screenshot_urls
-    shot = '<var class="postImg" title="https://i1.fastpic.org/thumb/2024/0108/ef/a.jpeg"></var>'
+    from parsers.tracker_parser import find_screenshots
+    thumb, link = "https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg", "https://fastpic.org/view/1/2026/1105/abc.avif.html"
+    shot = f'<a class="postLink" href="{link}"><var class="postImg" title="{thumb}"></var></a>'
     post = BeautifulSoup(
         f'<div><div class="sp-wrap"><div class="sp-head">Cкриншоты</div><div class="sp-body">{shot}{shot}'
-        '<var class="postImg" title="https://imgbox.com/t/b.jpg"></var></div></div>'
+        '<var class="postImg" title="https://x.org/bare.jpg"></var></div></div>'
         '<div class="sp-wrap"><div class="sp-head">Трейлер</div><div class="sp-body">'
         '<var class="postImg" title="https://x.org/no.jpg"></var></div></div></div>', "html.parser")
-    assert find_screenshot_urls(post) == ["https://i1.fastpic.org/big/2024/0108/ef/a.jpg", "https://imgbox.com/t/b.jpg"]
+    assert find_screenshots(post) == [(thumb, link), ("https://x.org/bare.jpg", "https://x.org/bare.jpg")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("page, expected", [
+    # fastpic viewer: the thumbnail is on the page too, the original is the signed /big/ image
+    ('<img src="https://i1.fastpic.org/preview/2026/1105/a3/abc.avif?md5=p"><img src="https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg"><img src="https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x&amp;expires=1">',
+     "https://i1.fastpic.org/big/2026/1105/a3/abc.avif?md5=x&expires=1"),
+    ('<img src="https://ads.example/banner.jpg">', "https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg"),
+])
+async def test_resolve_full_image_picks_the_original_from_the_viewer_page(monkeypatch, page, expected):
+    from parsers import tracker_parser
+
+    class Response:
+        content_type = "text/html"
+        def raise_for_status(self): pass
+        async def text(self): return page
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+
+    monkeypatch.setattr(tracker_parser, "get_session", lambda: type("S", (), {"get": lambda self, url, timeout: Response()})())
+    assert await tracker_parser.resolve_full_image(
+        "https://i1.fastpic.org/thumb/2026/1105/a3/abc.jpeg", "https://fastpic.org/view/1/2026/1105/abc.avif.html") == expected

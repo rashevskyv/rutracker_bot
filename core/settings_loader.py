@@ -6,6 +6,7 @@ from typing import Dict, Optional, Any, List
 from telebot.async_telebot import AsyncTeleBot
 from openai import AsyncOpenAI
 import aiohttp
+from yarl import URL
 from core.logger_setup import setup_logging
 
 # Function load_config remains the same
@@ -169,7 +170,10 @@ def get_session() -> aiohttp.ClientSession:
     if app_session is None or app_session.closed:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'}
         cookies = RUTRACKER_COOKIES or {}
-        app_session = aiohttp.ClientSession(headers=headers, cookies=cookies)
+        # Host-only cookies: without a URL aiohttp sends them to every host (image hosts, APIs)
+        jar = aiohttp.CookieJar()
+        jar.update_cookies(cookies, URL('https://rutracker.org/'))
+        app_session = aiohttp.ClientSession(headers=headers, cookie_jar=jar)
         if cookies:
             logging.info(f"Shared aiohttp ClientSession initialized with {len(cookies)} RuTracker cookie(s).")
         else:

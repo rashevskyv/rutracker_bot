@@ -12,6 +12,7 @@ import aiohttp
 import asyncio
 import logging
 from io import BytesIO 
+from PIL import Image
 from typing import Optional, Dict, Any, List, Tuple, Set
 
 logger = logging.getLogger(__name__)
@@ -165,11 +166,16 @@ class TitleDBManager:
             save_path = os.path.join(self.tmp_screenshot_dir, filename)
             image_data: Optional[BytesIO] = await self._try_download_image(url) # Download first
             if image_data:
-                try: # Save the downloaded data
-                    with open(save_path, 'wb') as f_out: f_out.write(image_data.getbuffer())
+                try: # Telegram shows JPEG and PNG; fastpic keeps some originals as AVIF. A non-image fails here.
+                    with Image.open(image_data) as img:
+                        if img.format in ('JPEG', 'PNG'):
+                            with open(save_path, 'wb') as f_out: f_out.write(image_data.getbuffer())
+                        else:
+                            save_path = os.path.splitext(save_path)[0] + '.jpg'
+                            img.convert('RGB').save(save_path, 'JPEG', quality=92)
                     downloaded_paths.append(save_path)
                 except Exception as write_err:
-                    logger.error(f"FAILED to save downloaded image to {save_path}: {write_err}")
+                    logger.error(f"FAILED to save image from {url}: {write_err}")
             await asyncio.sleep(0.1)
         logger.info(f"Finished download. Successfully got {len(downloaded_paths)} screenshots.")
         return downloaded_paths

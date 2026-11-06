@@ -367,25 +367,46 @@ async def _strategy_author_update_post(soup: BeautifulSoup, base_url: str) -> Op
 # Port of findShots() from github.com/iArtem88/rutracker-games: thumbnails inside the
 # "Скриншоты" spoiler (some authors write a Latin "C"), spoilers can be nested.
 SHOTS_HEAD = re.compile(r'[сc]крин|screen', re.IGNORECASE)
-FASTPIC_THUMB = re.compile(r'^(https?://i\d+\.fastpic\.org)/thumb/(.+)\.jpe?g$', re.IGNORECASE)
 
-def find_screenshot_urls(post_body: Tag, limit: int = 4) -> List[str]:
-    """Full-size screenshot URLs from the release post itself, in post order."""
-    urls: List[str] = []
+def find_screenshots(post_body: Tag, limit: int = 4) -> List[Tuple[str, str]]:
+    """(thumbnail, link) pairs from the release post itself, in post order."""
+    shots: List[Tuple[str, str]] = []
     for wrap in post_body.select('.sp-wrap'):
         head = wrap.find('div', class_='sp-head', recursive=False)
         if not head or not SHOTS_HEAD.search(head.get_text()):
             continue
         for img in wrap.select('.sp-body var.postImg[title]'):
             thumb = img['title']
-            if not thumb.startswith(('http://', 'https://')):
+            if not thumb.startswith(('http://', 'https://')) or any(thumb == t for t, _ in shots):
                 continue
-            # The thumbnail is a tiny 200px copy; fastpic keeps the original under /big/
-            m = FASTPIC_THUMB.match(thumb)
-            url = f"{m[1]}/big/{m[2]}.jpg" if m else thumb
-            if url not in urls:
-                urls.append(url)
-    return urls[:limit]
+            link = img.find_parent('a', class_='postLink')
+            link = link.get('href', '') if link else ''
+            shots.append((thumb, link if link.startswith(('http://', 'https://')) else thumb))
+    return shots[:limit]
+
+async def resolve_full_image(thumb: str, link: str) -> str:
+    """The original image behind a thumbnail. The link opens the host's viewer page
+    (fastpic, imageban) with ads around the image; the original carries the thumbnail's
+    file hash in its name. Falls back to the thumbnail."""
+    if link == thumb:
+        return thumb
+    file_hash = thumb.rsplit('/', 1)[-1].split('.')[0]
+    try:
+        async with get_session().get(link, timeout=20) as response:
+            response.raise_for_status()
+            if response.content_type.startswith('image/'):
+                return link
+            page = await response.text()
+    except Exception as e:
+        logger.warning(f"Screenshot page failed ({e}): {link}")
+        return thumb
+    for src in re.findall(r'<img[^>]+?src="(https?://[^"]+)"', page):
+        src = html.unescape(src)
+        # fastpic shows big images as a scaled /preview/ copy; the /big/ original is on the page too
+        if file_hash in src and not re.search(r'/(thumbs?|preview)/', src):
+            return src
+    logger.warning(f"No full image on {link}, using thumbnail")
+    return thumb
 
 async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Optional[Tuple[str, str, Optional[str], str, str, str, str, List[str], Optional[str], bool, List[str], List[str]]]:
     soup = await fetch_page_content(entry_url)
@@ -578,7 +599,8 @@ async def parse_tracker_entry(entry_url: str, entry_title_from_feed: str) -> Opt
     final_description = make_tag(final_description, "Release year")
     if last_post_text: final_description += f"\n\n{last_post_text}"
 
+    screenshot_urls = [await resolve_full_image(thumb, link) for thumb, link in find_screenshots(post_body)]
     is_homebrew = is_homebrew or is_homebrew_genre(genres=genres, description=final_description, title=page_display_title)
-    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text, is_homebrew, homebrew_sources, find_screenshot_urls(post_body)
+    return page_display_title, title_text_for_youtube, image_url, magnet_link, final_description, torrent_size, torrent_language, genres, last_post_text, is_homebrew, homebrew_sources, screenshot_urls
 
 # --- END OF FILE tracker_parser.py ---

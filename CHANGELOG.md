@@ -2,6 +2,15 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.82] - 2026-11-06
+
+### Changed
+- Release screenshots are the originals, not thumbnails. The bot opens each thumbnail's link (the fastpic or imageban viewer page with ads) and takes the full image named by the thumbnail's file hash, skipping the scaled `/thumb/` and `/preview/` copies. If the page fails, the thumbnail is used.
+- AVIF originals (fastpic) are converted to JPEG before upload, because Telegram does not show AVIF. A downloaded file that is not an image is skipped.
+
+### Security
+- RuTracker cookies in the shared HTTP session are host-only for `rutracker.org`. Before, aiohttp sent them to every host the session called (image hosts, GitHub, APIs).
+
 ## [v0.7.81] - 2026-11-06
 
 ### Changed
