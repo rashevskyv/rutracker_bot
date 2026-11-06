@@ -2,6 +2,11 @@
 
 All notable changes to the RuTracker Bot project will be documented in this file.
 
+## [v0.7.86] - 2026-11-06
+
+### Fixed
+- No "No Cover" placeholder picture. A release without a cover (or with a cover that fails to download) is posted as text, with its screenshots after it.
+
 ## [v0.7.85] - 2026-11-06
 
 ### Added

@@ -48,3 +48,13 @@ def test_screenshot_cache_round_trip(monkeypatch, tmp_path):
     assert main.load_screenshot_cache() == {}
     main.save_screenshot_file_ids("https://rutracker.org/forum/viewtopic.php?t=1", ["a", "b"])
     assert main.load_screenshot_cache() == {"https://rutracker.org/forum/viewtopic.php?t=1": ["a", "b"]}
+
+
+@pytest.mark.asyncio
+async def test_no_cover_means_no_placeholder(monkeypatch):
+    from utils import telegram_utils
+    fetch = AsyncMock(return_value=None)
+    monkeypatch.setattr(telegram_utils, "_try_download_image_tg", fetch)
+    assert await telegram_utils.download_cover_image_tg(None) is None
+    assert await telegram_utils.download_cover_image_tg("https://x.org/dead.jpg") is None
+    assert fetch.await_count == 1

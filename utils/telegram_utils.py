@@ -381,29 +381,14 @@ async def _try_download_image_tg(image_url: str, timeout: int = 15) -> Optional[
 
 async def download_cover_image_tg(image_url: Optional[str], timeout: int = 15) -> Optional[BytesIO]:
     """
-    Downloads the cover image, with a fallback placeholder if needed.
-    Returns a BytesIO object or None.
+    Downloads the cover image. None when there is none: the post goes without a cover
+    rather than with a "No Cover" placeholder.
     """
-    fallback_url = 'https://via.placeholder.com/300x200.png/EEEEEE/000000?text=No+Cover'
     logger.debug("TG: Attempting to download cover image...")
-
     image = await _try_download_image_tg(image_url, timeout) if image_url else None
-
-    if image:
-        logger.debug("TG: Cover image downloaded successfully.")
-        return image
-    else:
-        logger.warning("TG: Cover download failed or URL was empty. Trying fallback...")
-        if image_url != fallback_url:
-            fallback_image = await _try_download_image_tg(fallback_url, timeout)
-            if fallback_image:
-                logger.info("TG: Fallback image downloaded.")
-                return fallback_image
-            else:
-                logger.error("TG: Fallback image download also failed.")
-        else:
-            logger.debug("TG: Original URL was the fallback, not attempting again.")
-        return None
+    if not image:
+        logger.warning("TG: Cover download failed or URL was empty. Posting without a cover.")
+    return image
 
 async def download_trailer_thumbnail_tg(video_id: Optional[str], timeout: int = 15) -> Tuple[Optional[BytesIO], Optional[str]]:
     """
